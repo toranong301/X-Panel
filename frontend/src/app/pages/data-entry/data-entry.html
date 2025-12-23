@@ -1,0 +1,61 @@
+<div class="page-header">
+  <h2>Data Entry</h2>
+  <span class="cycle">Cycle ID: {{ cycleId }}</span>
+</div>
+
+<mat-tab-group>
+
+  <!-- ================= Scope 1 ================= -->
+ <mat-tab label="Scope 1">
+
+  <app-category-section
+    [cycleId]="cycleId"
+    scope="S1"
+    categoryCode="1.1"
+    title="Stationary combustion"
+    [rows]="scope1Rows"
+    (rowsChange)="scope1Rows = $event">
+  </app-category-section>
+
+</mat-tab>
+
+
+
+  <!-- ================= Scope 2 ================= -->
+  <mat-tab label="Scope 2">
+
+    <h3>2.1 Purchased Electricity</h3>
+
+    <app-monthly-entry-grid
+      [rows]="scope2Rows"
+      [readonly]="false"
+      (rowsChange)="scope2Rows = $event">
+    </app-monthly-entry-grid>
+
+  </mat-tab> <!-- ✅ ปิด Scope 2 -->
+
+
+  <!-- ================= Scope 3 ================= -->
+  <mat-tab label="Scope 3">
+
+    <h3>3.1 Purchased Goods and Services</h3>
+
+    <app-monthly-entry-grid
+      [rows]="scope3Rows"
+      [readonly]="false"
+      (rowsChange)="scope3Rows = $event">
+    </app-monthly-entry-grid>
+
+  </mat-tab> <!-- ✅ ปิด Scope 3 -->
+
+</mat-tab-group>
+
+<div class="actions">
+  <button mat-stroked-button color="primary" (click)="goScope3()">
+    Go to Scope 3 Screen
+  </button>
+
+  <button mat-raised-button color="primary" (click)="save()">
+    Save
+  </button>
+</div>

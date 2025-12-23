@@ -1,0 +1,50 @@
+<section class="category-section">
+
+  <!-- Header -->
+  <div class="header">
+    <h3>{{ categoryCode }} {{ title }}</h3>
+    <p class="description" *ngIf="description">
+      {{ description }}
+    </p>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty" *ngIf="rows.length === 0">
+    <p>No data entered for this category.</p>
+    <p class="hint">
+      This category will still be considered in Scope / FR-03.2 assessment.
+    </p>
+
+    <button
+      mat-stroked-button
+      color="primary"
+      (click)="addRow()"
+      *ngIf="!readonly">
+      <mat-icon>add</mat-icon>
+      Add activity
+    </button>
+  </div>
+
+  <!-- Data grid -->
+  <div *ngIf="rows.length > 0">
+
+    <app-monthly-entry-grid
+      [rows]="rows"
+      [readonly]="readonly"
+      (rowsChange)="rowsChange.emit($event)">
+    </app-monthly-entry-grid>
+
+    <!-- Row actions -->
+    <div class="row-actions" *ngIf="!readonly">
+      <button
+        mat-stroked-button
+        color="primary"
+        (click)="addRow()">
+        <mat-icon>add</mat-icon>
+        Add activity
+      </button>
+    </div>
+
+  </div>
+
+</section>

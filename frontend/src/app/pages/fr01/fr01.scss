@@ -1,0 +1,51 @@
+.page { padding: 16px; }
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sub { opacity: 0.7; margin-top: 4px; }
+.header-actions { display: flex; gap: 8px; }
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.full { width: 100%; margin-top: 12px; }
+
+.org-lines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+.photo {
+  border: 1px dashed rgba(0,0,0,0.2);
+  padding: 12px;
+  border-radius: 12px;
+}
+.photo img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.block { padding: 12px; }

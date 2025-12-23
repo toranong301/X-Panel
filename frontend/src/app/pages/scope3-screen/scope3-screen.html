@@ -1,0 +1,170 @@
+<div class="page-header">
+  <div>
+    <h2>Scope 3 Summary</h2>
+    <div class="sub">Cycle ID: {{ cycleId }}</div>
+  </div>
+
+  <div class="header-actions">
+    <button mat-stroked-button (click)="goDataEntry()">
+      <mat-icon>arrow_back</mat-icon>
+      Back to Data Entry
+    </button>
+
+    <button mat-stroked-button (click)="goFr01()">
+      <mat-icon>description</mat-icon>
+      FR-01
+    </button>
+
+    <button mat-raised-button color="primary" (click)="saveDraft()">
+      <mat-icon>save</mat-icon>
+      Save
+    </button>
+
+    <button mat-button color="warn" (click)="resetToMock()">Reset mock</button>
+  </div>
+</div>
+
+<mat-card class="summary-card">
+  <div class="totals">
+    <div class="label">Total Scope 3 (tCO2e)</div>
+    <div class="value">{{ fmt(totalScope3Tco2e, 2) }}</div>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="table-wrap">
+    <table mat-table [dataSource]="screenRows" class="mat-elevation-z0">
+
+      <!-- No. TGO -->
+      <ng-container matColumnDef="tgoNo">
+        <th mat-header-cell *matHeaderCellDef>No. TGO</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'group'">
+            <b>{{ r.tgoNo }}</b>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- Scope in ISO 14064-1 -->
+      <ng-container matColumnDef="scopeIso">
+        <th mat-header-cell *matHeaderCellDef>Scope in ISO 14064-1</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'group'">
+            <b>{{ r.scopeIso }}</b>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- Category (group = categoryLabel, item = itemLabel) -->
+      <ng-container matColumnDef="category">
+        <th mat-header-cell *matHeaderCellDef>Category</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'group'">
+            <b class="group-cat">{{ r.categoryLabel }}</b>
+          </ng-container>
+
+          <ng-container *ngIf="r.type === 'item'">
+            <div class="name">{{ r.itemLabel }}</div>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- unit -->
+      <ng-container matColumnDef="unit">
+        <th mat-header-cell *matHeaderCellDef>หน่วย</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">{{ r.unit }}</ng-container>
+        </td>
+      </ng-container>
+
+      <!-- quantity -->
+      <ng-container matColumnDef="quantity">
+        <th mat-header-cell *matHeaderCellDef>ปริมาณ (ต่อปี)</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <mat-form-field appearance="outline" class="w-160">
+              <input matInput type="number" [(ngModel)]="r.quantityPerYear" (ngModelChange)="onCellChange()" />
+            </mat-form-field>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- remark -->
+      <ng-container matColumnDef="remark">
+        <th mat-header-cell *matHeaderCellDef>หมายเหตุ</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <mat-form-field appearance="outline" class="w-160">
+              <input matInput [(ngModel)]="r.remark" />
+            </mat-form-field>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- dataEvidence -->
+      <ng-container matColumnDef="dataEvidence">
+        <th mat-header-cell *matHeaderCellDef>หลักฐานอ้างอิง (ข้อมูล)</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <mat-form-field appearance="outline" class="w-260">
+              <input matInput [(ngModel)]="r.dataEvidence" />
+            </mat-form-field>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- EF -->
+      <ng-container matColumnDef="ef">
+        <th mat-header-cell *matHeaderCellDef>EF</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <mat-form-field appearance="outline" class="w-120">
+              <input matInput type="number" [(ngModel)]="r.ef" (ngModelChange)="onCellChange()" />
+            </mat-form-field>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- GHG (tCO2eq.) -->
+      <ng-container matColumnDef="ghg">
+        <th mat-header-cell *matHeaderCellDef>GHG (tCO2eq.)</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <div class="num">{{ fmt(r.totalTco2e, 2) }}</div>
+            <div class="hint">= qty * ef / 1000</div>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- % -->
+      <ng-container matColumnDef="pct">
+        <th mat-header-cell *matHeaderCellDef>%</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <div class="num">{{ fmt(r.sharePct, 2) }}</div>
+            <div class="hint">= GHG / ΣGHG * 100</div>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <!-- EF Evidence -->
+      <ng-container matColumnDef="efEvidence">
+        <th mat-header-cell *matHeaderCellDef>หลักฐานอ้างอิง (EF)</th>
+        <td mat-cell *matCellDef="let r">
+          <ng-container *ngIf="r.type === 'item'">
+            <mat-form-field appearance="outline" class="w-320">
+              <input matInput [(ngModel)]="r.efEvidence" />
+            </mat-form-field>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr
+        mat-row
+        *matRowDef="let row; columns: displayedColumns"
+        [class.group-row]="row.type === 'group'"
+      ></tr>
+    </table>
+  </div>
+</mat-card>

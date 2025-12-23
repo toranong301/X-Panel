@@ -1,0 +1,51 @@
+<div class="page-header">
+  <h2>FR-03.1: โครงสร้างองค์กรและหน้าที่ความรับผิดชอบ</h2>
+  <span class="cycle">Cycle ID: {{ cycleId }}</span>
+</div>
+
+<mat-card>
+  <mat-card-content>
+    <p class="hint">
+      ใส่รูป “แผนภาพโครงสร้างองค์กร/หน้าที่รับผิดชอบ” เพื่อให้ export ลง V-Sheet FR-03.1 ได้
+    </p>
+
+    <input #fileInput type="file" accept="image/*" hidden (change)="onImageSelected($event)" />
+
+    <div class="img-area">
+      <div class="preview" *ngIf="form.value.orgStructureImage; else empty">
+        <img [src]="form.value.orgStructureImage!" alt="FR-03.1 preview" />
+      </div>
+
+      <ng-template #empty>
+        <div class="empty">ยังไม่ได้เลือกรูป</div>
+      </ng-template>
+
+      <button mat-raised-button color="primary" (click)="pickImage(fileInput)">
+        <mat-icon>upload</mat-icon>
+        Upload Diagram
+      </button>
+    </div>
+
+    <mat-divider class="divider"></mat-divider>
+
+    <div class="grid">
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>เสร็จสิ้นวันที่</mat-label>
+        <input matInput [matDatepicker]="dp" formControlName="completedDate" />
+        <mat-datepicker-toggle matIconSuffix [for]="dp"></mat-datepicker-toggle>
+        <mat-datepicker #dp></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>หมายเหตุ</mat-label>
+        <textarea matInput rows="3" formControlName="note"></textarea>
+      </mat-form-field>
+    </div>
+
+    <div class="actions">
+      <button mat-stroked-button (click)="backFr02()">Back: FR-02</button>
+      <button mat-raised-button color="primary" (click)="saveDraft()">Save Draft</button>
+      <button mat-stroked-button color="primary" (click)="goFr032()">Next: FR-03.2</button>
+    </div>
+  </mat-card-content>
+</mat-card>

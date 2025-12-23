@@ -1,0 +1,161 @@
+<mat-card class="page">
+  <div class="page-header">
+    <div>
+      <h2>FR-01: รายละเอียดขององค์กร</h2>
+      <div class="sub">Cycle ID: {{ cycleId }}</div>
+    </div>
+
+    <div class="header-actions">
+      <button mat-stroked-button (click)="goDataEntry()">
+        ไป Data Entry
+      </button>
+      <button mat-raised-button color="primary" (click)="saveDraft()">
+        บันทึก (Draft)
+      </button>
+    </div>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <!-- ข้อมูลหัวฟอร์ม -->
+  <div class="grid2">
+    <mat-form-field appearance="outline">
+      <mat-label>องค์กร</mat-label>
+      <input matInput formControlName="orgName" [formControl]="form.controls.orgName" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>ผู้จัดทำ</mat-label>
+      <input matInput formControlName="preparedBy" [formControl]="form.controls.preparedBy" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>วันที่จัดทำ</mat-label>
+      <input matInput [matDatepicker]="dp1" [formControl]="form.controls.preparedDate" />
+      <mat-datepicker-toggle matSuffix [for]="dp1"></mat-datepicker-toggle>
+      <mat-datepicker #dp1></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>วันที่ขอขึ้นทะเบียน</mat-label>
+      <input matInput [matDatepicker]="dp2" [formControl]="form.controls.registrationDate" />
+      <mat-datepicker-toggle matSuffix [for]="dp2"></mat-datepicker-toggle>
+      <mat-datepicker #dp2></mat-datepicker>
+    </mat-form-field>
+  </div>
+
+  <!-- ระยะเวลาเก็บข้อมูล / ปีฐาน -->
+  <div class="grid2">
+    <mat-form-field appearance="outline">
+      <mat-label>เริ่มเก็บข้อมูล</mat-label>
+      <input matInput [matDatepicker]="dp3" [formControl]="form.controls.dataPeriodStart" />
+      <mat-datepicker-toggle matSuffix [for]="dp3"></mat-datepicker-toggle>
+      <mat-datepicker #dp3></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>สิ้นสุดเก็บข้อมูล</mat-label>
+      <input matInput [matDatepicker]="dp4" [formControl]="form.controls.dataPeriodEnd" />
+      <mat-datepicker-toggle matSuffix [for]="dp4"></mat-datepicker-toggle>
+      <mat-datepicker #dp4></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>เริ่มปีฐาน</mat-label>
+      <input matInput [matDatepicker]="dp5" [formControl]="form.controls.baseYearStart" />
+      <mat-datepicker-toggle matSuffix [for]="dp5"></mat-datepicker-toggle>
+      <mat-datepicker #dp5></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>สิ้นสุดปีฐาน</mat-label>
+      <input matInput [matDatepicker]="dp6" [formControl]="form.controls.baseYearEnd" />
+      <mat-datepicker-toggle matSuffix [for]="dp6"></mat-datepicker-toggle>
+      <mat-datepicker #dp6></mat-datepicker>
+    </mat-form-field>
+  </div>
+
+  <!-- ผลผลิต -->
+  <div class="grid2">
+    <mat-form-field appearance="outline">
+      <mat-label>ผลผลิต (ปีปัจจุบัน)</mat-label>
+      <input matInput type="number" [formControl]="form.controls.productionValue" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>หน่วย</mat-label>
+      <input matInput [formControl]="form.controls.productionUnit" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>ผลผลิตปีฐาน</mat-label>
+      <input matInput type="number" [formControl]="form.controls.baseYearProductionValue" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>หน่วย</mat-label>
+      <input matInput [formControl]="form.controls.baseYearProductionUnit" />
+    </mat-form-field>
+  </div>
+
+  <!-- ข้อมูลองค์กร 1..5 -->
+ <h3>ข้อมูลองค์กร</h3>
+<div class="org-lines">
+  <mat-form-field appearance="outline" *ngFor="let c of orgInfoLineControls; let i = index">
+    <mat-label>{{ i + 1 }}</mat-label>
+    <input matInput [formControl]="c" />
+  </mat-form-field>
+</div>
+
+
+  <!-- ที่อยู่ -->
+  <mat-form-field appearance="outline" class="full">
+    <mat-label>สถานที่ติดต่อ</mat-label>
+    <textarea matInput rows="2" [formControl]="form.controls.contactAddress"></textarea>
+  </mat-form-field>
+
+  <!-- รูป -->
+  <h3>รูปขององค์กร</h3>
+  <div class="photos">
+    <div class="photo">
+      <img *ngIf="form.value.orgPhoto1" [src]="form.value.orgPhoto1" />
+      <button mat-stroked-button (click)="onPickPhoto(1, file1)">Import รูป 1</button>
+      <input #file1 type="file" accept="image/*" hidden (change)="onPhotoSelected(1, $event)" />
+    </div>
+
+    <div class="photo">
+      <img *ngIf="form.value.orgPhoto2" [src]="form.value.orgPhoto2" />
+      <button mat-stroked-button (click)="onPickPhoto(2, file2)">Import รูป 2</button>
+      <input #file2 type="file" accept="image/*" hidden (change)="onPhotoSelected(2, $event)" />
+    </div>
+  </div>
+
+  <!-- ขอบเขตขององค์กร -->
+  <h3>ขอบเขตขององค์กร (อ้างอิงโครงจาก Data Entry)</h3>
+
+  <mat-divider></mat-divider>
+
+  <div class="grid3">
+    <mat-card class="block">
+      <h4>Scope 1</h4>
+      <mat-list>
+        <mat-list-item *ngFor="let s of boundary.scope1">{{ s }}</mat-list-item>
+      </mat-list>
+    </mat-card>
+
+    <mat-card class="block">
+      <h4>Scope 2</h4>
+      <mat-list>
+        <mat-list-item *ngFor="let s of boundary.scope2">{{ s }}</mat-list-item>
+      </mat-list>
+    </mat-card>
+
+    <mat-card class="block">
+      <h4>Scope 3</h4>
+      <mat-list>
+        <mat-list-item *ngFor="let s of boundary.scope3">{{ s }}</mat-list-item>
+      </mat-list>
+    </mat-card>
+  </div>
+</mat-card>
+<button mat-stroked-button (click)="goFr02()">ไป FR-02</button>

@@ -1,0 +1,23 @@
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+table {
+  width: 100%;
+}
+
+.status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #e5f0ff;
+  color: #1d4ed8;
+  font-size: 12px;
+
+  &.locked {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+}

@@ -1,0 +1,73 @@
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+
+  .sub {
+    opacity: 0.7;
+    font-size: 13px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+.summary-card {
+  padding: 12px;
+
+  .totals {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 4px;
+
+    .label {
+      opacity: 0.8;
+    }
+
+    .value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+  }
+}
+
+.table-wrap {
+  overflow: auto;
+  padding-top: 10px;
+}
+
+.group-row {
+  background: #e9f6fb; // ฟ้าอ่อนคล้ายตารางคุณ
+  td {
+    font-weight: 700;
+  }
+  .group-cat {
+    letter-spacing: 0.2px;
+  }
+}
+
+.w-120 { width: 120px; }
+.w-160 { width: 160px; }
+.w-260 { width: 260px; }
+.w-320 { width: 320px; }
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.name {
+  line-height: 1.2;
+}

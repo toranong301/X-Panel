@@ -1,0 +1,24 @@
+.page-header{
+  display:flex; justify-content:space-between; align-items:flex-end;
+  margin: 12px 0 16px;
+  .sub{ opacity:.7; font-size:12px; }
+  .header-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+}
+.card{ padding: 12px; }
+.weights{
+  display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+  .title{ font-weight:700; }
+  .w{ opacity:.8; }
+}
+.table-wrap{ overflow:auto; margin-top: 10px; }
+.group-row{
+  display:flex; gap:10px; align-items:center;
+  padding: 8px 6px;
+  background: rgba(0,0,0,.03);
+  .iso{ opacity:.7; }
+  .label{ font-weight:600; }
+}
+.num{ text-align:right; font-variant-numeric: tabular-nums; }
+.w-90{ width: 90px; }
+.w-110{ width: 110px; }
+.w-160{ width: 160px; }

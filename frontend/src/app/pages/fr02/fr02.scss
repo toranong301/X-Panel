@@ -1,0 +1,46 @@
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 8px 0 12px;
+}
+
+.cycle {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.full { width: 100%; }
+.divider { margin: 16px 0; }
+
+.img-area {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.preview img {
+  max-width: 520px;
+  max-height: 320px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+.empty {
+  width: 520px;
+  height: 220px;
+  border-radius: 8px;
+  border: 1px dashed #bbb;
+  display: grid;
+  place-items: center;
+  opacity: 0.7;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
