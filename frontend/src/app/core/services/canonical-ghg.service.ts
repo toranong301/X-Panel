@@ -119,6 +119,7 @@ export class CanonicalGhgService {
       itemLabel: r.itemName,
       unit: r.unit,
       quantityPerYear: qtyYear,
+      dataEvidence: r.referenceText ?? '',
 
       fuelKey,
       quantityMonthly: monthly,
