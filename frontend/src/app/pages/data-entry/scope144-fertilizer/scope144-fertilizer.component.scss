@@ -1,0 +1,122 @@
+:host {
+  display: block;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: #616161;
+  font-size: 13px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 12px;
+}
+
+.layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.table-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 1200px;
+}
+
+.grid th,
+.grid td {
+  border: 1px solid #e0e0e0;
+  padding: 6px;
+  vertical-align: middle;
+}
+
+.grid th {
+  background: #f5f5f5;
+  text-align: center;
+  font-weight: 600;
+}
+
+.text,
+.num {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.month {
+  min-width: 70px;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.empty {
+  text-align: center;
+  color: #757575;
+  padding: 10px;
+}
+
+.btn,
+.btn-danger {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ef-panel {
+  min-width: 220px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+  font-size: 12px;
+}
+
+.ef-panel h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.ef-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ef-row .value {
+  font-weight: 600;
+}
+
+.ef-result {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.table-wrapper table {
+  display: block;
+  overflow-x: auto;
+}
+
+@media (max-width: 1200px) {
+  .layout {
+    flex-direction: column;
+  }
+}

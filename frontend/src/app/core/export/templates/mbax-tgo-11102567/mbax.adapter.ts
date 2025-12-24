@@ -35,6 +35,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeScope12Mobile(ctx);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
+    this.writeScope144Fertilizer(ctx);
     this.writeEvidenceSheet(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
@@ -661,6 +662,51 @@ private writeScope12Mobile(ctx: ExportContext): void {
         const offValue = Number(offMonths?.[m] ?? 0);
         this.setCellValueSafely(ws, `${peopleCol}${janRow + m}`, peopleValue ? peopleValue : null);
         this.setCellValueSafely(ws, `${offCol}${janRow + m}`, offValue ? offValue : null);
+      }
+    }
+  }
+
+  private writeScope144Fertilizer(ctx: ExportContext): void {
+    let ws = ctx.workbook.getWorksheet('1.4.4 ปุ๋ย');
+    if (!ws) {
+      ws = ctx.workbook.worksheets.find((sheet: any) => {
+        const name = String(sheet?.name ?? '').toLowerCase();
+        return name.includes('1.4.4') || name.includes('ปุ๋ย');
+      });
+    }
+    if (!ws) return;
+
+    const MONTH_COLS = ['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] as const;
+    const START_ROW = 4;
+    const MAX_ROWS = 10;
+
+    for (let i = 0; i < MAX_ROWS; i++) {
+      const r = START_ROW + i;
+      this.setCellValueSafely(ws, `A${r}`, null);
+      this.setCellValueSafely(ws, `B${r}`, null);
+      this.setCellValueSafely(ws, `C${r}`, null);
+      for (let m = 0; m < 12; m++) this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, null);
+    }
+
+    const items = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.4.4');
+    const sorted = [...items].sort((a: any, b: any) => Number(a?.slotNo || 0) - Number(b?.slotNo || 0));
+
+    const getMonths = (x: any) => Array.isArray(x?.quantityMonthly) ? x.quantityMonthly : [];
+    const getEvidence = (x: any) => String(x?.dataEvidence ?? '');
+    const getUnit = (x: any) => String(x?.unit ?? 'Kg');
+
+    for (let i = 0; i < Math.min(sorted.length, MAX_ROWS); i++) {
+      const it: any = sorted[i];
+      const r = START_ROW + i;
+
+      this.setCellValueSafely(ws, `A${r}`, String(it?.itemLabel ?? ''));
+      this.setCellValueSafely(ws, `B${r}`, getEvidence(it));
+      this.setCellValueSafely(ws, `C${r}`, getUnit(it));
+
+      const months = getMonths(it);
+      for (let m = 0; m < 12; m++) {
+        const v = Number(months?.[m] ?? 0);
+        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
       }
     }
   }
