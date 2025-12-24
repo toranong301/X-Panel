@@ -73,11 +73,14 @@ export class DataEntryComponent implements OnInit {
   }
 
   save(): void {
+    const existing = this.entrySvc.load(this.cycleId);
     const payload: DataEntryDoc = {
       cycleId: this.cycleId,
       scope1: [...this.scope11Rows, ...this.scope12Rows, ...this.scope141Rows],
       scope2: this.scope2Rows,
       scope3: this.scope3Rows,
+      cfoFixed: existing?.cfoFixed,
+      subsheets: existing?.subsheets,
     };
 
     this.entrySvc.save(this.cycleId, payload);

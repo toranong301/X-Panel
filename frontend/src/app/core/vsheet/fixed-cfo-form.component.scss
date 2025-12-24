@@ -1,0 +1,19 @@
+.cfo-form {
+  display: grid;
+  gap: 16px;
+}
+
+.block-card {
+  padding: 12px;
+}
+
+.block-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.full-width {
+  width: 100%;
+}
