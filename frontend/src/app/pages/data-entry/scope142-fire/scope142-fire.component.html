@@ -1,0 +1,75 @@
+<h3>1.4.2 สารดับเพลิง</h3>
+
+<p class="hint">✅ เพิ่ม/ลบแถวได้ และกรอกได้ 12 เดือน</p>
+
+<div class="header-row">
+  <button type="button" class="btn" (click)="addRow()">+ เพิ่มรายการ</button>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width: 60px">Slot</th>
+      <th>รายการ</th>
+      <th style="width: 160px">สถานที่</th>
+      <th style="width: 160px">หลักฐาน</th>
+      <th style="width: 80px">หน่วย</th>
+      <th style="width: 110px">รวม</th>
+      <th *ngFor="let m of months">{{ m }}</th>
+      <th style="width: 80px"></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let r of rows">
+      <td class="center">{{ slotNo(r) ?? '-' }}</td>
+      <td>
+        <input
+          class="text"
+          [ngModel]="r.itemName"
+          (ngModelChange)="updateField(r, 'itemName', $event)"
+          placeholder="ชื่อรายการ"
+        />
+      </td>
+      <td>
+        <input
+          class="text"
+          [ngModel]="r.location"
+          (ngModelChange)="updateField(r, 'location', $event)"
+          placeholder="สถานที่"
+        />
+      </td>
+      <td>
+        <input
+          class="text"
+          [ngModel]="r.referenceText"
+          (ngModelChange)="updateField(r, 'referenceText', $event)"
+          placeholder="หลักฐาน"
+        />
+      </td>
+      <td>
+        <input
+          class="text center"
+          [ngModel]="r.unit || 'kg'"
+          (ngModelChange)="updateField(r, 'unit', $event)"
+        />
+      </td>
+      <td class="right">{{ formatNumber(total(r), false, 2) }}</td>
+      <td class="month" *ngFor="let m of months">
+        <input
+          type="number"
+          class="num"
+          [ngModel]="getMonthQty(r, m)"
+          (ngModelChange)="updateMonthQty(r, m, $event)"
+          placeholder="0"
+        />
+      </td>
+      <td class="center">
+        <button type="button" class="btn-danger" (click)="removeRow(r)">ลบ</button>
+      </td>
+    </tr>
+
+    <tr *ngIf="rows.length === 0">
+      <td colspan="20" class="empty">ยังไม่มีรายการ — กด “เพิ่มรายการ” เพื่อเพิ่มแถว</td>
+    </tr>
+  </tbody>
+</table>

@@ -12,6 +12,7 @@ import { EntryRow } from '../../models/entry-row.model';
 import { Scope11StationaryComponent } from './scope11-stationary/scope11-stationary.component';
 import { Scope12MobileComponent } from './scope12-mobile/scope12-mobile.component';
 import { Scope14FugitiveComponent } from './scope14-fugitive/scope14-fugitive.component';
+import { Scope142FireComponent } from './scope142-fire/scope142-fire.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -24,6 +25,7 @@ import { Scope14FugitiveComponent } from './scope14-fugitive/scope14-fugitive.co
     Scope11StationaryComponent,
     Scope12MobileComponent,
     Scope14FugitiveComponent,
+    Scope142FireComponent,
   ],
   templateUrl: './data-entry.html',
   styleUrls: ['./data-entry.scss'],
@@ -35,6 +37,7 @@ export class DataEntryComponent implements OnInit {
   scope11Rows: EntryRow[] = [];
   scope12Rows: EntryRow[] = [];
   scope141Rows: EntryRow[] = [];
+  scope142Rows: EntryRow[] = [];
 
   // เผื่อไว้ (ถ้ายังไม่ทำก็ปล่อยว่างได้)
   scope2Rows: EntryRow[] = [];
@@ -57,6 +60,8 @@ export class DataEntryComponent implements OnInit {
       this.scope12Rows = scope12Rows.length ? scope12Rows : makeScope12Defaults(this.cycleId);
       const scope141Rows = scope1Rows.filter(r => r.categoryCode === '1.4.1');
       this.scope141Rows = scope141Rows.length ? scope141Rows : makeScope141Defaults(this.cycleId);
+      const scope142Rows = scope1Rows.filter(r => r.categoryCode === '1.4.2');
+      this.scope142Rows = scope142Rows.length ? scope142Rows : makeScope142Defaults(this.cycleId);
       this.scope2Rows = saved.scope2 ?? [];
       this.scope3Rows = saved.scope3 ?? [];
       return;
@@ -70,13 +75,17 @@ export class DataEntryComponent implements OnInit {
     this.scope11Rows = makeScope11Defaults(this.cycleId);
     this.scope12Rows = makeScope12Defaults(this.cycleId);
     this.scope141Rows = makeScope141Defaults(this.cycleId);
+    this.scope142Rows = makeScope142Defaults(this.cycleId);
   }
 
   save(): void {
     const existing = this.entrySvc.load(this.cycleId);
+    const otherScope1Rows = (existing?.scope1 ?? []).filter(
+      row => !['1.1', '1.2', '1.4.1', '1.4.2'].includes(row.categoryCode)
+    );
     const payload: DataEntryDoc = {
       cycleId: this.cycleId,
-      scope1: [...this.scope11Rows, ...this.scope12Rows, ...this.scope141Rows],
+      scope1: [...this.scope11Rows, ...this.scope12Rows, ...this.scope141Rows, ...this.scope142Rows, ...otherScope1Rows],
       scope2: this.scope2Rows,
       scope3: this.scope3Rows,
       cfoFixed: existing?.cfoFixed,
@@ -195,4 +204,25 @@ function makeScope141Defaults(cycleId: number): EntryRow[] {
       ? 'ใบกำกับภาษี/ใบส่งซ่อม'
       : 'ใบกำกับภาษี/เอกสาร PM',
   }));
+}
+
+function makeScope142Defaults(cycleId: number): EntryRow[] {
+  const mk = (slotNo: number, itemName: string, location: string, referenceText: string): EntryRow => ({
+    cycleId: String(cycleId),
+    scope: 'S1',
+    categoryCode: '1.4.2',
+    subCategoryCode: `FIRE_EXT_AGENT#${slotNo}`,
+    id: `S1-142-${slotNo}`,
+    itemName,
+    location,
+    referenceText,
+    unit: 'kg',
+    months: createEmptyMonths(),
+    dataSourceType: 'ORG',
+  });
+
+  return [
+    mk(1, 'สารดับเพลิง CO2', 'LCB/BKK', 'ใบสั่งซื้อ/เอกสาร PM'),
+    mk(2, 'สารดับเพลิง HCFC-123', 'LCB/BKK (ห้อง Server)', 'ใบสั่งซื้อ/เอกสาร PM'),
+  ];
 }
