@@ -36,6 +36,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
     this.writeScope144Fertilizer(ctx);
+    this.writeScope145WWTP(ctx);
     this.writeEvidenceSheet(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
@@ -709,6 +710,259 @@ private writeScope12Mobile(ctx: ExportContext): void {
         this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
       }
     }
+  }
+
+  private writeScope145WWTP(ctx: ExportContext): void {
+    const ws = this.findWwtpWorksheet(ctx);
+    if (!ws) return;
+
+    const items = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.4.5');
+    const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+    const getMonths = (x: any) => Array.isArray(x?.quantityMonthly) ? x.quantityMonthly : [];
+
+    const qualRows = items
+      .filter((x: any) => getFuelKey(x) === 'WWTP_QUAL')
+      .sort((a: any, b: any) => Number(a?.slotNo || 0) - Number(b?.slotNo || 0));
+    const meterRows = items
+      .filter((x: any) => getFuelKey(x) === 'WWTP_METER')
+      .sort((a: any, b: any) => Number(a?.slotNo || 0) - Number(b?.slotNo || 0));
+
+    const qualityBlock = this.findWwtpQualityBlock(ws);
+    if (qualityBlock) {
+      const { startRow, endRow, monthCols } = qualityBlock;
+      for (let row = startRow; row <= endRow; row++) {
+        for (const col of qualityBlock.inputCols) {
+          this.setCellValueSafely(ws, `${col}${row}`, null);
+        }
+        for (const col of monthCols) {
+          this.setCellValueSafely(ws, `${col}${row}`, null);
+        }
+      }
+
+      for (let i = 0; i < Math.min(qualRows.length, endRow - startRow + 1); i++) {
+        const it: any = qualRows[i];
+        const row = startRow + i;
+        const { system, standard } = this.parseWwtpRemark(String(it?.remark ?? ''));
+
+        this.setCellValueSafely(ws, `${qualityBlock.itemCol}${row}`, String(it?.itemLabel ?? ''));
+        this.setCellValueSafely(ws, `${qualityBlock.systemCol}${row}`, system);
+        this.setCellValueSafely(ws, `${qualityBlock.evidenceCol}${row}`, String(it?.dataEvidence ?? ''));
+        this.setCellValueSafely(ws, `${qualityBlock.unitCol}${row}`, String(it?.unit ?? ''));
+        this.setCellValueSafely(ws, `${qualityBlock.standardCol}${row}`, Number.isFinite(standard) ? standard : null);
+
+        const months = getMonths(it);
+        for (let m = 0; m < 12; m++) {
+          const v = Number(months?.[m] ?? 0);
+          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ? v : null);
+        }
+      }
+    }
+
+    const meterBlock = this.findWwtpMeterBlock(ws);
+    if (meterBlock) {
+      const { startRow, endRow, monthCols } = meterBlock;
+      for (let row = startRow; row <= endRow; row++) {
+        for (const col of meterBlock.inputCols) {
+          this.setCellValueSafely(ws, `${col}${row}`, null);
+        }
+        for (const col of monthCols) {
+          this.setCellValueSafely(ws, `${col}${row}`, null);
+        }
+      }
+
+      for (let i = 0; i < Math.min(meterRows.length, endRow - startRow + 1); i++) {
+        const it: any = meterRows[i];
+        const row = startRow + i;
+
+        this.setCellValueSafely(ws, `${meterBlock.itemCol}${row}`, String(it?.itemLabel ?? ''));
+        this.setCellValueSafely(ws, `${meterBlock.evidenceCol}${row}`, String(it?.dataEvidence ?? ''));
+        this.setCellValueSafely(ws, `${meterBlock.unitCol}${row}`, String(it?.unit ?? ''));
+
+        const months = getMonths(it);
+        for (let m = 0; m < 12; m++) {
+          const v = Number(months?.[m] ?? 0);
+          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ? v : null);
+        }
+      }
+    }
+  }
+
+  private findWwtpWorksheet(ctx: ExportContext): any {
+    let ws = ctx.workbook.getWorksheet('1.4.5 WWTP');
+    if (ws) return ws;
+    return ctx.workbook.worksheets.find((sheet: any) => {
+      const name = String(sheet?.name ?? '').toLowerCase();
+      return name.includes('1.4.5') || name.includes('wwtp') || name.includes('บำบัดน้ำเสีย');
+    });
+  }
+
+  private findWwtpQualityBlock(ws: any): {
+    startRow: number;
+    endRow: number;
+    monthCols: string[];
+    itemCol: string;
+    systemCol: string;
+    evidenceCol: string;
+    unitCol: string;
+    standardCol: string;
+    inputCols: string[];
+  } | null {
+    const maxRows = Math.min(ws.rowCount || 200, 200);
+    const qualityHintRow = this.findRowContainingAny(ws, ['มาตรฐาน', 'bod', 'cod', 'คุณภาพ'], 1);
+    const monthHeader = qualityHintRow
+      ? this.findMonthHeader(ws, qualityHintRow, qualityHintRow + 6, true)
+      : this.findMonthHeader(ws, 1, maxRows, true);
+    if (!monthHeader) return null;
+
+    const headerRow = monthHeader.row;
+    const startRow = headerRow + 1;
+    const meterHeaderRow = this.findRowContaining(ws, ['ตำแหน่ง', 'มิเตอร์'], headerRow);
+
+    const endRow = this.findEndRow(ws, startRow, meterHeaderRow ? meterHeaderRow - 1 : maxRows, ['A', 'B', 'C', 'D', 'E']);
+    if (!endRow || endRow < startRow) return null;
+
+    return {
+      startRow,
+      endRow,
+      monthCols: monthHeader.cols,
+      itemCol: 'A',
+      systemCol: 'B',
+      evidenceCol: 'C',
+      unitCol: 'D',
+      standardCol: 'E',
+      inputCols: ['A', 'B', 'C', 'D', 'E'],
+    };
+  }
+
+  private findWwtpMeterBlock(ws: any): {
+    startRow: number;
+    endRow: number;
+    monthCols: string[];
+    itemCol: string;
+    evidenceCol: string;
+    unitCol: string;
+    inputCols: string[];
+  } | null {
+    const maxRows = Math.min(ws.rowCount || 200, 200);
+    const meterTitleRow = this.findRowContaining(ws, ['ตำแหน่ง', 'มิเตอร์'], 1);
+    if (!meterTitleRow) return null;
+
+    const monthHeader = this.findMonthHeader(ws, meterTitleRow, meterTitleRow + 6, false);
+    if (!monthHeader) return null;
+
+    const startRow = monthHeader.row + 1;
+    const endRow = this.findEndRow(ws, startRow, maxRows, ['A', 'B', 'C']);
+    if (!endRow || endRow < startRow) return null;
+
+    return {
+      startRow,
+      endRow,
+      monthCols: monthHeader.cols,
+      itemCol: 'A',
+      evidenceCol: 'B',
+      unitCol: 'C',
+      inputCols: ['A', 'B', 'C'],
+    };
+  }
+
+  private findMonthHeader(ws: any, startRow: number, endRow: number, numericOnly: boolean): { row: number; cols: string[] } | null {
+    const maxCols = Math.max(ws.columnCount || 20, 20);
+    for (let r = startRow; r <= endRow; r++) {
+      const monthCols: Record<number, number> = {};
+      for (let c = 1; c <= maxCols; c++) {
+        const text = this.getCellText(ws.getCell(r, c).value);
+        const monthIdx = this.parseMonthIndex(text, numericOnly);
+        if (monthIdx) monthCols[monthIdx] = c;
+      }
+
+      if (Object.keys(monthCols).length >= 10) {
+        const cols: string[] = [];
+        for (let m = 1; m <= 12; m++) {
+          const colNo = monthCols[m];
+          if (!colNo) return null;
+          cols.push(this.colToLetter(colNo));
+        }
+        return { row: r, cols };
+      }
+    }
+    return null;
+  }
+
+  private parseMonthIndex(text: string, numericOnly: boolean): number | null {
+    const normalized = String(text || '').trim().toLowerCase();
+    if (!normalized) return null;
+    const num = Number(normalized.replace(/[^\d]/g, ''));
+    if (num >= 1 && num <= 12) return num;
+    if (numericOnly) return null;
+
+    const thaiMonths = ['ม.ค', 'ก.พ', 'มี.ค', 'เม.ย', 'พ.ค', 'มิ.ย', 'ก.ค', 'ส.ค', 'ก.ย', 'ต.ค', 'พ.ย', 'ธ.ค'];
+    const idx = thaiMonths.findIndex(m => normalized.includes(m));
+    if (idx >= 0) return idx + 1;
+    return null;
+  }
+
+  private findRowContaining(ws: any, keywords: string[], startRow: number): number | null {
+    const maxRows = Math.min(ws.rowCount || 200, 200);
+    const maxCols = Math.max(ws.columnCount || 20, 20);
+    const lowered = keywords.map(k => k.toLowerCase());
+    for (let r = startRow; r <= maxRows; r++) {
+      for (let c = 1; c <= maxCols; c++) {
+        const text = this.getCellText(ws.getCell(r, c).value).toLowerCase();
+        if (!text) continue;
+        if (lowered.every(k => text.includes(k))) return r;
+      }
+    }
+    return null;
+  }
+
+  private findRowContainingAny(ws: any, keywords: string[], startRow: number): number | null {
+    const maxRows = Math.min(ws.rowCount || 200, 200);
+    const maxCols = Math.max(ws.columnCount || 20, 20);
+    const lowered = keywords.map(k => k.toLowerCase());
+    for (let r = startRow; r <= maxRows; r++) {
+      for (let c = 1; c <= maxCols; c++) {
+        const text = this.getCellText(ws.getCell(r, c).value).toLowerCase();
+        if (!text) continue;
+        if (lowered.some(k => text.includes(k))) return r;
+      }
+    }
+    return null;
+  }
+
+  private findEndRow(ws: any, startRow: number, maxRow: number, cols: string[]): number | null {
+    let lastRow = startRow - 1;
+    let emptyStreak = 0;
+    for (let r = startRow; r <= maxRow; r++) {
+      const hasValue = cols.some(col => this.getCellText(ws.getCell(`${col}${r}`).value));
+      if (hasValue) {
+        lastRow = r;
+        emptyStreak = 0;
+      } else {
+        emptyStreak += 1;
+        if (emptyStreak >= 2 && lastRow >= startRow) break;
+      }
+    }
+    return lastRow >= startRow ? lastRow : null;
+  }
+
+  private parseWwtpRemark(remark: string): { system: string; standard: number | null } {
+    const match = String(remark || '').match(/standard\s*=\s*([0-9.]+)/i);
+    const standard = match ? Number(match[1]) : null;
+    const system = String(remark || '')
+      .replace(/\s*\|\s*standard\s*=\s*[^|]+/i, '')
+      .trim();
+    return { system, standard: Number.isFinite(standard) ? standard : null };
+  }
+
+  private colToLetter(col: number): string {
+    let num = col;
+    let letters = '';
+    while (num > 0) {
+      const mod = (num - 1) % 26;
+      letters = String.fromCharCode(65 + mod) + letters;
+      num = Math.floor((num - mod) / 26);
+    }
+    return letters || 'A';
   }
 
   private writeEvidenceSheet(ctx: ExportContext): void {

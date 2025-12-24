@@ -17,6 +17,7 @@ import { Scope14FugitiveComponent } from './scope14-fugitive/scope14-fugitive.co
 import { Scope142FireComponent } from './scope142-fire/scope142-fire.component';
 import { Scope143SepticComponent } from './scope143-septic/scope143-septic.component';
 import { Scope144FertilizerComponent } from './scope144-fertilizer/scope144-fertilizer.component';
+import { Scope145WwtpComponent } from './scope145-wwtp/scope145-wwtp.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -32,6 +33,7 @@ import { Scope144FertilizerComponent } from './scope144-fertilizer/scope144-fert
     Scope142FireComponent,
     Scope143SepticComponent,
     Scope144FertilizerComponent,
+    Scope145WwtpComponent,
     EvidenceBlockComponent,
   ],
   templateUrl: './data-entry.html',
@@ -47,6 +49,7 @@ export class DataEntryComponent implements OnInit {
   scope142Rows: EntryRow[] = [];
   scope143Rows: EntryRow[] = [];
   scope144Rows: EntryRow[] = [];
+  scope145Rows: EntryRow[] = [];
 
   evidenceMap: Record<string, EvidenceModel> = {};
 
@@ -77,6 +80,8 @@ export class DataEntryComponent implements OnInit {
       this.scope143Rows = scope143Rows.length ? scope143Rows : makeScope143Defaults(this.cycleId);
       const scope144Rows = scope1Rows.filter(r => r.categoryCode === '1.4.4');
       this.scope144Rows = scope144Rows.length ? scope144Rows : makeScope144Defaults(this.cycleId);
+      const scope145Rows = scope1Rows.filter(r => r.categoryCode === '1.4.5');
+      this.scope145Rows = scope145Rows.length ? scope145Rows : makeScope145Defaults(this.cycleId);
       this.scope2Rows = saved.scope2 ?? [];
       this.scope3Rows = saved.scope3 ?? [];
       this.evidenceMap = saved.evidence ?? {};
@@ -96,12 +101,13 @@ export class DataEntryComponent implements OnInit {
     this.scope142Rows = makeScope142Defaults(this.cycleId);
     this.scope143Rows = makeScope143Defaults(this.cycleId);
     this.scope144Rows = makeScope144Defaults(this.cycleId);
+    this.scope145Rows = makeScope145Defaults(this.cycleId);
   }
 
   save(): void {
     const existing = this.entrySvc.load(this.cycleId);
     const otherScope1Rows = (existing?.scope1 ?? []).filter(
-      row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3', '1.4.4'].includes(row.categoryCode)
+      row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3', '1.4.4', '1.4.5'].includes(row.categoryCode)
     );
     const payload: DataEntryDoc = {
       cycleId: this.cycleId,
@@ -112,6 +118,7 @@ export class DataEntryComponent implements OnInit {
         ...this.scope142Rows,
         ...this.scope143Rows,
         ...this.scope144Rows,
+        ...this.scope145Rows,
         ...otherScope1Rows,
       ],
       scope2: this.scope2Rows,
@@ -148,6 +155,7 @@ export class DataEntryComponent implements OnInit {
       'S1::1.4.3::group3',
       'S1::1.4.3::group4',
       'S1::1.4.4',
+      'S1::1.4.5',
     ];
     let updated = false;
     const next = { ...this.evidenceMap };
@@ -338,5 +346,63 @@ function makeScope144Defaults(cycleId: number): EntryRow[] {
       months,
       dataSourceType: 'ORG',
     },
+  ];
+}
+
+function makeScope145Defaults(cycleId: number): EntryRow[] {
+  const makeMonths = (values: number[]): EntryRow['months'] => {
+    const months = createEmptyMonths();
+    months.forEach((m, idx) => {
+      m.qty = Number(values[idx] ?? 0);
+    });
+    return months;
+  };
+
+  const makeQual = (
+    slotNo: number,
+    itemName: string,
+    standard: string,
+    months: number[]
+  ): EntryRow => ({
+    cycleId: String(cycleId),
+    scope: 'S1',
+    categoryCode: '1.4.5',
+    subCategoryCode: `WWTP_QUAL#${slotNo}`,
+    itemName,
+    location: 'ระบบเติมอากาศ',
+    referenceText: 'ผลตรวจวิเคราะห์น้ำ',
+    unit: 'mg/l',
+    remark: standard,
+    months: makeMonths(months),
+    dataSourceType: 'ORG',
+  });
+
+  const makeMeter = (
+    slotNo: number,
+    itemName: string,
+    months: number[]
+  ): EntryRow => ({
+    cycleId: String(cycleId),
+    scope: 'S1',
+    categoryCode: '1.4.5',
+    subCategoryCode: `WWTP_METER#${slotNo}`,
+    itemName,
+    referenceText: 'ใบแจ้งหนี้',
+    unit: 'm3',
+    months: makeMonths(months),
+    dataSourceType: 'ORG',
+  });
+
+  return [
+    makeQual(1, 'BOD (น้ำออก) MBAX 1', '500', [124, 95, 120, 38, 65, 84, 72, 56, 88, 47, 136, 137]),
+    makeQual(2, 'BOD (น้ำออก) MBAX 3', '500', [90, 60, 84, 111, 78, 64, 49, 47, 62, 110, 45, 80]),
+    makeQual(3, 'BOD (น้ำออก) MBAX 5', '500', [90, 70, 43, 69, 66, 77, 65, 67, 83, 124, 75, 65]),
+    makeQual(4, 'COD (น้ำออก) MBAX 1', '750', [236, 294, 298, 148, 155, 214, 252, 203, 222, 205, 365, 321]),
+    makeQual(5, 'COD (น้ำออก) MBAX 3', '750', [172, 123, 137, 266, 219, 179, 172, 140, 191, 263, 124, 177]),
+    makeQual(6, 'COD (น้ำออก) MBAX 5', '750', [176, 186, 145, 179, 179, 221, 514, 182, 198, 204, 235, 190]),
+    makeMeter(1, 'โรงงาน1,2', [1024.8, 1576, 1497.6, 980, 1624.8, 1507.2, 1276, 2502.4, 1448, 1199.2, 1987.2, 819.2]),
+    makeMeter(2, 'โรงงาน 5', [1320, 1068, 1194.4, 1145.6, 1396, 1412.8, 1315.2, 1326.4, 405.6, 354.4, 504.8, 1292.8]),
+    makeMeter(3, 'โรงงาน 3', [987.2, 710.4, 740, 633.6, 1067.2, 816, 702.4, 706.4, 616, 608.8, 652.8, 715.2]),
+    makeMeter(4, 'โรงงาน 4', [508.8, 455.2, 484.8, 290.4, 309.6, 384, 389.6, 468, 405.6, 354.4, 504.8, 464]),
   ];
 }
