@@ -118,6 +118,8 @@ export class CanonicalGhgService {
     const qtyYear = monthly.reduce((s, n) => s + Number(n || 0), 0);
 
     const { fuelKey, slotNo } = this.parseFuelKeyAndSlot(r.subCategoryCode);
+    const fallbackLabel = this.getScope1Label(fuelKey);
+    const itemLabel = r.itemName || fallbackLabel || '';
 
     const categoryLabel =
       r.categoryCode === '1.1' ? 'Stationary combustion' :
@@ -138,7 +140,7 @@ export class CanonicalGhgService {
       tgoNo: `Scope ${r.categoryCode}`,  // ให้ filter แบบเดิมใน adapter ผ่านแน่นอน
       isoScope: '',
       categoryLabel,
-      itemLabel: r.itemName,
+      itemLabel,
       unit: r.categoryCode === '1.4.4' ? 'Kg' : r.unit,
       quantityPerYear: qtyYear,
       remark,
@@ -176,6 +178,22 @@ export class CanonicalGhgService {
       fuelKey: fuelKey || undefined,
       slotNo: Number.isFinite(slotNo) ? slotNo : undefined,
     };
+  }
+
+  private getScope1Label(fuelKey?: string): string {
+    if (!fuelKey) return '';
+    const labels: Record<string, string> = {
+      DIESEL_B7_STATIONARY: 'น้ำมัน Diesel B7 (Fire Pump)',
+      GASOHOL_9195_STATIONARY: 'น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)',
+      ACETYLENE_TANK5_MAINT_2: 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2',
+      ACETYLENE_TANK5_MAINT_3: 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3',
+      DIESEL_B7_ONROAD: 'Diesel B7 on-road',
+      DIESEL_B10_ONROAD: 'Diesel B10 on-road',
+      GASOHOL_9195: 'Gasohol 91/95',
+      GASOHOL_E20: 'Gasohol E20',
+      DIESEL_B7_OFFROAD: 'Diesel B7 off-road (forklift)',
+    };
+    return labels[String(fuelKey || '').trim().toUpperCase()] ?? '';
   }
 
   private mapScope3ToInventory(it: Scope3ItemRow): InventoryItemRow {
