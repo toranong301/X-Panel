@@ -16,6 +16,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ExcelExportEngine, ExportReport } from '../../core/export/engine/excel-export.engine';
 import { resolveTemplate } from '../../core/export/registry/template-registry';
 import { CanonicalCycleData, CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { DataEntryService } from '../../core/services/data-entry.service';
 import { InventoryItemRow } from '../../models/refs.model';
 
 type Fr041Row = {
@@ -53,19 +54,26 @@ export class Fr041Component implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private canonicalSvc = inject(CanonicalGhgService);
+  private dataEntrySvc = inject(DataEntryService);
   private exportEngine = inject(ExcelExportEngine);
   private snackBar = inject(MatSnackBar);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
 
   // templates (add more by registering in resolveTemplate)
-  templateId: string = 'MBAX_TGO_11102567';
+  templateOptions = [
+    { key: 'MBAX_TGO_11102567::demo', label: 'MBAX-TGO-11102567 (Demo)' },
+  ];
+  templateKey = this.templateOptions[0]?.key ?? 'MBAX_TGO_11102567::demo';
 
   // Excel features toggle (some orgs use older Excel versions)
   useModernExcel = false;
 
   // data preview
   fr041Rows: Fr041Row[] = [];
+  scope1RowCount = 0;
+  hasScope1Data = false;
+  selectedScope3: any[] = [];
 
   // report
   report: ExportReport | null = null;
@@ -77,8 +85,11 @@ export class Fr041Component implements OnInit {
   }
 
   reloadPreview() {
-    const canonical = this.canonicalSvc.buildCanonicalForCycle(this.cycleId);
+    this.dataEntrySvc.load(this.cycleId);
+    const canonical = this.canonicalSvc.build(this.cycleId);
     this.fr041Rows = this.buildFr041Rows(canonical);
+    this.scope1RowCount = this.fr041Rows.filter(row => row.type === 'data').length;
+    this.hasScope1Data = this.scope1RowCount > 0;
   }
 
   async exportVSheet() {
@@ -87,17 +98,20 @@ export class Fr041Component implements OnInit {
     this.report = null;
 
     try {
-      const canonical = this.canonicalSvc.build(this.cycleId);
-      const bundle = resolveTemplate(this.templateId);
+      const canonical = await this.canonicalSvc.build(this.cycleId);
+      const bundle = resolveTemplate(this.templateKey);
+      const selections = { significantScope3Top6: this.selectedScope3 };
 
-      const filename = `V-Sheet_${this.templateId}_cycle-${this.cycleId}.xlsx`;
+      const outputName = `V-Sheet_${bundle.spec.templateId}_cycle-${this.cycleId}.xlsx`;
+      console.log(bundle.templateUrl, outputName);
 
       this.report = await this.exportEngine.exportFromUrl({
         templateUrl: bundle.templateUrl,
-        spec: bundle.spec,
+        templateSpec: bundle.spec,
         adapter: bundle.adapter,
         canonical,
-        filename,
+        selections,
+        outputName,
         excelFeaturesOverride: {
           dynamicArray: this.useModernExcel,
           xlookup: this.useModernExcel,
@@ -105,6 +119,7 @@ export class Fr041Component implements OnInit {
       });
     } catch (e: any) {
       console.error('Export FR-04.1 failed', e);
+      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
       this.exportError = e?.message || String(e);
       this.snackBar.open(this.exportError ?? 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
     } finally {
@@ -130,35 +145,41 @@ export class Fr041Component implements OnInit {
     const rows: Fr041Row[] = [];
     const inventory = (canonical.inventory ?? []) as InventoryItemRow[];
 
-    const scope1 = inventory.filter(item => Number(item.scope) === 1);
-    const scope2 = inventory.filter(item => Number(item.scope) === 2);
-    const scope3 = inventory.filter(item => Number(item.scope) === 3);
+    const scope1 = inventory.filter(item =>
+      Number(item.scope) === 1 &&
+      (String(item.subScope) === '1.1' || String(item.subScope) === '1.2'),
+    );
 
     rows.push({ type: 'section', label: 'ขอบเขต 1' });
     this.pushScope1Groups(rows, scope1);
-
-    rows.push({ type: 'section', label: 'ขอบเขต 2' });
-    this.pushItemRows(rows, scope2, 'ยังไม่มีข้อมูลขอบเขต 2');
-
-    rows.push({ type: 'section', label: 'ขอบเขต 3' });
-    this.pushItemRows(rows, scope3, 'ยังไม่มีข้อมูลขอบเขต 3');
 
     return rows;
   }
 
   private pushScope1Groups(rows: Fr041Row[], items: InventoryItemRow[]) {
-    const stationary = items.filter(item => String(item.subScope) === '1.1');
-    const mobile = items.filter(item => String(item.subScope) === '1.2');
-    const fugitive = items.filter(item => String(item.subScope).startsWith('1.4'));
+    if (!items.length) {
+      rows.push({ type: 'empty', label: 'ยังไม่มีข้อมูล กรุณากรอก Data-entry ก่อน' });
+      return;
+    }
 
-    rows.push({ type: 'group', label: 'Stationary combustion' });
-    this.pushItemRows(rows, stationary, 'ยังไม่มีข้อมูล Stationary combustion');
+    const sorted = [...items].sort((a, b) => {
+      const scopeCompare = String(a.subScope || '').localeCompare(String(b.subScope || ''));
+      if (scopeCompare !== 0) return scopeCompare;
+      return String(a.itemLabel || '').localeCompare(String(b.itemLabel || ''));
+    });
 
-    rows.push({ type: 'group', label: 'Mobile combustion' });
-    this.pushItemRows(rows, mobile, 'ยังไม่มีข้อมูล Mobile combustion');
+    const grouped = new Map<string, InventoryItemRow[]>();
+    for (const item of sorted) {
+      const label = String(item.categoryLabel || 'อื่น ๆ');
+      const list = grouped.get(label) ?? [];
+      list.push(item);
+      grouped.set(label, list);
+    }
 
-    rows.push({ type: 'group', label: 'Fugitive' });
-    this.pushItemRows(rows, fugitive, 'ยังไม่มีข้อมูล Fugitive');
+    for (const [label, groupItems] of grouped.entries()) {
+      rows.push({ type: 'group', label });
+      this.pushItemRows(rows, groupItems, 'ยังไม่มีข้อมูล');
+    }
   }
 
   private pushItemRows(rows: Fr041Row[], items: InventoryItemRow[], emptyLabel: string) {
@@ -184,7 +205,7 @@ export class Fr041Component implements OnInit {
 
       rows.push({
         type: 'data',
-        scopeLabel: String(item.subScope || ''),
+        scopeLabel: 'ขอบเขต 1',
         itemLabel: String(item.itemLabel || ''),
         unit: String(item.unit || ''),
         quantity,

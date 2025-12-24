@@ -41,9 +41,10 @@ export class ExcelExportEngine {
     adapter: TemplateAdapter;
     canonical: CanonicalCycleData;
     filename: string;
+    selections?: Record<string, any[]>;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
   }): Promise<ExportReport> {
-    const { templateArrayBuffer, spec, adapter, canonical, filename, excelFeaturesOverride } = params;
+    const { templateArrayBuffer, spec, adapter, canonical, filename, excelFeaturesOverride, selections } = params;
 
     const mergedSpec: VSheetTemplateSpec = {
       ...spec,
@@ -53,7 +54,7 @@ export class ExcelExportEngine {
     const workbook = new (ExcelJS as any).Workbook();
     await workbook.xlsx.load(templateArrayBuffer);
 
-    const selections = runSelections(mergedSpec.selectionRules, canonical);
+    const resolvedSelections = selections ?? runSelections(mergedSpec.selectionRules, canonical);
     const report: ExportReport = { templateId: mergedSpec.templateId, version: mergedSpec.version, validations: [] };
 
     // 1) Generic section application (declarative)
@@ -80,7 +81,7 @@ export class ExcelExportEngine {
       throw new Error(`Adapter '${adapter.id}' does not support templateId '${mergedSpec.templateId}'`);
     }
 
-    const ctx: ExportContext = { spec: mergedSpec, workbook, canonical, selections, report };
+    const ctx: ExportContext = { spec: mergedSpec, workbook, canonical, selections: resolvedSelections, report };
     await adapter.apply(ctx);
 
     // 3) Validation
@@ -96,10 +97,11 @@ export class ExcelExportEngine {
   /** Convenience: load template from assets URL */
   async exportFromUrl(params: {
     templateUrl: string;
-    spec: VSheetTemplateSpec;
+    templateSpec: VSheetTemplateSpec;
     adapter: TemplateAdapter;
     canonical: CanonicalCycleData;
-    filename: string;
+    selections?: Record<string, any[]>;
+    outputName: string;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
   }): Promise<ExportReport> {
     const res = await fetch(params.templateUrl);
@@ -107,10 +109,11 @@ export class ExcelExportEngine {
     const buffer = await res.arrayBuffer();
     return this.export({
       templateArrayBuffer: buffer,
-      spec: params.spec,
+      spec: params.templateSpec,
       adapter: params.adapter,
       canonical: params.canonical,
-      filename: params.filename,
+      selections: params.selections,
+      filename: params.outputName,
       excelFeaturesOverride: params.excelFeaturesOverride,
     });
   }

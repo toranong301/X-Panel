@@ -31,8 +31,8 @@
   <div class="grid">
     <mat-form-field appearance="outline" class="w-320">
       <mat-label>Export template</mat-label>
-      <mat-select [(ngModel)]="templateId">
-        <mat-option value="MBAX_TGO_11102567">MBAX-TGO-11102567 (Demo)</mat-option>
+      <mat-select [(ngModel)]="templateKey">
+        <mat-option *ngFor="let tpl of templateOptions" [value]="tpl.key">{{ tpl.label }}</mat-option>
       </mat-select>
     </mat-form-field>
 
@@ -42,10 +42,21 @@
   </div>
 
   <div class="hint">
-    FR-04.1 จะดึงรายการ Scope 3 จาก FR-03.2 เฉพาะที่ <b>มีนัยสำคัญ</b> และ <b>เลือกประเมิน</b> (Top 6 ตาม GHG)
+    ตาราง FR-04.1 (Scope 1) แสดงข้อมูลที่บันทึกจาก Data-entry และจะสะท้อนทันทีหลังบันทึกข้อมูล
   </div>
 
   <mat-divider></mat-divider>
+
+  <div class="table-title">ตาราง FR-04.1</div>
+
+  <div class="table-meta">
+    <div>จำนวนแถว Scope 1: <b>{{ scope1RowCount }}</b></div>
+    <div class="muted">อ้างอิงข้อมูลจาก localStorage ผ่าน DataEntryService</div>
+  </div>
+
+  <div class="empty-state" *ngIf="!hasScope1Data">
+    ยังไม่มีข้อมูล กรุณากรอก Data-entry ก่อน
+  </div>
 
   <div class="table-wrap">
     <table class="fr041-table">
@@ -54,10 +65,11 @@
           <th rowspan="2">ขอบเขต</th>
           <th rowspan="2">รายการ</th>
           <th rowspan="2">หน่วย</th>
-          <th rowspan="2" class="num">ปริมาณรายปี</th>
+          <th colspan="1">ข้อมูลกิจกรรม</th>
           <th colspan="2">การคำนวณ GHG</th>
         </tr>
         <tr>
+          <th class="num">ปริมาณรวมรายปี</th>
           <th class="num">EF (kgCO2e/หน่วย)</th>
           <th class="num">Total GHG (tCO2e)</th>
         </tr>

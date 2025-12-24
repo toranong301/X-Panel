@@ -15,7 +15,8 @@ export interface TemplateBundle {
  * Registry = a single switchboard. Add new companies by adding a new folder under templates/.
  */
 export function resolveTemplate(templateId: string): TemplateBundle {
-  switch (templateId) {
+  const baseId = templateId.split('::')[0];
+  switch (baseId) {
     case 'MBAX_TGO_11102567':
       return {
         spec: MBAX_SPEC,
