@@ -10,6 +10,7 @@ import { DataEntryDoc, DataEntryService } from '../../core/services/data-entry.s
 import { createEmptyMonths } from '../../models/entry-row.helpers';
 import { EntryRow } from '../../models/entry-row.model';
 import { MonthlyEntryGridComponent } from '../../shared/components/monthly-entry-grid/monthly-entry-grid.component';
+import { Scope11StationaryComponent } from './scope11-stationary/scope11-stationary.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -20,6 +21,7 @@ import { MonthlyEntryGridComponent } from '../../shared/components/monthly-entry
     MatDividerModule,
     MatButtonModule,
     MonthlyEntryGridComponent,
+    Scope11StationaryComponent,
   ],
   templateUrl: './data-entry.html',
   styleUrls: ['./data-entry.scss'],
@@ -46,8 +48,10 @@ export class DataEntryComponent implements OnInit {
 
     const saved = this.entrySvc.load(this.cycleId);
     if (saved) {
-      this.scope11Rows = (saved.scope1 ?? []).filter(r => r.categoryCode === '1.1');
-      this.scope12Rows = (saved.scope1 ?? []).filter(r => r.categoryCode === '1.2');
+      const scope1Rows = saved.scope1 ?? [];
+      this.scope11Rows = normalizeScope11Rows(this.cycleId, scope1Rows);
+      const scope12Rows = scope1Rows.filter(r => r.categoryCode === '1.2');
+      this.scope12Rows = scope12Rows.length ? scope12Rows : makeScope12Defaults(this.cycleId);
       this.scope2Rows = saved.scope2 ?? [];
       this.scope3Rows = saved.scope3 ?? [];
       return;
@@ -105,11 +109,37 @@ function mkRow(
 // เราใช้ slotNo = 1..4 ผ่าน subCategoryCode แบบ KEY#N
 function makeScope11Defaults(cycleId: number): EntryRow[] {
   return [
-    mkRow(cycleId, 'S1', '1.1', 'Stationary input slot 1 (E9:P9)',  'liter', 'S1_1_1#1'),
-    mkRow(cycleId, 'S1', '1.1', 'Stationary input slot 2 (E10:P10)', 'liter', 'S1_1_1#2'),
-    mkRow(cycleId, 'S1', '1.1', 'Stationary input slot 3 (E12:P12)', 'liter', 'S1_1_1#3'),
-    mkRow(cycleId, 'S1', '1.1', 'Stationary input slot 4 (E14:P14)', 'liter', 'S1_1_1#4'),
+    mkRow(cycleId, 'S1', '1.1', 'น้ำมัน Diesel B7 (Fire Pump)', 'L', 'DIESEL_B7_STATIONARY'),
+    mkRow(cycleId, 'S1', '1.1', 'น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)', 'L', 'GASOHOL_9195_STATIONARY'),
+    mkRow(cycleId, 'S1', '1.1', 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2', 'ถัง', 'ACETYLENE_TANK5_MAINT_2'),
+    mkRow(cycleId, 'S1', '1.1', 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3', 'ถัง', 'ACETYLENE_TANK5_MAINT_3'),
   ];
+}
+
+function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow[] {
+  const defaults = makeScope11Defaults(cycleId);
+  const legacyMap: Record<string, string> = {
+    'S1_1_1#1': 'DIESEL_B7_STATIONARY',
+    'S1_1_1#2': 'GASOHOL_9195_STATIONARY',
+    'S1_1_1#3': 'ACETYLENE_TANK5_MAINT_2',
+    'S1_1_1#4': 'ACETYLENE_TANK5_MAINT_3',
+  };
+
+  const existingByCode = new Map<string, EntryRow>();
+  for (const row of scope1Rows.filter(r => r.categoryCode === '1.1')) {
+    const code = legacyMap[row.subCategoryCode ?? ''] ?? row.subCategoryCode ?? '';
+    if (code) existingByCode.set(code, row);
+  }
+
+  return defaults.map(def => {
+    const existing = existingByCode.get(def.subCategoryCode ?? '');
+    if (!existing) return def;
+    return {
+      ...def,
+      months: existing.months?.length ? existing.months : def.months,
+      referenceText: existing.referenceText ?? def.referenceText,
+    };
+  });
 }
 
 // Scope 1.2: seed “ทุก slot” จะได้กรอกได้เลยไม่ต้อง add/remove

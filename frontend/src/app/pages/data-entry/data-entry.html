@@ -9,10 +9,13 @@
 
     <mat-card>
       <mat-card-title>1.1 Stationary</mat-card-title>
-      <mat-card-subtitle>กรอก “รายเดือน” แล้ว Save (export จะเขียนเฉพาะ input cells)</mat-card-subtitle>
+      <mat-card-subtitle>กรอกข้อมูล Stationary combustion ตามแบบ Excel</mat-card-subtitle>
       <mat-divider></mat-divider>
 
-      <app-monthly-entry-grid [(rows)]="scope11Rows"></app-monthly-entry-grid>
+      <app-scope11-stationary
+        [cycleId]="cycleId"
+        [(rows)]="scope11Rows"
+      ></app-scope11-stationary>
     </mat-card>
 
     <mat-card style="margin-top:16px;">

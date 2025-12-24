@@ -302,7 +302,7 @@ const screenRow =
 
   // ดึง canonical
   const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
-    String(x?.subScope ?? '') === '1.1' || String(x?.tgoNo ?? '').includes('1.1')
+    String(x?.subScope ?? '') === '1.1'
   );
 
   const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
