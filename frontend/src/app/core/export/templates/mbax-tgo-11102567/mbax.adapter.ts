@@ -33,6 +33,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
     this.writeScope11Stationary(ctx);
     this.writeScope12Mobile(ctx);
+    this.writeScope142FireSuppression(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
 
@@ -548,6 +549,44 @@ private writeScope12Mobile(ctx: ExportContext): void {
 
   // ⚠️ ไม่แตะสูตรสรุปบนสุดของชีท และไม่แตะ FR-04.1
 }
+
+  private writeScope142FireSuppression(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('1.4.2 สารดับเพลิง');
+    if (!ws) return;
+
+    const MONTH_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const;
+    const START_ROW = 4;
+    const MAX_ROWS = 10;
+
+    for (let i = 0; i < MAX_ROWS; i++) {
+      const r = START_ROW + i;
+      for (const col of ['A', 'B', 'C', 'D']) this.setCellValueSafely(ws, `${col}${r}`, null);
+      for (let m = 0; m < 12; m++) this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, null);
+    }
+
+    const rows = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.4.2');
+
+    const sorted = [...rows].sort((a: any, b: any) => Number(a?.slotNo || 0) - Number(b?.slotNo || 0));
+    const getMonths = (x: any) => (Array.isArray(x?.quantityMonthly) ? x.quantityMonthly : []);
+    const getLocation = (x: any) => String(x?.remark ?? '');
+    const getEvidence = (x: any) => String(x?.dataEvidence ?? '');
+
+    for (let i = 0; i < Math.min(sorted.length, MAX_ROWS); i++) {
+      const it: any = sorted[i];
+      const r = START_ROW + i;
+
+      this.setCellValueSafely(ws, `A${r}`, String(it?.itemLabel ?? ''));
+      this.setCellValueSafely(ws, `B${r}`, getLocation(it));
+      this.setCellValueSafely(ws, `C${r}`, getEvidence(it));
+      this.setCellValueSafely(ws, `D${r}`, String(it?.unit ?? 'kg'));
+
+      const months = getMonths(it);
+      for (let m = 0; m < 12; m++) {
+        const v = Number(months?.[m] ?? 0);
+        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
+      }
+    }
+  }
 
 
 
