@@ -1,0 +1,87 @@
+<h3>1.4.3 Septic</h3>
+<p class="hint">กรอกจำนวนคนและวันหยุดของแต่ละเดือน (คอลัมน์คำนวณเป็น preview)</p>
+
+<div class="group" *ngFor="let group of groups; index as gIdx">
+  <h4>{{ group.label }}</h4>
+
+  <table class="grid">
+    <thead>
+      <tr>
+        <th style="width: 90px">เดือน</th>
+        <th style="width: 120px">จำนวนคน</th>
+        <th style="width: 160px">วันหยุด/เดือน</th>
+        <th style="width: 120px">วันในเดือน</th>
+        <th style="width: 120px">วันทำงาน</th>
+        <th style="width: 120px">Man-day</th>
+        <th style="width: 120px">TOW</th>
+        <th style="width: 120px">CH4</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let month of months; index as idx">
+        <td class="center">{{ monthLabels[idx] }}</td>
+        <td>
+          <input
+            type="number"
+            class="num"
+            [ngModel]="getMonthQty(getPeopleRow(group.no), month)"
+            (ngModelChange)="updateMonthQty(getPeopleRow(group.no), month, $event)"
+            placeholder="0"
+          />
+        </td>
+        <td>
+          <input
+            type="number"
+            class="num"
+            [ngModel]="getMonthQty(getDaysOffRow(group.no), month)"
+            (ngModelChange)="updateMonthQty(getDaysOffRow(group.no), month, $event)"
+            placeholder="0"
+          />
+        </td>
+        <td class="right">{{ daysInMonth[idx] }}</td>
+        <td class="right">
+          {{ workingDays(idx, getMonthQty(getDaysOffRow(group.no), month)) }}
+        </td>
+        <td class="right">
+          {{
+            formatNumber(
+              manDay(
+                getMonthQty(getPeopleRow(group.no), month),
+                workingDays(idx, getMonthQty(getDaysOffRow(group.no), month))
+              ),
+              0
+            )
+          }}
+        </td>
+        <td class="right">
+          {{
+            formatNumber(
+              tow(
+                manDay(
+                  getMonthQty(getPeopleRow(group.no), month),
+                  workingDays(idx, getMonthQty(getDaysOffRow(group.no), month))
+                )
+              ),
+              0
+            )
+          }}
+        </td>
+        <td class="right">
+          {{
+            formatNumber(
+              ch4(
+                tow(
+                  manDay(
+                    getMonthQty(getPeopleRow(group.no), month),
+                    workingDays(idx, getMonthQty(getDaysOffRow(group.no), month))
+                  )
+                )
+              ),
+              0
+            )
+          }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
