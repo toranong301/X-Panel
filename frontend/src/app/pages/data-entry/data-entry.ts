@@ -9,8 +9,8 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { DataEntryDoc, DataEntryService } from '../../core/services/data-entry.service';
 import { createEmptyMonths } from '../../models/entry-row.helpers';
 import { EntryRow } from '../../models/entry-row.model';
-import { MonthlyEntryGridComponent } from '../../shared/components/monthly-entry-grid/monthly-entry-grid.component';
 import { Scope11StationaryComponent } from './scope11-stationary/scope11-stationary.component';
+import { Scope12MobileComponent } from './scope12-mobile/scope12-mobile.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -20,8 +20,8 @@ import { Scope11StationaryComponent } from './scope11-stationary/scope11-station
     MatCardModule,
     MatDividerModule,
     MatButtonModule,
-    MonthlyEntryGridComponent,
     Scope11StationaryComponent,
+    Scope12MobileComponent,
   ],
   templateUrl: './data-entry.html',
   styleUrls: ['./data-entry.scss'],
@@ -148,23 +148,23 @@ function makeScope12Defaults(cycleId: number): EntryRow[] {
 
   // Diesel B7 on-road: slot 1..14
   for (let i = 1; i <= 14; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', `Diesel B7 on-road (slot ${i})`, 'liter', `DIESEL_B7_ONROAD#${i}`));
+    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `DIESEL_B7_ONROAD#${i}`));
   }
   // Diesel B10 on-road: slot 1..14
   for (let i = 1; i <= 14; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', `Diesel B10 on-road (slot ${i})`, 'liter', `DIESEL_B10_ONROAD#${i}`));
+    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `DIESEL_B10_ONROAD#${i}`));
   }
   // Gasohol 91/95: slot 1..6
   for (let i = 1; i <= 6; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', `Gasohol 91/95 (slot ${i})`, 'liter', `GASOHOL_9195#${i}`));
+    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `GASOHOL_9195#${i}`));
   }
   // Gasohol E20: slot 1..6
   for (let i = 1; i <= 6; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', `Gasohol E20 (slot ${i})`, 'liter', `GASOHOL_E20#${i}`));
+    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `GASOHOL_E20#${i}`));
   }
 
   // Diesel B7 off-road forklift: single row 58
-  rows.push(mkRow(cycleId, 'S1', '1.2', 'Diesel B7 off-road forklift (row 58)', 'liter', 'DIESEL_B7_OFFROAD'));
+  rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', 'DIESEL_B7_OFFROAD'));
 
   return rows;
 }

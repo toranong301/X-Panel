@@ -20,10 +20,13 @@
 
     <mat-card style="margin-top:16px;">
       <mat-card-title>1.2 Mobile</mat-card-title>
-      <mat-card-subtitle>มี slot เต็มตาม template (กรอกเฉพาะที่ใช้)</mat-card-subtitle>
+      <mat-card-subtitle>กรอกข้อมูล Mobile combustion ตามแบบ Excel</mat-card-subtitle>
       <mat-divider></mat-divider>
 
-      <app-monthly-entry-grid [(rows)]="scope12Rows"></app-monthly-entry-grid>
+      <app-scope12-mobile
+        [cycleId]="cycleId"
+        [(rows)]="scope12Rows"
+      ></app-scope12-mobile>
     </mat-card>
 
   </mat-tab>
