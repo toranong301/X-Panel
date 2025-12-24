@@ -31,8 +31,8 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeDynamicBlocks(ctx, getDynamicBlocks(), vsheet);
 
     // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
-    this.writeScope11Stationary(ctx);
-    this.writeScope12Mobile(ctx);
+    const scope11Totals = this.writeScope11Stationary(ctx);
+    const scope12Totals = this.writeScope12Mobile(ctx);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
     this.writeScope144Fertilizer(ctx);
@@ -46,6 +46,9 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
 
     // 3) Populate FR-04.1 Scope 3 selected lines (B51..B56) referencing FR-03.2
     this.linkFr041Scope3FromFr032(ctx, fr032RowMap);
+
+    // 4) Populate FR-04.1 Scope 1 qty linking to subsheet totals
+    this.linkFr041Scope1QtyFromSubsheets(ctx, { ...scope11Totals, ...scope12Totals });
   }
 
   /**
@@ -418,10 +421,11 @@ const screenRow =
     }
     return String(value).trim();
   }
-  private writeScope11Stationary(ctx: ExportContext): void {
+  private writeScope11Stationary(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string }> {
+  const totals: Record<string, { sheetName: string; totalCell: string }> = {};
   // ชื่อชีทตาม template จริง: มีเว้นวรรคท้ายด้วย
   const ws = ctx.workbook.getWorksheet('1.1 Stationary ');
-  if (!ws) return;
+  if (!ws) return totals;
 
   const MONTH_COLS = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const; // เดือน 1..12
 
@@ -468,13 +472,27 @@ const screenRow =
   if (acetyl2) setMonths(acetyl2TankRow, getMonths(acetyl2));
   if (acetyl3) setMonths(acetyl3TankRow, getMonths(acetyl3));
 
+  const totalRows: Array<{ key: string; row: number }> = [
+    { key: 'DIESEL_B7_STATIONARY', row: dieselRow },
+    { key: 'GASOHOL_9195_STATIONARY', row: gasoholRow },
+    { key: 'ACETYLENE_TANK5_MAINT_2', row: acetyl2TankRow },
+    { key: 'ACETYLENE_TANK5_MAINT_3', row: acetyl3TankRow },
+  ];
+
+  for (const it of totalRows) {
+    const totalCell = this.findRowTotalCell(ws, it.row, [...MONTH_COLS]);
+    if (totalCell) totals[it.key] = { sheetName: ws.name, totalCell };
+  }
+
   // ⚠️ ไม่แตะสูตรสรุป/แปลงหน่วยด้านบน และไม่แตะ FR-04.1
+  return totals;
 }
 
 
-private writeScope12Mobile(ctx: ExportContext): void {
+private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string; slotNo?: number }> {
+  const totals: Record<string, { sheetName: string; totalCell: string; slotNo?: number }> = {};
   const ws = ctx.workbook.getWorksheet('1.2 Mobile');
-  if (!ws) return;
+  if (!ws) return totals;
 
   const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12
 
@@ -529,7 +547,14 @@ private writeScope12Mobile(ctx: ExportContext): void {
 
   const byKey = (k: string) => mobileRows.filter(x => x.fuelKey === k.toUpperCase());
 
-  const fillSlots = (slots: number[], list: MobileRow[]) => {
+  const recordTotal = (fuelKey: string, excelRow: number, slotNo?: number) => {
+    const totalCell = this.findRowTotalCell(ws, excelRow, [...MONTH_COLS]);
+    if (!totalCell) return;
+    const key = fuelKey === 'DIESEL_B7_OFFROAD' ? fuelKey : slotNo ? `${fuelKey}#${slotNo}` : fuelKey;
+    totals[key] = { sheetName: ws.name, totalCell, slotNo };
+  };
+
+  const fillSlots = (slots: number[], list: MobileRow[], fuelKey: string) => {
     // 1) วางตาม slotNo ก่อน (slotNo เป็น 1-based)
     const used = new Set<number>(); // idx 0..n-1
     const withSlot = list
@@ -540,6 +565,7 @@ private writeScope12Mobile(ctx: ExportContext): void {
       const idx = Number(it.slotNo) - 1;
       if (idx >= 0 && idx < slots.length && !used.has(idx)) {
         setMonths(slots[idx], it.months);
+        recordTotal(fuelKey, slots[idx], idx + 1);
         used.add(idx);
       }
     }
@@ -551,21 +577,159 @@ private writeScope12Mobile(ctx: ExportContext): void {
       while (ptr < slots.length && used.has(ptr)) ptr++;
       if (ptr >= slots.length) break;
       setMonths(slots[ptr], it.months);
+      recordTotal(fuelKey, slots[ptr], ptr + 1);
       used.add(ptr);
       ptr++;
     }
   };
 
-  fillSlots(dieselB7Rows, byKey('DIESEL_B7_ONROAD'));
-  fillSlots(dieselB10Rows, byKey('DIESEL_B10_ONROAD'));
-  fillSlots(gasohol9195Rows, byKey('GASOHOL_9195'));
-  fillSlots(gasoholE20Rows, byKey('GASOHOL_E20'));
+  fillSlots(dieselB7Rows, byKey('DIESEL_B7_ONROAD'), 'DIESEL_B7_ONROAD');
+  fillSlots(dieselB10Rows, byKey('DIESEL_B10_ONROAD'), 'DIESEL_B10_ONROAD');
+  fillSlots(gasohol9195Rows, byKey('GASOHOL_9195'), 'GASOHOL_9195');
+  fillSlots(gasoholE20Rows, byKey('GASOHOL_E20'), 'GASOHOL_E20');
 
   const offroad = byKey('DIESEL_B7_OFFROAD')[0];
-  if (offroad) setMonths(offroadForkliftRow, offroad.months);
+  if (offroad) {
+    setMonths(offroadForkliftRow, offroad.months);
+    recordTotal('DIESEL_B7_OFFROAD', offroadForkliftRow);
+  }
 
   // ⚠️ ไม่แตะสูตรสรุปบนสุดของชีท และไม่แตะ FR-04.1
+  return totals;
 }
+
+  private findRowTotalCell(ws: any, excelRow: number, monthCols: string[]): string | null {
+    if (!monthCols?.length) return null;
+    const monthStartCol = monthCols[0];
+    const monthEndCol = monthCols[monthCols.length - 1];
+    const startColNo = this.colLetterToNumber(monthStartCol);
+    if (!startColNo || startColNo <= 1) return null;
+
+    for (let c = startColNo - 1; c >= 1; c--) {
+      const colLetter = this.colToLetter(c);
+      const cell = ws.getCell(`${colLetter}${excelRow}`);
+      const formula = cell?.formula || cell?.value?.formula;
+      if (!formula) continue;
+      const formulaText = String(formula);
+      if (formulaText.includes(`${monthStartCol}${excelRow}`) && formulaText.includes(`${monthEndCol}${excelRow}`)) {
+        return `${colLetter}${excelRow}`;
+      }
+    }
+
+    const prevCol = this.colToLetter(startColNo - 1);
+    const formula = `=SUM(${monthStartCol}${excelRow}:${monthEndCol}${excelRow})`;
+    this.setCellValueSafely(ws, `${prevCol}${excelRow}`, { formula });
+    return `${prevCol}${excelRow}`;
+  }
+
+  private linkFr041Scope1QtyFromSubsheets(
+    ctx: ExportContext,
+    totals: Record<string, { sheetName: string; totalCell: string }>,
+  ): void {
+    const ws = ctx.workbook.getWorksheet(ctx.spec.sheets['fr041'].name);
+    if (!ws) return;
+
+    const maxRows = Math.min(ws.rowCount || 400, 400);
+    const maxCols = Math.max(ws.columnCount || 30, 30);
+
+    const normalizeText = (s: string) =>
+      String(s || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const findRowContaining = (needle: string, start: number, end: number): number | null => {
+      const target = normalizeText(needle);
+      for (let r = start; r <= end; r++) {
+        for (let c = 1; c <= maxCols; c++) {
+          const text = normalizeText(this.getCellText(ws.getCell(r, c).value));
+          if (!text) continue;
+          if (text.includes(target)) return r;
+        }
+      }
+      return null;
+    };
+
+    const scope1Start = findRowContaining('ขอบเขต 1', 1, maxRows) ?? 1;
+    const scope1EndCandidate =
+      findRowContaining('ขอบเขต 2', scope1Start + 1, maxRows) ??
+      findRowContaining('ขอบเขต 3', scope1Start + 1, maxRows);
+    const scope1End = scope1EndCandidate ? Math.max(scope1Start, scope1EndCandidate - 1) : maxRows;
+
+    const headerRow =
+      findRowContaining('ปริมาณ', scope1Start, scope1End) ??
+      findRowContaining('ค่า lci', scope1Start, scope1End) ??
+      findRowContaining('lci', scope1Start, scope1End);
+    if (!headerRow) return;
+
+    let itemColNo: number | null = null;
+    let qtyColNo: number | null = null;
+    let unitColNo: number | null = null;
+
+    for (let c = 1; c <= maxCols; c++) {
+      const text = normalizeText(this.getCellText(ws.getCell(headerRow, c).value));
+      if (!text) continue;
+      if (!itemColNo && (text.includes('รายการ') || text.includes('กิจกรรม'))) itemColNo = c;
+      if (!qtyColNo && text.includes('ปริมาณ')) qtyColNo = c;
+      if (!qtyColNo && text.includes('lci')) qtyColNo = c;
+      if (!unitColNo && (text.includes('หน่วย') || text.includes('unit'))) unitColNo = c;
+    }
+
+    if (!qtyColNo) return;
+    const qtyColLetter = this.colToLetter(qtyColNo);
+    const unitColLetter = unitColNo ? this.colToLetter(unitColNo) : null;
+
+    const rowLabels: Array<{ row: number; label: string }> = [];
+    for (let r = headerRow + 1; r <= scope1End; r++) {
+      let rawLabel = '';
+      if (itemColNo) {
+        rawLabel = this.getCellText(ws.getCell(r, itemColNo).value);
+      }
+      if (!rawLabel) {
+        for (let c = 1; c <= maxCols; c++) {
+          const text = this.getCellText(ws.getCell(r, c).value);
+          if (text) {
+            rawLabel = text;
+            break;
+          }
+        }
+      }
+      if (!rawLabel) continue;
+      rowLabels.push({ row: r, label: normalizeText(rawLabel) });
+    }
+
+    const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+    const scope1Items = (ctx.canonical.inventory ?? []).filter((x: any) =>
+      Number((x as any).scope) === 1 && (String(x?.subScope ?? '') === '1.1' || String(x?.subScope ?? '') === '1.2'),
+    );
+
+    for (const item of scope1Items) {
+      const fuelKey = getFuelKey(item);
+      if (!fuelKey) continue;
+
+      const slotNo = Number.isFinite(Number((item as any).slotNo)) ? Number((item as any).slotNo) : undefined;
+      const key = fuelKey === 'DIESEL_B7_OFFROAD' ? fuelKey : slotNo ? `${fuelKey}#${slotNo}` : fuelKey;
+      const totalRef = totals[key];
+      if (!totalRef) continue;
+
+      const label = normalizeText(String((item as any).itemLabel ?? ''));
+      if (!label) continue;
+
+      const matches = rowLabels
+        .filter(r => r.label && (r.label.includes(label) || label.includes(r.label)))
+        .map(r => r.row)
+        .sort((a, b) => a - b);
+      if (!matches.length) continue;
+
+      const targetRow = slotNo && matches.length >= slotNo ? matches[slotNo - 1] : matches[0];
+      const formula = `='${totalRef.sheetName}'!${totalRef.totalCell}`;
+      this.setCellValueSafely(ws, `${qtyColLetter}${targetRow}`, { formula });
+
+      if (unitColLetter && (item as any).unit) {
+        this.setCellValueSafely(ws, `${unitColLetter}${targetRow}`, String((item as any).unit));
+      }
+    }
+  }
 
   private writeScope142FireSuppression(ctx: ExportContext): void {
     const ws = ctx.workbook.getWorksheet('1.4.2 สารดับเพลิง');
@@ -963,6 +1127,18 @@ private writeScope12Mobile(ctx: ExportContext): void {
       num = Math.floor((num - mod) / 26);
     }
     return letters || 'A';
+  }
+
+  private colLetterToNumber(col: string): number {
+    const normalized = String(col || '').trim().toUpperCase();
+    if (!normalized) return 0;
+    let num = 0;
+    for (let i = 0; i < normalized.length; i++) {
+      const code = normalized.charCodeAt(i);
+      if (code < 65 || code > 90) return 0;
+      num = num * 26 + (code - 64);
+    }
+    return num;
   }
 
   private writeEvidenceSheet(ctx: ExportContext): void {
