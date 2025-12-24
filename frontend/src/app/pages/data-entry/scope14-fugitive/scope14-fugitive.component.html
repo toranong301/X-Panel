@@ -1,0 +1,218 @@
+<section class="scope14-fugitive">
+  <div class="section-header">
+    <h3>1.4 Fugitive emission (1.4.1 สารทำความเย็น)</h3>
+    <p>รูปแบบตารางตรงกับ Excel สำหรับสารทำความเย็น</p>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="monthly-table">
+      <thead>
+        <tr>
+          <th rowspan="2">เครื่องที่ใช้</th>
+          <th rowspan="2">สถานที่</th>
+          <th rowspan="2">หลักฐาน</th>
+          <th rowspan="2">หน่วย</th>
+          <th rowspan="2">รวม</th>
+          <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+        </tr>
+        <tr>
+          <th *ngFor="let m of months">{{ m }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_KG')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R22_KG', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_KG')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R22_KG', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_KG')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R22_KG', $event)"
+            />
+          </td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R22_KG'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R22_KG', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R22_KG', m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_TANK')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R22_TANK', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_TANK')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R22_TANK', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R22_TANK')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R22_TANK', $event)"
+            />
+          </td>
+          <td>ถัง</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R22_TANK'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R22_TANK', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R22_TANK', m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R32')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R32', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R32')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R32', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R32')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R32', $event)"
+            />
+          </td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R32'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R32', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R32', m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R410A')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R410A', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R410A')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R410A', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R410A')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R410A', $event)"
+            />
+          </td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R410A'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R410A', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R410A', m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R134A')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R134A', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R134A')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R134A', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R134A')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R134A', $event)"
+            />
+          </td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R134A'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R134A', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R134A', m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R407C')?.itemName"
+              (ngModelChange)="updateItemName('REFRIG_R407C', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R407C')?.location"
+              (ngModelChange)="updateLocation('REFRIG_R407C', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="getRow('REFRIG_R407C')?.referenceText"
+              (ngModelChange)="updateEvidence('REFRIG_R407C', $event)"
+            />
+          </td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalForCode('REFRIG_R407C'), true) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty('REFRIG_R407C', m)"
+              (ngModelChange)="updateMonthQty('REFRIG_R407C', m, $event)"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -46,6 +46,10 @@ export class Scope11StationaryComponent {
     return this.getRow(ACETYLENE_MAINT3_CODE);
   }
 
+  get acetyleneSummaryEvidence(): string {
+    return this.getEvidence(ACETYLENE_MAINT2_CODE) || this.getEvidence(ACETYLENE_MAINT3_CODE) || '';
+  }
+
   updateEvidence(code: string, value: string) {
     const row = this.ensureRow(code);
     if (!row) return;
