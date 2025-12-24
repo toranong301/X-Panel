@@ -151,32 +151,30 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
   });
 }
 
-// Scope 1.2: seed “ทุก slot” จะได้กรอกได้เลยไม่ต้อง add/remove
+// Scope 1.2: seed แบบ “ไม่ฟิกจำนวนแถว”
+// - UI จะมีปุ่ม Add/Remove และจำกัดจำนวนไม่เกิน slot ที่ template รองรับ
 function makeScope12Defaults(cycleId: number): EntryRow[] {
-  const rows: EntryRow[] = [];
+  const mk = (subCategoryCode: string, unit = 'L'): EntryRow => ({
+    cycleId: String(cycleId),
+    scope: 'S1',
+    categoryCode: '1.2',
+    subCategoryCode,
+    itemName: '',
+    unit,
+    months: createEmptyMonths(),
+    dataSourceType: 'ORG',
+  });
 
-  // Diesel B7 on-road: slot 1..14
-  for (let i = 1; i <= 14; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `DIESEL_B7_ONROAD#${i}`));
-  }
-  // Diesel B10 on-road: slot 1..14
-  for (let i = 1; i <= 14; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `DIESEL_B10_ONROAD#${i}`));
-  }
-  // Gasohol 91/95: slot 1..6
-  for (let i = 1; i <= 6; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `GASOHOL_9195#${i}`));
-  }
-  // Gasohol E20: slot 1..6
-  for (let i = 1; i <= 6; i++) {
-    rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', `GASOHOL_E20#${i}`));
-  }
-
-  // Diesel B7 off-road forklift: single row 58
-  rows.push(mkRow(cycleId, 'S1', '1.2', '', 'L', 'DIESEL_B7_OFFROAD'));
-
-  return rows;
+  // เริ่มต้นให้มีอย่างละ 1 แถวพอ (ผู้ใช้ค่อย Add เพิ่มเอง)
+  return [
+    mk('DIESEL_B7_ONROAD#1', 'L'),
+    mk('DIESEL_B10_ONROAD#1', 'L'),
+    mk('GASOHOL_9195#1', 'L'),
+    mk('GASOHOL_E20#1', 'L'),
+    mk('DIESEL_B7_OFFROAD', 'L'), // forklift (มีแถวเดียวใน template)
+  ];
 }
+
 
 function makeScope141Defaults(cycleId: number): EntryRow[] {
   return [

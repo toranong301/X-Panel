@@ -1,330 +1,134 @@
-<section class="scope12-mobile">
-  <div class="section-header">
-    <h3>1.2 Mobile combustion</h3>
-    <p>จัดรูปแบบตารางให้สอดคล้องกับ Excel (สรุปรายการน้ำมัน + รายเดือน)</p>
+<h3>1.2 Mobile combustion</h3>
+
+<p class="hint">
+  ✅ UI ไม่ฟิกจำนวนแถว: กด <b>Add row</b> เพื่อเพิ่มรายการ (จำกัดตาม slot ที่ template รองรับ)
+</p>
+
+<!-- Groups (on-road + gasohol) -->
+<ng-container *ngFor="let key of groups">
+  <div class="group-header">
+    <h4>{{ labelFor(key) }}</h4>
+    <button type="button" class="btn" (click)="addRow(key)" [disabled]="!canAdd(key)">
+      + Add row
+    </button>
   </div>
 
-  <div class="table-wrapper">
-    <table class="summary-table">
-      <thead>
-        <tr>
-          <th>รายการ</th>
-          <th>ชนิด</th>
-          <th>หลักฐาน</th>
-          <th>หน่วย</th>
-          <th>ปริมาณน้ำมัน</th>
-          <th>Diesel(L)</th>
-          <th>Biodiesel(L)</th>
-          <th>Biodiesel(kg)</th>
-          <th>Gasoline(L)</th>
-          <th>Ethanol(L)</th>
-          <th>Ethanol(kg)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>น้ำมัน Diesel B7 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td>B7</td>
-          <td class="evidence-text">{{ dieselB7SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB7OnroadCodes())) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB7OnroadCodes()) * 0.93) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB7OnroadCodes()) * 0.07) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB7OnroadCodes()) * 0.07 * 0.87) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-        </tr>
-        <tr>
-          <td>น้ำมัน Diesel B10 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td>B10</td>
-          <td class="evidence-text">{{ dieselB10SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB10OnroadCodes())) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB10OnroadCodes()) * 0.9) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB10OnroadCodes()) * 0.1) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB10OnroadCodes()) * 0.1 * 0.87) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-        </tr>
-        <tr>
-          <td>น้ำมัน Gasohol 91/95 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td>91/95</td>
-          <td class="evidence-text">{{ gasohol9195SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasohol9195Codes())) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasohol9195Codes()) * 0.9) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasohol9195Codes()) * 0.1) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasohol9195Codes()) * 0.1 * 0.79) }}</td>
-        </tr>
-        <tr>
-          <td>น้ำมัน Gasohol E20 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td>E20</td>
-          <td class="evidence-text">{{ gasoholE20SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasoholE20Codes())) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasoholE20Codes()) * 0.8) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasoholE20Codes()) * 0.2) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasoholE20Codes()) * 0.2 * 0.79) }}</td>
-        </tr>
-        <tr>
-          <td>น้ำมัน Diesel B7 ที่ใช้ใน Forklift</td>
-          <td>B7</td>
-          <td class="evidence-text">{{ forkliftSummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(forkliftCodes())) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(forkliftCodes()) * 0.93) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(forkliftCodes()) * 0.07) }}</td>
-          <td class="num">{{ formatNumber(totalForCodes(forkliftCodes()) * 0.07 * 0.87) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th style="width: 60px">Slot</th>
+        <th>รายการ</th>
+        <th style="width: 140px">หลักฐาน</th>
+        <th style="width: 90px">หน่วย</th>
+        <th style="width: 110px">รวม</th>
+        <th *ngFor="let m of months">{{ m }}</th>
+        <th style="width: 80px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let r of groupRows(key)">
+        <td>{{ slotLabel(r) }}</td>
+        <td>
+          <input
+            class="text"
+            [ngModel]="r.itemName"
+            (ngModelChange)="updateField(r, 'itemName', $event)"
+            placeholder="ชื่อรายการ/ยานพาหนะ"
+          />
+          <div class="sub">
+            <input
+              class="text"
+              [ngModel]="r.location"
+              (ngModelChange)="updateField(r, 'location', $event)"
+              placeholder="สถานที่ (optional)"
+            />
+          </div>
+        </td>
+        <td>
+          <input
+            class="text"
+            [ngModel]="r.referenceText"
+            (ngModelChange)="updateField(r, 'referenceText', $event)"
+            placeholder="บิล/ใบกำกับภาษี"
+          />
+        </td>
+        <td class="center">{{ r.unit || 'L' }}</td>
+        <td class="right">{{ formatNumber(total(r), false, 2) }}</td>
+        <td class="month" *ngFor="let m of months">
+          <input
+            type="number"
+            class="num"
+            [ngModel]="getMonthQty(r, m)"
+            (ngModelChange)="updateMonthQty(r, m, $event)"
+            placeholder="0"
+          />
+        </td>
+        <td class="center">
+          <button type="button" class="btn-danger" (click)="removeRow(r)">Remove</button>
+        </td>
+      </tr>
 
-  <div class="table-wrapper">
-    <table class="monthly-table">
-      <thead>
-        <tr>
-          <th rowspan="2">รายการ</th>
-          <th rowspan="2">Location</th>
-          <th rowspan="2">ชนิด</th>
-          <th rowspan="2">หลักฐาน</th>
-          <th rowspan="2">หน่วย</th>
-          <th rowspan="2">รวม</th>
-          <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
-        </tr>
-        <tr>
-          <th *ngFor="let m of months">{{ m }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="display-only">
-          <td>น้ำมัน Diesel B7 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td class="placeholder">-</td>
-          <td>B7</td>
-          <td class="evidence-text">{{ dieselB7SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB7OnroadCodes()), true) }}</td>
-          <td *ngFor="let _ of months" class="num">-</td>
-        </tr>
-        <tr class="display-only">
-          <td>น้ำมัน Diesel B10 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td class="placeholder">-</td>
-          <td>B10</td>
-          <td class="evidence-text">{{ dieselB10SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(dieselB10OnroadCodes()), true) }}</td>
-          <td *ngFor="let _ of months" class="num">-</td>
-        </tr>
-        <ng-container *ngFor="let slot of dieselB7Slots">
-          <tr>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getItemName(slotCode(dieselB7OnroadCode, slot))"
-                (ngModelChange)="updateItemName(slotCode(dieselB7OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getLocation(slotCode(dieselB7OnroadCode, slot))"
-                (ngModelChange)="updateLocation(slotCode(dieselB7OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>B7</td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getEvidence(slotCode(dieselB7OnroadCode, slot))"
-                (ngModelChange)="updateEvidence(slotCode(dieselB7OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>L</td>
-            <td class="num">{{ formatNumber(totalForCode(slotCode(dieselB7OnroadCode, slot)), true) }}</td>
-            <td *ngFor="let m of months">
-              <input
-                type="number"
-                [ngModel]="getMonthQty(slotCode(dieselB7OnroadCode, slot), m)"
-                (ngModelChange)="updateMonthQty(slotCode(dieselB7OnroadCode, slot), m, $event)"
-              />
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getItemName(slotCode(dieselB10OnroadCode, slot))"
-                (ngModelChange)="updateItemName(slotCode(dieselB10OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getLocation(slotCode(dieselB10OnroadCode, slot))"
-                (ngModelChange)="updateLocation(slotCode(dieselB10OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>B10</td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getEvidence(slotCode(dieselB10OnroadCode, slot))"
-                (ngModelChange)="updateEvidence(slotCode(dieselB10OnroadCode, slot), $event)"
-              />
-            </td>
-            <td>L</td>
-            <td class="num">{{ formatNumber(totalForCode(slotCode(dieselB10OnroadCode, slot)), true) }}</td>
-            <td *ngFor="let m of months">
-              <input
-                type="number"
-                [ngModel]="getMonthQty(slotCode(dieselB10OnroadCode, slot), m)"
-                (ngModelChange)="updateMonthQty(slotCode(dieselB10OnroadCode, slot), m, $event)"
-              />
-            </td>
-          </tr>
-        </ng-container>
+      <tr *ngIf="groupRows(key).length === 0">
+        <td colspan="20" class="empty">ยังไม่มีรายการ — กด Add row เพื่อเพิ่ม</td>
+      </tr>
+    </tbody>
+  </table>
 
-        <tr class="display-only">
-          <td>น้ำมัน Gasohol 91/95 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td class="placeholder">-</td>
-          <td>91/95</td>
-          <td class="evidence-text">{{ gasohol9195SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasohol9195Codes()), true) }}</td>
-          <td *ngFor="let _ of months" class="num">-</td>
-        </tr>
-        <tr class="display-only">
-          <td>น้ำมัน Gasohol E20 ที่ใช้ในรถยนต์ขององค์กร</td>
-          <td class="placeholder">-</td>
-          <td>E20</td>
-          <td class="evidence-text">{{ gasoholE20SummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(gasoholE20Codes()), true) }}</td>
-          <td *ngFor="let _ of months" class="num">-</td>
-        </tr>
-        <ng-container *ngFor="let slot of gasohol9195Slots">
-          <tr>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getItemName(slotCode(gasohol9195Code, slot))"
-                (ngModelChange)="updateItemName(slotCode(gasohol9195Code, slot), $event)"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getLocation(slotCode(gasohol9195Code, slot))"
-                (ngModelChange)="updateLocation(slotCode(gasohol9195Code, slot), $event)"
-              />
-            </td>
-            <td>91/95</td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getEvidence(slotCode(gasohol9195Code, slot))"
-                (ngModelChange)="updateEvidence(slotCode(gasohol9195Code, slot), $event)"
-              />
-            </td>
-            <td>L</td>
-            <td class="num">{{ formatNumber(totalForCode(slotCode(gasohol9195Code, slot)), true) }}</td>
-            <td *ngFor="let m of months">
-              <input
-                type="number"
-                [ngModel]="getMonthQty(slotCode(gasohol9195Code, slot), m)"
-                (ngModelChange)="updateMonthQty(slotCode(gasohol9195Code, slot), m, $event)"
-              />
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getItemName(slotCode(gasoholE20Code, slot))"
-                (ngModelChange)="updateItemName(slotCode(gasoholE20Code, slot), $event)"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getLocation(slotCode(gasoholE20Code, slot))"
-                (ngModelChange)="updateLocation(slotCode(gasoholE20Code, slot), $event)"
-              />
-            </td>
-            <td>E20</td>
-            <td>
-              <input
-                type="text"
-                [ngModel]="getEvidence(slotCode(gasoholE20Code, slot))"
-                (ngModelChange)="updateEvidence(slotCode(gasoholE20Code, slot), $event)"
-              />
-            </td>
-            <td>L</td>
-            <td class="num">{{ formatNumber(totalForCode(slotCode(gasoholE20Code, slot)), true) }}</td>
-            <td *ngFor="let m of months">
-              <input
-                type="number"
-                [ngModel]="getMonthQty(slotCode(gasoholE20Code, slot), m)"
-                (ngModelChange)="updateMonthQty(slotCode(gasoholE20Code, slot), m, $event)"
-              />
-            </td>
-          </tr>
-        </ng-container>
+  <hr class="divider" />
+</ng-container>
 
-        <tr class="display-only">
-          <td>น้ำมัน Diesel B7 ที่ใช้ใน Forklift</td>
-          <td class="placeholder">-</td>
-          <td>B7</td>
-          <td class="evidence-text">{{ forkliftSummaryEvidence() || '-' }}</td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCodes(forkliftCodes()), true) }}</td>
-          <td *ngFor="let _ of months" class="num">-</td>
-        </tr>
-        <tr>
-          <td>
+<!-- Forklift row (single slot in template) -->
+<h4 style="margin-top: 18px">{{ labelFor('DIESEL_B7_OFFROAD') }}</h4>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th>รายการ</th>
+      <th style="width: 140px">หลักฐาน</th>
+      <th style="width: 90px">หน่วย</th>
+      <th style="width: 110px">รวม</th>
+      <th *ngFor="let m of months">{{ m }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <ng-container *ngIf="getForkliftRow() as r">
+        <td>
+          <input
+            class="text"
+            [ngModel]="r.itemName"
+            (ngModelChange)="updateField(r, 'itemName', $event)"
+            placeholder="Forklift / Off-road"
+          />
+          <div class="sub">
             <input
-              type="text"
-              [ngModel]="getItemName(dieselB7OffroadCode)"
-              (ngModelChange)="updateItemName(dieselB7OffroadCode, $event)"
+              class="text"
+              [ngModel]="r.location"
+              (ngModelChange)="updateField(r, 'location', $event)"
+              placeholder="สถานที่ (optional)"
             />
-          </td>
-          <td>
-            <input
-              type="text"
-              [ngModel]="getLocation(dieselB7OffroadCode)"
-              (ngModelChange)="updateLocation(dieselB7OffroadCode, $event)"
-            />
-          </td>
-          <td>B7</td>
-          <td>
-            <input
-              type="text"
-              [ngModel]="getEvidence(dieselB7OffroadCode)"
-              (ngModelChange)="updateEvidence(dieselB7OffroadCode, $event)"
-            />
-          </td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselB7OffroadCode), true) }}</td>
-          <td *ngFor="let m of months">
-            <input
-              type="number"
-              [ngModel]="getMonthQty(dieselB7OffroadCode, m)"
-              (ngModelChange)="updateMonthQty(dieselB7OffroadCode, m, $event)"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+          </div>
+        </td>
+        <td>
+          <input
+            class="text"
+            [ngModel]="r.referenceText"
+            (ngModelChange)="updateField(r, 'referenceText', $event)"
+            placeholder="บิล/ใบกำกับภาษี"
+          />
+        </td>
+        <td class="center">{{ r.unit || 'L' }}</td>
+        <td class="right">{{ formatNumber(total(r), false, 2) }}</td>
+        <td class="month" *ngFor="let m of months">
+          <input
+            type="number"
+            class="num"
+            [ngModel]="getMonthQty(r, m)"
+            (ngModelChange)="updateMonthQty(r, m, $event)"
+            placeholder="0"
+          />
+        </td>
+      </ng-container>
+    </tr>
+  </tbody>
+</table>

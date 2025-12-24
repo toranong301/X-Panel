@@ -5,11 +5,27 @@ import { FormsModule } from '@angular/forms';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
 
-const DIESEL_B7_ONROAD = 'DIESEL_B7_ONROAD';
-const DIESEL_B10_ONROAD = 'DIESEL_B10_ONROAD';
-const GASOHOL_9195 = 'GASOHOL_9195';
-const GASOHOL_E20 = 'GASOHOL_E20';
-const DIESEL_B7_OFFROAD = 'DIESEL_B7_OFFROAD';
+type FuelKey =
+  | 'DIESEL_B7_ONROAD'
+  | 'DIESEL_B10_ONROAD'
+  | 'GASOHOL_9195'
+  | 'GASOHOL_E20'
+  | 'DIESEL_B7_OFFROAD';
+
+const MAX_SLOTS: Record<Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>, number> = {
+  DIESEL_B7_ONROAD: 14,
+  DIESEL_B10_ONROAD: 14,
+  GASOHOL_9195: 6,
+  GASOHOL_E20: 6,
+};
+
+const LABELS: Record<FuelKey, string> = {
+  DIESEL_B7_ONROAD: 'Diesel B7 on-road',
+  DIESEL_B10_ONROAD: 'Diesel B10 on-road',
+  GASOHOL_9195: 'Gasohol 91/95',
+  GASOHOL_E20: 'Gasohol E20',
+  DIESEL_B7_OFFROAD: 'Diesel B7 off-road (forklift)',
+};
 
 @Component({
   selector: 'app-scope12-mobile',
@@ -24,161 +40,73 @@ export class Scope12MobileComponent {
   @Output() rowsChange = new EventEmitter<EntryRow[]>();
 
   readonly months = Array.from({ length: 12 }, (_, i) => i + 1);
-  readonly dieselB7Slots = Array.from({ length: 14 }, (_, i) => i + 1);
-  readonly dieselB10Slots = Array.from({ length: 14 }, (_, i) => i + 1);
-  readonly gasohol9195Slots = Array.from({ length: 6 }, (_, i) => i + 1);
-  readonly gasoholE20Slots = Array.from({ length: 6 }, (_, i) => i + 1);
-  readonly dieselB7OnroadCode = DIESEL_B7_ONROAD;
-  readonly dieselB10OnroadCode = DIESEL_B10_ONROAD;
-  readonly gasohol9195Code = GASOHOL_9195;
-  readonly gasoholE20Code = GASOHOL_E20;
-  readonly dieselB7OffroadCode = DIESEL_B7_OFFROAD;
 
-  getEvidence(code: string): string {
-    return this.getRow(code)?.referenceText ?? '';
+  readonly groups: Array<Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>> = [
+    'DIESEL_B7_ONROAD',
+    'DIESEL_B10_ONROAD',
+    'GASOHOL_9195',
+    'GASOHOL_E20',
+  ];
+
+  labelFor(key: FuelKey): string {
+    return LABELS[key];
   }
 
-  updateEvidence(code: string, value: string) {
-    const row = this.ensureRow(code);
-    if (!row) return;
-    row.referenceText = value;
-    this.rowsChange.emit(this.rows);
+  /** rows ในแต่ละกลุ่ม (sort ตาม slotNo) */
+  groupRows(key: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>): EntryRow[] {
+    return this.rows
+      .filter(r => this.parseKey(r.subCategoryCode).fuelKey === key)
+      .sort((a, b) => (this.parseKey(a.subCategoryCode).slotNo ?? 0) - (this.parseKey(b.subCategoryCode).slotNo ?? 0));
   }
 
-  getItemName(code: string): string {
-    return this.getRow(code)?.itemName ?? '';
+  canAdd(key: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>): boolean {
+    const used = new Set(this.groupRows(key).map(r => this.parseKey(r.subCategoryCode).slotNo).filter(Boolean) as number[]);
+    return used.size < MAX_SLOTS[key];
   }
 
-  updateItemName(code: string, value: string) {
-    const row = this.ensureRow(code);
-    if (!row) return;
-    row.itemName = value;
-    this.rowsChange.emit(this.rows);
-  }
-
-  getLocation(code: string): string {
-    return this.getRow(code)?.location ?? '';
-  }
-
-  updateLocation(code: string, value: string) {
-    const row = this.ensureRow(code);
-    if (!row) return;
-    row.location = value;
-    this.rowsChange.emit(this.rows);
-  }
-
-  getMonthQty(code: string, month: number): number {
-    const row = this.getRow(code);
-    if (!row) return 0;
-    const m = row.months.find(x => x.month === month);
-    return m ? m.qty : 0;
-  }
-
-  updateMonthQty(code: string, month: number, value: number | string) {
-    const row = this.ensureRow(code);
-    if (!row) return;
-    let m = row.months.find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months.push(m);
+  addRow(key: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>) {
+    const max = MAX_SLOTS[key];
+    const used = new Set(this.groupRows(key).map(r => this.parseKey(r.subCategoryCode).slotNo).filter(Boolean) as number[]);
+    let slotNo: number | undefined;
+    for (let i = 1; i <= max; i++) {
+      if (!used.has(i)) {
+        slotNo = i;
+        break;
+      }
     }
-    m.qty = Number(value) || 0;
+    if (!slotNo) return;
+
+    const row: EntryRow = {
+      cycleId: String(this.cycleId),
+      scope: 'S1',
+      categoryCode: '1.2',
+      subCategoryCode: `${key}#${slotNo}`,
+      itemName: '',
+      unit: 'L',
+      months: createEmptyMonths(),
+      dataSourceType: 'ORG',
+    };
+
+    this.rows = [...this.rows, row];
     this.rowsChange.emit(this.rows);
   }
 
-  totalForCode(code: string): number {
-    return this.monthlyForCode(code).reduce((sum, v) => sum + v, 0);
+  removeRow(row: EntryRow) {
+    // ไม่ให้ลบ forklift โดยไม่ตั้งใจ: ถ้าต้องการให้ลบได้ ให้เอา if นี้ออก
+    if ((row.subCategoryCode ?? '').trim() === 'DIESEL_B7_OFFROAD') return;
+    this.rows = this.rows.filter(r => r !== row);
+    this.rowsChange.emit(this.rows);
   }
 
-  totalForCodes(codes: string[]): number {
-    return codes.reduce((sum, code) => sum + this.totalForCode(code), 0);
-  }
-
-  formatNumber(value: number, zeroAsDash = false, decimals = 2): string {
-    if (zeroAsDash && value === 0) return '-';
-    return value.toLocaleString('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: decimals,
-    });
-  }
-
-  evidenceForCodes(codes: string[]): string {
-    for (const code of codes) {
-      const evidence = this.getEvidence(code);
-      if (evidence) return evidence;
-    }
-    return '';
-  }
-
-  monthlyForCode(code: string): number[] {
-    const row = this.getRow(code);
-    return this.toMonthlyArray(row);
-  }
-
-  monthlyTotalsForCodes(codes: string[]): number[] {
-    const totals = Array.from({ length: 12 }, () => 0);
-    for (const code of codes) {
-      const monthly = this.monthlyForCode(code);
-      monthly.forEach((value, idx) => {
-        totals[idx] += value;
-      });
-    }
-    return totals;
-  }
-
-  dieselB7OnroadCodes(): string[] {
-    return this.dieselB7Slots.map(slot => this.slotCode(DIESEL_B7_ONROAD, slot));
-  }
-
-  dieselB10OnroadCodes(): string[] {
-    return this.dieselB10Slots.map(slot => this.slotCode(DIESEL_B10_ONROAD, slot));
-  }
-
-  gasohol9195Codes(): string[] {
-    return this.gasohol9195Slots.map(slot => this.slotCode(GASOHOL_9195, slot));
-  }
-
-  gasoholE20Codes(): string[] {
-    return this.gasoholE20Slots.map(slot => this.slotCode(GASOHOL_E20, slot));
-  }
-
-  forkliftCodes(): string[] {
-    return [DIESEL_B7_OFFROAD];
-  }
-
-  dieselB7SummaryEvidence(): string {
-    return this.evidenceForCodes(this.dieselB7OnroadCodes());
-  }
-
-  dieselB10SummaryEvidence(): string {
-    return this.evidenceForCodes(this.dieselB10OnroadCodes());
-  }
-
-  gasohol9195SummaryEvidence(): string {
-    return this.evidenceForCodes(this.gasohol9195Codes());
-  }
-
-  gasoholE20SummaryEvidence(): string {
-    return this.evidenceForCodes(this.gasoholE20Codes());
-  }
-
-  forkliftSummaryEvidence(): string {
-    return this.evidenceForCodes(this.forkliftCodes());
-  }
-
-  private getRow(code: string): EntryRow | undefined {
-    return this.rows.find(r => r.subCategoryCode === code);
-  }
-
-  private ensureRow(code: string): EntryRow | undefined {
-    let row = this.getRow(code);
+  getForkliftRow(): EntryRow {
+    let row = this.rows.find(r => (r.subCategoryCode ?? '') === 'DIESEL_B7_OFFROAD');
     if (row) return row;
 
     row = {
       cycleId: String(this.cycleId),
       scope: 'S1',
       categoryCode: '1.2',
-      subCategoryCode: code,
+      subCategoryCode: 'DIESEL_B7_OFFROAD',
       itemName: '',
       unit: 'L',
       months: createEmptyMonths(),
@@ -190,6 +118,44 @@ export class Scope12MobileComponent {
     return row;
   }
 
+  /** -------- cell helpers -------- */
+
+  slotLabel(row: EntryRow): string {
+    const { fuelKey, slotNo } = this.parseKey(row.subCategoryCode);
+    if (!fuelKey) return '';
+    return fuelKey === 'DIESEL_B7_OFFROAD' ? '' : `#${slotNo ?? ''}`;
+  }
+
+  total(row: EntryRow): number {
+    return this.toMonthlyArray(row).reduce((s, n) => s + n, 0);
+  }
+
+  getMonthQty(row: EntryRow, month: number): number {
+    const m = (row.months ?? []).find(x => x.month === month);
+    return m ? Number(m.qty || 0) : 0;
+  }
+
+  updateMonthQty(row: EntryRow, month: number, value: number | string) {
+    const qty = Number(value) || 0;
+    let m = (row.months ?? []).find(x => x.month === month);
+    if (!m) {
+      m = { month, qty: 0 };
+      row.months = [...(row.months ?? []), m];
+    }
+    m.qty = qty;
+    this.rowsChange.emit(this.rows);
+  }
+
+  updateField(row: EntryRow, field: keyof Pick<EntryRow, 'itemName' | 'location' | 'referenceText'>, value: string) {
+    (row as any)[field] = value;
+    this.rowsChange.emit(this.rows);
+  }
+
+  formatNumber(value: number, zeroAsDash = false, decimals = 2): string {
+    if (zeroAsDash && value === 0) return '-';
+    return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
+  }
+
   private toMonthlyArray(row?: EntryRow): number[] {
     const out = Array.from({ length: 12 }, () => 0);
     for (const m of row?.months ?? []) {
@@ -199,7 +165,17 @@ export class Scope12MobileComponent {
     return out;
   }
 
-  slotCode(prefix: string, slot: number): string {
-    return `${prefix}#${slot}`;
+  private parseKey(subCategoryCode?: string): { fuelKey?: FuelKey; slotNo?: number } {
+    const raw = String(subCategoryCode ?? '').trim();
+    if (!raw) return {};
+    if (raw === 'DIESEL_B7_OFFROAD') return { fuelKey: 'DIESEL_B7_OFFROAD' };
+
+    const [k, n] = raw.split('#');
+    const fuelKey = (k || '').trim() as FuelKey;
+    const slotNo = n ? Number(n) : undefined;
+    return {
+      fuelKey: fuelKey || undefined,
+      slotNo: Number.isFinite(slotNo) ? slotNo : undefined,
+    };
   }
 }

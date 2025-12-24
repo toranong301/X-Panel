@@ -1,4 +1,3 @@
-import { ExportContext, TemplateAdapter } from '../../engine/excel-export.engine';
 import {
   VSheetDataDoc,
   VSheetDetailBlock,
@@ -9,6 +8,7 @@ import {
   getDynamicBlocks,
   getFixedBlocks,
 } from '../../../vsheet/vsheet.schema';
+import { ExportContext, TemplateAdapter } from '../../engine/excel-export.engine';
 
 /**
  * Company-specific adapter for MBAX v-sheet (MBAX-TGO-11102567 demo).
@@ -408,11 +408,11 @@ const screenRow =
   const MONTH_COLS = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const; // เดือน 1..12
 
   const setMonths = (excelRow: number, months?: number[]) => {
-    for (let i = 0; i < 12; i++) {
-      const v = Number(months?.[i] ?? 0);
-      ws.getCell(`${MONTH_COLS[i]}${excelRow}`).value = v ? v : null; // 0 = ว่าง
-    }
-  };
+  for (let i = 0; i < 12; i++) {
+    const v = Number(months?.[i] ?? 0);
+    this.setCellValueSafely(ws, `${MONTH_COLS[i]}${excelRow}`, v ? v : null);
+  }
+};
 
   // ✅ แถว input รายเดือน (ตาม template)
   const dieselRow = 9;       // E9:P9
@@ -422,8 +422,9 @@ const screenRow =
 
   // เคลียร์ข้อมูลเก่าเฉพาะ input cells
   for (const r of [dieselRow, gasoholRow, acetyl2TankRow, acetyl3TankRow]) {
-    setMonths(r, new Array(12).fill(0));
-  }
+  setMonths(r); // จะเขียน null ทั้ง 12 เดือน (ผ่าน setCellValueSafely)
+}
+
 
   // ดึง canonical
   const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
@@ -460,11 +461,12 @@ private writeScope12Mobile(ctx: ExportContext): void {
   const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12
 
   const setMonths = (excelRow: number, months?: number[]) => {
-    for (let i = 0; i < 12; i++) {
-      const v = Number(months?.[i] ?? 0);
-      ws.getCell(`${MONTH_COLS[i]}${excelRow}`).value = v ? v : null;
-    }
-  };
+  for (let i = 0; i < 12; i++) {
+    const v = Number(months?.[i] ?? 0);
+    this.setCellValueSafely(ws, `${MONTH_COLS[i]}${excelRow}`, v ? v : null);
+  }
+};
+
 
   // row slots ตาม template
   const dieselB7Rows: number[] = [];
@@ -483,7 +485,8 @@ private writeScope12Mobile(ctx: ExportContext): void {
 
   // เคลียร์เฉพาะ input เดือน (กันข้อมูลเก่าค้าง)
   const clearRows = [...dieselB7Rows, ...dieselB10Rows, ...gasohol9195Rows, ...gasoholE20Rows, offroadForkliftRow];
-  for (const r of clearRows) setMonths(r, new Array(12).fill(0));
+  for (const r of clearRows) setMonths(r);
+
 
   // ดึง canonical
   const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
