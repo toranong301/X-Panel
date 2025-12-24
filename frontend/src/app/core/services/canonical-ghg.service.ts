@@ -102,7 +102,8 @@ export class CanonicalGhgService {
         r.categoryCode === '1.1' ||
         r.categoryCode === '1.2' ||
         r.categoryCode === '1.4.2' ||
-        r.categoryCode === '1.4.3',
+        r.categoryCode === '1.4.3' ||
+        r.categoryCode === '1.4.4',
       )
       .map(r => this.mapEntryRowToInventory(r, 1));
   }
@@ -121,6 +122,10 @@ export class CanonicalGhgService {
       r.categoryCode === '1.1' ? 'Stationary combustion' :
       r.categoryCode === '1.2' ? 'Mobile combustion' :
       r.categoryCode;
+    const remark =
+      r.categoryCode === '1.4.4'
+        ? (r.location ?? r.itemName ?? '')
+        : (r.location ?? '');
 
     return {
       id: r.id || `${r.scope}:${r.categoryCode}:${slug(r.itemName)}:${fuelKey ?? ''}:${slotNo ?? ''}`,
@@ -130,9 +135,9 @@ export class CanonicalGhgService {
       isoScope: '',
       categoryLabel,
       itemLabel: r.itemName,
-      unit: r.unit,
+      unit: r.categoryCode === '1.4.4' ? 'Kg' : r.unit,
       quantityPerYear: qtyYear,
-      remark: r.location ?? '',
+      remark,
       dataEvidence: r.referenceText ?? '',
 
       fuelKey,

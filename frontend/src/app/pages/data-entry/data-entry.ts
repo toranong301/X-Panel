@@ -16,6 +16,7 @@ import { Scope12MobileComponent } from './scope12-mobile/scope12-mobile.componen
 import { Scope14FugitiveComponent } from './scope14-fugitive/scope14-fugitive.component';
 import { Scope142FireComponent } from './scope142-fire/scope142-fire.component';
 import { Scope143SepticComponent } from './scope143-septic/scope143-septic.component';
+import { Scope144FertilizerComponent } from './scope144-fertilizer/scope144-fertilizer.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -30,6 +31,7 @@ import { Scope143SepticComponent } from './scope143-septic/scope143-septic.compo
     Scope14FugitiveComponent,
     Scope142FireComponent,
     Scope143SepticComponent,
+    Scope144FertilizerComponent,
     EvidenceBlockComponent,
   ],
   templateUrl: './data-entry.html',
@@ -44,6 +46,7 @@ export class DataEntryComponent implements OnInit {
   scope141Rows: EntryRow[] = [];
   scope142Rows: EntryRow[] = [];
   scope143Rows: EntryRow[] = [];
+  scope144Rows: EntryRow[] = [];
 
   evidenceMap: Record<string, EvidenceModel> = {};
 
@@ -72,6 +75,8 @@ export class DataEntryComponent implements OnInit {
       this.scope142Rows = scope142Rows.length ? scope142Rows : makeScope142Defaults(this.cycleId);
       const scope143Rows = scope1Rows.filter(r => r.categoryCode === '1.4.3');
       this.scope143Rows = scope143Rows.length ? scope143Rows : makeScope143Defaults(this.cycleId);
+      const scope144Rows = scope1Rows.filter(r => r.categoryCode === '1.4.4');
+      this.scope144Rows = scope144Rows.length ? scope144Rows : makeScope144Defaults(this.cycleId);
       this.scope2Rows = saved.scope2 ?? [];
       this.scope3Rows = saved.scope3 ?? [];
       this.evidenceMap = saved.evidence ?? {};
@@ -90,12 +95,13 @@ export class DataEntryComponent implements OnInit {
     this.scope141Rows = makeScope141Defaults(this.cycleId);
     this.scope142Rows = makeScope142Defaults(this.cycleId);
     this.scope143Rows = makeScope143Defaults(this.cycleId);
+    this.scope144Rows = makeScope144Defaults(this.cycleId);
   }
 
   save(): void {
     const existing = this.entrySvc.load(this.cycleId);
     const otherScope1Rows = (existing?.scope1 ?? []).filter(
-      row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3'].includes(row.categoryCode)
+      row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3', '1.4.4'].includes(row.categoryCode)
     );
     const payload: DataEntryDoc = {
       cycleId: this.cycleId,
@@ -105,6 +111,7 @@ export class DataEntryComponent implements OnInit {
         ...this.scope141Rows,
         ...this.scope142Rows,
         ...this.scope143Rows,
+        ...this.scope144Rows,
         ...otherScope1Rows,
       ],
       scope2: this.scope2Rows,
@@ -140,6 +147,7 @@ export class DataEntryComponent implements OnInit {
       'S1::1.4.3::group2',
       'S1::1.4.3::group3',
       'S1::1.4.3::group4',
+      'S1::1.4.4',
     ];
     let updated = false;
     const next = { ...this.evidenceMap };
@@ -313,4 +321,22 @@ function makeScope143Defaults(cycleId: number): EntryRow[] {
   });
 
   return rows;
+}
+
+function makeScope144Defaults(cycleId: number): EntryRow[] {
+  const months = createEmptyMonths();
+  months[0].qty = 50;
+  return [
+    {
+      cycleId: String(cycleId),
+      scope: 'S1',
+      categoryCode: '1.4.4',
+      subCategoryCode: 'FERTILIZER#1',
+      itemName: 'ปุ๋ยเคมี 16-16-16',
+      unit: 'Kg',
+      referenceText: 'บิลเงินสด',
+      months,
+      dataSourceType: 'ORG',
+    },
+  ];
 }
