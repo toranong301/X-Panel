@@ -285,15 +285,15 @@ const screenRow =
       const destRow = baseRow + i;
       const item = selected[i];
       if (!item) {
-        ws.getCell(`B${destRow}`).value = '';
+        this.setCellValueSafely(ws, `B${destRow}`, null);
         continue;
       }
 
       const excelRow = fr032RowMap[String((item as any).key)] ?? null;
       if (excelRow) {
-        ws.getCell(`B${destRow}`).value = { formula: `='${ctx.spec.sheets['fr032'].name}'!C${excelRow}` };
+        this.setCellValueSafely(ws, `B${destRow}`, { formula: `='${ctx.spec.sheets['fr032'].name}'!C${excelRow}` });
       } else {
-        ws.getCell(`B${destRow}`).value = (item as any).itemLabel ?? '';
+        this.setCellValueSafely(ws, `B${destRow}`, (item as any).itemLabel ?? '');
       }
     }
   }

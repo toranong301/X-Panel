@@ -16,8 +16,13 @@
     </button>
 
     <button mat-raised-button color="primary" (click)="exportVSheet()" [disabled]="exporting">
-      <mat-icon>download</mat-icon>
-      Export v-sheet
+      <mat-icon *ngIf="!exporting">download</mat-icon>
+      <mat-progress-spinner
+        *ngIf="exporting"
+        diameter="18"
+        mode="indeterminate"
+      ></mat-progress-spinner>
+      <span>{{ exporting ? 'กำลัง Export...' : 'Export v-sheet' }}</span>
     </button>
   </div>
 </div>
@@ -43,45 +48,37 @@
   <mat-divider></mat-divider>
 
   <div class="table-wrap">
-    <table mat-table [dataSource]="previewRows" class="mat-elevation-z0">
-
-      <ng-container matColumnDef="subScope">
-        <th mat-header-cell *matHeaderCellDef>No. TGO</th>
-        <td mat-cell *matCellDef="let r">{{ r.subScope }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="isoNo">
-        <th mat-header-cell *matHeaderCellDef>ISO</th>
-        <td mat-cell *matCellDef="let r">{{ r.isoNo }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="itemLabel">
-        <th mat-header-cell *matHeaderCellDef>รายการ</th>
-        <td mat-cell *matCellDef="let r">{{ r.itemLabel }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="ghgTco2e">
-        <th mat-header-cell *matHeaderCellDef>GHG (tCO2eq.)</th>
-        <td mat-cell *matCellDef="let r" class="num">{{ fmt(r.ghgTco2e, 2) }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="sharePct">
-        <th mat-header-cell *matHeaderCellDef>%</th>
-        <td mat-cell *matCellDef="let r" class="num">{{ fmt(r.sharePct, 2) }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="assessment">
-        <th mat-header-cell *matHeaderCellDef>ผลการประเมิน</th>
-        <td mat-cell *matCellDef="let r">{{ r.assessment }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="selection">
-        <th mat-header-cell *matHeaderCellDef>ผลการคัดเลือก</th>
-        <td mat-cell *matCellDef="let r">{{ r.selection }}</td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    <table class="fr041-table">
+      <thead>
+        <tr>
+          <th rowspan="2">ขอบเขต</th>
+          <th rowspan="2">รายการ</th>
+          <th rowspan="2">หน่วย</th>
+          <th rowspan="2" class="num">ปริมาณรายปี</th>
+          <th colspan="2">การคำนวณ GHG</th>
+        </tr>
+        <tr>
+          <th class="num">EF (kgCO2e/หน่วย)</th>
+          <th class="num">Total GHG (tCO2e)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of fr041Rows" [ngClass]="row.type">
+          <ng-container [ngSwitch]="row.type">
+            <td *ngSwitchCase="'section'" colspan="6">{{ row.label }}</td>
+            <td *ngSwitchCase="'group'" colspan="6">{{ row.label }}</td>
+            <td *ngSwitchCase="'empty'" colspan="6">{{ row.label }}</td>
+            <ng-container *ngSwitchCase="'data'">
+              <td>{{ row.scopeLabel }}</td>
+              <td>{{ row.itemLabel }}</td>
+              <td>{{ row.unit }}</td>
+              <td class="num">{{ row.quantity !== null ? fmt(row.quantity, 2) : '-' }}</td>
+              <td class="num">{{ row.ef !== null ? fmt(row.ef, 4) : '-' }}</td>
+              <td class="num">{{ row.total !== null ? fmt(row.total, 2) : '-' }}</td>
+            </ng-container>
+          </ng-container>
+        </tr>
+      </tbody>
     </table>
   </div>
 </mat-card>
