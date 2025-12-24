@@ -1,0 +1,78 @@
+<div class="evidence-block">
+  <div class="header">
+    <h4>Evidence</h4>
+    <span class="key" *ngIf="evidenceKey">{{ evidenceKey }}</span>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="btn" (click)="addNote()">+ เพิ่มข้อความ</button>
+    <button type="button" class="btn" (click)="addTable()">+ เพิ่มตาราง</button>
+    <label class="btn">
+      + แนบรูป
+      <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+    </label>
+  </div>
+
+  <div class="section" *ngIf="model.notes.length">
+    <h5>ข้อความ</h5>
+    <div class="note" *ngFor="let note of model.notes; index as i">
+      <textarea
+        [ngModel]="note"
+        (ngModelChange)="updateNote(i, $event)"
+        placeholder="พิมพ์ข้อความอ้างอิง"
+      ></textarea>
+      <button type="button" class="btn-danger" (click)="removeNote(i)">ลบ</button>
+    </div>
+  </div>
+
+  <div class="section" *ngIf="model.tables.length">
+    <h5>ตารางข้อความ</h5>
+    <div class="table-block" *ngFor="let table of model.tables; index as tIdx">
+      <div class="table-actions">
+        <button type="button" class="btn" (click)="addRow(tIdx)">+ เพิ่มแถว</button>
+        <button type="button" class="btn" (click)="addColumn(tIdx)">+ เพิ่มคอลัมน์</button>
+        <button type="button" class="btn-danger" (click)="removeTable(tIdx)">ลบตาราง</button>
+      </div>
+
+      <table class="grid">
+        <thead>
+          <tr>
+            <th *ngFor="let header of table.headers; index as hIdx">
+              <input
+                class="text"
+                [ngModel]="header"
+                (ngModelChange)="updateHeader(tIdx, hIdx, $event)"
+              />
+              <button type="button" class="icon" (click)="removeColumn(tIdx, hIdx)">×</button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of table.rows; index as rIdx">
+            <td *ngFor="let cell of row; index as cIdx">
+              <input
+                class="text"
+                [ngModel]="cell"
+                (ngModelChange)="updateCell(tIdx, rIdx, cIdx, $event)"
+              />
+            </td>
+            <td class="row-actions">
+              <button type="button" class="icon" (click)="removeRow(tIdx, rIdx)">×</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section" *ngIf="model.images.length">
+    <h5>รูปหลักฐาน</h5>
+    <div class="images">
+      <div class="image" *ngFor="let image of model.images; index as i">
+        <img [src]="image.dataUrl" [alt]="image.name" />
+        <div class="caption">{{ image.name }}</div>
+        <button type="button" class="btn-danger" (click)="removeImage(i)">ลบ</button>
+      </div>
+    </div>
+  </div>
+</div>

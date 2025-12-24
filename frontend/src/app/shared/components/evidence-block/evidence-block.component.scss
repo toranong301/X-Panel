@@ -1,0 +1,143 @@
+:host {
+  display: block;
+  margin-top: 16px;
+}
+
+.evidence-block {
+  border: 1px dashed #d0d0d0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fcfcfc;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.header h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.header .key {
+  font-size: 11px;
+  color: #666;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.btn,
+.btn-danger {
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+  background: #fff;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-danger {
+  border-color: #f3b0b0;
+  color: #b60000;
+}
+
+.btn input[type='file'] {
+  display: none;
+}
+
+.section {
+  margin-top: 12px;
+}
+
+.note {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.note textarea {
+  flex: 1;
+  min-height: 60px;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.table-block {
+  margin-top: 8px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.grid th,
+.grid td {
+  border: 1px solid #e0e0e0;
+  padding: 4px;
+}
+
+.grid input.text {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 12px;
+}
+
+.icon {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+.row-actions {
+  width: 32px;
+  text-align: center;
+}
+
+.images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.image {
+  width: 140px;
+  border: 1px solid #e0e0e0;
+  padding: 6px;
+  border-radius: 6px;
+  background: #fff;
+  text-align: center;
+}
+
+.image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+}
+
+.caption {
+  font-size: 11px;
+  margin: 4px 0;
+  color: #444;
+  word-break: break-all;
+}

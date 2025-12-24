@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { VSheetDataDoc } from '../vsheet/vsheet.schema';
+import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
 
 export interface DataEntryDoc {
@@ -9,6 +10,7 @@ export interface DataEntryDoc {
   scope3: EntryRow[];
   cfoFixed?: VSheetDataDoc['cfoFixed'];
   subsheets?: VSheetDataDoc['subsheets'];
+  evidence?: Record<string, EvidenceModel>;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -8,11 +8,14 @@ import { MatTabsModule } from '@angular/material/tabs';
 
 import { DataEntryDoc, DataEntryService } from '../../core/services/data-entry.service';
 import { createEmptyMonths } from '../../models/entry-row.helpers';
+import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
+import { EvidenceBlockComponent } from '../../shared/components/evidence-block/evidence-block.component';
 import { Scope11StationaryComponent } from './scope11-stationary/scope11-stationary.component';
 import { Scope12MobileComponent } from './scope12-mobile/scope12-mobile.component';
 import { Scope14FugitiveComponent } from './scope14-fugitive/scope14-fugitive.component';
 import { Scope142FireComponent } from './scope142-fire/scope142-fire.component';
+import { Scope143SepticComponent } from './scope143-septic/scope143-septic.component';
 
 @Component({
   selector: 'app-data-entry',
@@ -26,6 +29,8 @@ import { Scope142FireComponent } from './scope142-fire/scope142-fire.component';
     Scope12MobileComponent,
     Scope14FugitiveComponent,
     Scope142FireComponent,
+    Scope143SepticComponent,
+    EvidenceBlockComponent,
   ],
   templateUrl: './data-entry.html',
   styleUrls: ['./data-entry.scss'],
@@ -38,6 +43,9 @@ export class DataEntryComponent implements OnInit {
   scope12Rows: EntryRow[] = [];
   scope141Rows: EntryRow[] = [];
   scope142Rows: EntryRow[] = [];
+  scope143Rows: EntryRow[] = [];
+
+  evidenceMap: Record<string, EvidenceModel> = {};
 
   // เผื่อไว้ (ถ้ายังไม่ทำก็ปล่อยว่างได้)
   scope2Rows: EntryRow[] = [];
@@ -62,13 +70,18 @@ export class DataEntryComponent implements OnInit {
       this.scope141Rows = scope141Rows.length ? scope141Rows : makeScope141Defaults(this.cycleId);
       const scope142Rows = scope1Rows.filter(r => r.categoryCode === '1.4.2');
       this.scope142Rows = scope142Rows.length ? scope142Rows : makeScope142Defaults(this.cycleId);
+      const scope143Rows = scope1Rows.filter(r => r.categoryCode === '1.4.3');
+      this.scope143Rows = scope143Rows.length ? scope143Rows : makeScope143Defaults(this.cycleId);
       this.scope2Rows = saved.scope2 ?? [];
       this.scope3Rows = saved.scope3 ?? [];
+      this.evidenceMap = saved.evidence ?? {};
+      this.seedEvidenceKeys();
       return;
     }
 
     // seed defaults เพื่อให้ “เข้าไปกรอกแล้วกด Save ได้ทันที”
     this.resetDefaults();
+    this.seedEvidenceKeys();
   }
 
   resetDefaults(): void {
@@ -76,20 +89,29 @@ export class DataEntryComponent implements OnInit {
     this.scope12Rows = makeScope12Defaults(this.cycleId);
     this.scope141Rows = makeScope141Defaults(this.cycleId);
     this.scope142Rows = makeScope142Defaults(this.cycleId);
+    this.scope143Rows = makeScope143Defaults(this.cycleId);
   }
 
   save(): void {
     const existing = this.entrySvc.load(this.cycleId);
     const otherScope1Rows = (existing?.scope1 ?? []).filter(
-      row => !['1.1', '1.2', '1.4.1', '1.4.2'].includes(row.categoryCode)
+      row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3'].includes(row.categoryCode)
     );
     const payload: DataEntryDoc = {
       cycleId: this.cycleId,
-      scope1: [...this.scope11Rows, ...this.scope12Rows, ...this.scope141Rows, ...this.scope142Rows, ...otherScope1Rows],
+      scope1: [
+        ...this.scope11Rows,
+        ...this.scope12Rows,
+        ...this.scope141Rows,
+        ...this.scope142Rows,
+        ...this.scope143Rows,
+        ...otherScope1Rows,
+      ],
       scope2: this.scope2Rows,
       scope3: this.scope3Rows,
       cfoFixed: existing?.cfoFixed,
       subsheets: existing?.subsheets,
+      evidence: this.evidenceMap,
     };
 
     this.entrySvc.save(this.cycleId, payload);
@@ -98,6 +120,36 @@ export class DataEntryComponent implements OnInit {
 
   goFr041(): void {
     this.router.navigate(['/cycles', this.cycleId, 'fr04-1']);
+  }
+
+  evidenceFor(key: string): EvidenceModel {
+    return this.evidenceMap[key] ?? { notes: [], tables: [], images: [] };
+  }
+
+  updateEvidence(key: string, model: EvidenceModel): void {
+    this.evidenceMap = { ...this.evidenceMap, [key]: model };
+  }
+
+  private seedEvidenceKeys(): void {
+    const keys = [
+      'S1::1.1',
+      'S1::1.2',
+      'S1::1.4.1',
+      'S1::1.4.2',
+      'S1::1.4.3::group1',
+      'S1::1.4.3::group2',
+      'S1::1.4.3::group3',
+      'S1::1.4.3::group4',
+    ];
+    let updated = false;
+    const next = { ...this.evidenceMap };
+    for (const key of keys) {
+      if (!next[key]) {
+        next[key] = { notes: [], tables: [], images: [] };
+        updated = true;
+      }
+    }
+    if (updated) this.evidenceMap = next;
   }
 }
 
@@ -225,4 +277,40 @@ function makeScope142Defaults(cycleId: number): EntryRow[] {
     mk(1, 'สารดับเพลิง CO2', 'LCB/BKK', 'ใบสั่งซื้อ/เอกสาร PM'),
     mk(2, 'สารดับเพลิง HCFC-123', 'LCB/BKK (ห้อง Server)', 'ใบสั่งซื้อ/เอกสาร PM'),
   ];
+}
+
+function makeScope143Defaults(cycleId: number): EntryRow[] {
+  const groups = [
+    '#1 โรงงานแหลมฉบัง (6 วัน/สัปดาห์)',
+    '#2 สำนักงานกรุงเทพ (5 วัน/สัปดาห์)',
+    '#3 รปภ (7 วัน/สัปดาห์)',
+    '#4 พยาบาล (7 วัน/สัปดาห์)',
+  ];
+
+  const rows: EntryRow[] = [];
+  groups.forEach((label, idx) => {
+    const groupNo = idx + 1;
+    rows.push({
+      cycleId: String(cycleId),
+      scope: 'S1',
+      categoryCode: '1.4.3',
+      subCategoryCode: `SEPTIC_P#${groupNo}`,
+      itemName: label,
+      unit: 'people',
+      months: createEmptyMonths(),
+      dataSourceType: 'ORG',
+    });
+    rows.push({
+      cycleId: String(cycleId),
+      scope: 'S1',
+      categoryCode: '1.4.3',
+      subCategoryCode: `SEPTIC_OFF#${groupNo}`,
+      itemName: label,
+      unit: 'days',
+      months: createEmptyMonths(),
+      dataSourceType: 'ORG',
+    });
+  });
+
+  return rows;
 }

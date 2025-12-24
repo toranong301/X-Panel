@@ -16,6 +16,12 @@
         [cycleId]="cycleId"
         [(rows)]="scope11Rows"
       ></app-scope11-stationary>
+
+      <app-evidence-block
+        evidenceKey="S1::1.1"
+        [model]="evidenceFor('S1::1.1')"
+        (modelChange)="updateEvidence('S1::1.1', $event)"
+      ></app-evidence-block>
     </mat-card>
 
     <mat-card style="margin-top:16px;">
@@ -27,6 +33,12 @@
         [cycleId]="cycleId"
         [(rows)]="scope12Rows"
       ></app-scope12-mobile>
+
+      <app-evidence-block
+        evidenceKey="S1::1.2"
+        [model]="evidenceFor('S1::1.2')"
+        (modelChange)="updateEvidence('S1::1.2', $event)"
+      ></app-evidence-block>
     </mat-card>
 
     <mat-card style="margin-top:16px;">
@@ -38,6 +50,12 @@
         [cycleId]="cycleId"
         [(rows)]="scope141Rows"
       ></app-scope14-fugitive>
+
+      <app-evidence-block
+        evidenceKey="S1::1.4.1"
+        [model]="evidenceFor('S1::1.4.1')"
+        (modelChange)="updateEvidence('S1::1.4.1', $event)"
+      ></app-evidence-block>
     </mat-card>
 
     <mat-card style="margin-top:16px;">
@@ -49,6 +67,53 @@
         [cycleId]="cycleId"
         [(rows)]="scope142Rows"
       ></app-scope142-fire>
+
+      <app-evidence-block
+        evidenceKey="S1::1.4.2"
+        [model]="evidenceFor('S1::1.4.2')"
+        (modelChange)="updateEvidence('S1::1.4.2', $event)"
+      ></app-evidence-block>
+    </mat-card>
+
+    <mat-card style="margin-top:16px;">
+      <mat-card-title>1.4.3 Septic</mat-card-title>
+      <mat-card-subtitle>กรอกข้อมูล septic ตามแบบ Excel</mat-card-subtitle>
+      <mat-divider></mat-divider>
+
+      <app-scope143-septic
+        [cycleId]="cycleId"
+        [(rows)]="scope143Rows"
+      ></app-scope143-septic>
+
+      <div class="evidence-groups">
+        <h4>#1 โรงงานแหลมฉบัง (6 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group1"
+          [model]="evidenceFor('S1::1.4.3::group1')"
+          (modelChange)="updateEvidence('S1::1.4.3::group1', $event)"
+        ></app-evidence-block>
+
+        <h4>#2 สำนักงานกรุงเทพ (5 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group2"
+          [model]="evidenceFor('S1::1.4.3::group2')"
+          (modelChange)="updateEvidence('S1::1.4.3::group2', $event)"
+        ></app-evidence-block>
+
+        <h4>#3 รปภ (7 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group3"
+          [model]="evidenceFor('S1::1.4.3::group3')"
+          (modelChange)="updateEvidence('S1::1.4.3::group3', $event)"
+        ></app-evidence-block>
+
+        <h4>#4 พยาบาล (7 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group4"
+          [model]="evidenceFor('S1::1.4.3::group4')"
+          (modelChange)="updateEvidence('S1::1.4.3::group4', $event)"
+        ></app-evidence-block>
+      </div>
     </mat-card>
 
   </mat-tab>

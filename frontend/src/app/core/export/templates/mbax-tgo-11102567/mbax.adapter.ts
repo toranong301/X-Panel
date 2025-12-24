@@ -35,6 +35,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeScope12Mobile(ctx);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
+    this.writeEvidenceSheet(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
 
@@ -603,50 +604,138 @@ private writeScope12Mobile(ctx: ExportContext): void {
   }
 
   private writeScope143Septic(ctx: ExportContext): void {
-    const ws = ctx.workbook.getWorksheet('1.4.3 Septic');
+    let ws = ctx.workbook.getWorksheet('1.4.3 Septic');
+    if (!ws) {
+      ws = ctx.workbook.worksheets.find((sheet: any) => {
+        const name = String(sheet?.name ?? '').toLowerCase();
+        return name.includes('1.4.3') || name.includes('septic');
+      });
+    }
     if (!ws) return;
 
-    const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-
-    const startRows: number[] = [];
-    for (let r = 1; r <= 200; r++) {
+    const janRows: number[] = [];
+    for (let r = 1; r <= 300; r++) {
       const text = this.getCellText(ws.getCell(`A${r}`).value);
-      if (text === monthLabels[0]) startRows.push(r);
+      if (text === 'ม.ค.') janRows.push(r);
     }
 
-    if (!startRows.length) return;
+    if (!janRows.length) return;
 
     const rows = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.4.3');
-
     const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
-    const getMonths = (x: any) =>
-      Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
-      Array.isArray(x?.months) ? x.months :
-      [];
+    const getMonths = (x: any) => Array.isArray(x?.quantityMonthly) ? x.quantityMonthly : [];
 
-    const byFuelKey = (k: string) => rows.find((x: any) => getFuelKey(x) === k.toUpperCase());
+    const findRow = (fuelKey: string, slotNo: number) =>
+      rows.find((x: any) => getFuelKey(x) === fuelKey && Number(x?.slotNo) === slotNo);
 
-    const sectionKeys = [
-      'SEPTIC_LAEM_CHABANG_FACTORY',
-      'SEPTIC_BANGKOK_OFFICE',
-      'SEPTIC_SECURITY',
-      'SEPTIC_NURSE',
-    ];
+    const hasFormula = (cell: any) => Boolean(cell?.formula || cell?.value?.formula);
+    const findInputCol = (preferred: string, candidates: string[]) => {
+      const colList = [preferred, ...candidates];
+      for (const col of colList) {
+        const cell = ws?.getCell(`${col}${janRows[0]}`);
+        if (!hasFormula(cell)) return col;
+      }
+      return preferred;
+    };
 
-    const maxSections = Math.min(startRows.length, sectionKeys.length);
-    for (let s = 0; s < maxSections; s++) {
-      const startRow = startRows[s];
-      const item = byFuelKey(sectionKeys[s]);
-      if (!item) continue;
-      const months = getMonths(item);
+    const peopleCol = findInputCol('B', ['C', 'D', 'E', 'F', 'G', 'H']);
+    const offCol = findInputCol('E', ['D', 'F', 'G', 'H', 'I', 'J']);
+
+    const maxGroups = Math.min(janRows.length, 4);
+    for (let groupIndex = 0; groupIndex < maxGroups; groupIndex++) {
+      const janRow = janRows[groupIndex];
+      const groupNo = groupIndex + 1;
 
       for (let m = 0; m < 12; m++) {
-        const v = Number(months?.[m] ?? 0);
-        this.setCellValueSafely(ws, `B${startRow + m}`, v ? v : null);
+        this.setCellValueSafely(ws, `${peopleCol}${janRow + m}`, null);
+        this.setCellValueSafely(ws, `${offCol}${janRow + m}`, null);
+      }
+
+      const peopleRow = findRow('SEPTIC_P', groupNo);
+      const offRow = findRow('SEPTIC_OFF', groupNo);
+      const peopleMonths = peopleRow ? getMonths(peopleRow) : [];
+      const offMonths = offRow ? getMonths(offRow) : [];
+
+      for (let m = 0; m < 12; m++) {
+        const peopleValue = Number(peopleMonths?.[m] ?? 0);
+        const offValue = Number(offMonths?.[m] ?? 0);
+        this.setCellValueSafely(ws, `${peopleCol}${janRow + m}`, peopleValue ? peopleValue : null);
+        this.setCellValueSafely(ws, `${offCol}${janRow + m}`, offValue ? offValue : null);
       }
     }
   }
 
+  private writeEvidenceSheet(ctx: ExportContext): void {
+    const evidence = ctx.canonical.evidence ?? {};
+    if (!Object.keys(evidence).length) return;
+
+    let ws = ctx.workbook.getWorksheet('EVIDENCE');
+    if (!ws) ws = ctx.workbook.addWorksheet('EVIDENCE');
+
+    for (let r = 1; r <= ws.rowCount + 5; r++) {
+      for (const col of ['A', 'B', 'C', 'D']) this.setCellValueSafely(ws, `${col}${r}`, null);
+    }
+
+    const headerRow = 1;
+    this.setCellValueSafely(ws, `A${headerRow}`, 'Sheet/Section');
+    this.setCellValueSafely(ws, `B${headerRow}`, 'Group');
+    this.setCellValueSafely(ws, `C${headerRow}`, 'Type');
+    this.setCellValueSafely(ws, `D${headerRow}`, 'Content/Name');
+
+    let row = 2;
+    const entries = Object.entries(evidence).sort(([a], [b]) => a.localeCompare(b));
+    for (const [key, model] of entries) {
+      const parts = key.split('::');
+      const section = parts[1] ?? parts[0] ?? '';
+      const group = parts[2] ?? '';
+
+      for (const note of model.notes ?? []) {
+        this.setCellValueSafely(ws, `A${row}`, section);
+        this.setCellValueSafely(ws, `B${row}`, group);
+        this.setCellValueSafely(ws, `C${row}`, 'note');
+        this.setCellValueSafely(ws, `D${row}`, note);
+        row += 1;
+      }
+
+      for (const table of model.tables ?? []) {
+        const header = (table.headers ?? []).join(' | ');
+        const body = (table.rows ?? []).map(r => r.join(' | ')).join('\n');
+        const content = [header, body].filter(Boolean).join('\n');
+        this.setCellValueSafely(ws, `A${row}`, section);
+        this.setCellValueSafely(ws, `B${row}`, group);
+        this.setCellValueSafely(ws, `C${row}`, 'table');
+        this.setCellValueSafely(ws, `D${row}`, content);
+        row += 1;
+      }
+
+      for (const image of model.images ?? []) {
+        this.setCellValueSafely(ws, `A${row}`, section);
+        this.setCellValueSafely(ws, `B${row}`, group);
+        this.setCellValueSafely(ws, `C${row}`, 'image');
+        this.setCellValueSafely(ws, `D${row}`, image.name || '[image]');
+
+        if (image.dataUrl && typeof (ctx.workbook as any).addImage === 'function' && typeof (ws as any).addImage === 'function') {
+          try {
+            const match = image.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+            if (match) {
+              const meta = match[1];
+              const base64 = match[2];
+              const extension = meta ? meta.split('/')[1] : 'png';
+              const imageId = (ctx.workbook as any).addImage({ base64, extension });
+              (ws as any).addImage(imageId, {
+                tl: { col: 0, row: row },
+                ext: { width: 320, height: 200 },
+              });
+            }
+          } catch {
+            // ignore image embed errors
+          }
+        }
+
+        row += 12;
+      }
+    }
+  }
 
 
 }

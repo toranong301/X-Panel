@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 
+import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
 import { InventoryItemRow, Scope3SignificanceRow } from '../../models/refs.model';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
@@ -17,6 +18,7 @@ export interface CanonicalCycleData {
   inventory: InventoryItemRow[];
   fr03_2: Fr032CanonicalRow[];
   vsheet: VSheetDataDoc;
+  evidence?: Record<string, EvidenceModel>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -33,6 +35,7 @@ export class CanonicalGhgService {
    * - Scope 1.1/1.2 comes from DataEntryService (localStorage).
    */
   build(cycleId: number): CanonicalCycleData {
+    const entryDoc = this.entrySvc.load(cycleId);
     // --- V-Sheet data (fixed + subsheets) ---
     const vsheet = this.entrySvc.loadVSheet(cycleId);
 
@@ -82,7 +85,7 @@ export class CanonicalGhgService {
       });
     }
 
-    return { inventory, fr03_2, vsheet };
+    return { inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {} };
   }
 
   public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {
