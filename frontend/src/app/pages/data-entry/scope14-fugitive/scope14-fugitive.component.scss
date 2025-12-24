@@ -1,4 +1,4 @@
-.scope11-stationary {
+.scope14-fugitive {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -27,7 +27,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 900px;
+    min-width: 1200px;
   }
 
   th,
@@ -48,30 +48,11 @@
     white-space: nowrap;
   }
 
-  td.evidence-text {
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  select,
+  input[type='text'],
   input[type='number'] {
     width: 100%;
     padding: 4px 6px;
     font-size: 12px;
     box-sizing: border-box;
-  }
-
-  .display-only {
-    background: #fafafa;
-
-    td input,
-    td select {
-      display: none;
-    }
-
-    .placeholder {
-      text-align: center;
-      color: #9e9e9e;
-    }
   }
 }

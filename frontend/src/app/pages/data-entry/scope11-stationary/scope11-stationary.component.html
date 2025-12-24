@@ -72,11 +72,14 @@
     <table class="monthly-table">
       <thead>
         <tr>
-          <th>รายการ</th>
-          <th>หลักฐาน</th>
-          <th>หน่วย</th>
-          <th>รวม</th>
-          <th *ngFor="let m of months">เดือน {{ m }}</th>
+          <th rowspan="2">รายการ</th>
+          <th rowspan="2">หลักฐาน</th>
+          <th rowspan="2">หน่วย</th>
+          <th rowspan="2">รวม</th>
+          <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+        </tr>
+        <tr>
+          <th *ngFor="let m of months">{{ m }}</th>
         </tr>
       </thead>
       <tbody>
@@ -124,7 +127,7 @@
         </tr>
         <tr class="display-only">
           <td>Acetylene Gas (ซ่อมบำรุง)</td>
-          <td class="placeholder">-</td>
+          <td class="evidence-text">{{ acetyleneSummaryEvidence || '-' }}</td>
           <td>kg</td>
           <td class="num">{{ formatNumber(totalFromMonths(acetyleneTotalKgMonths()), true) }}</td>
           <td *ngFor="let v of acetyleneTotalKgMonths()" class="num">

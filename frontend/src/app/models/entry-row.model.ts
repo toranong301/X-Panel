@@ -26,6 +26,7 @@ export interface EntryRow {
 
   itemName: string;  // ชื่อกิจกรรม
   unit: string;      // หน่วย
+  location?: string;
 
   /** รายเดือน 1..12 */
   months: MonthlyQty[];
