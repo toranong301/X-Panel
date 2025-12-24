@@ -116,6 +116,8 @@ export class CanonicalGhgService {
   private mapEntryRowToInventory(r: EntryRow, scopeNo: 1 | 2 | 3): InventoryItemRow {
     const monthly = this.toMonthlyArray(r.months || []);
     const qtyYear = monthly.reduce((s, n) => s + Number(n || 0), 0);
+    const efValue = Number.isFinite(Number(r.snapshotEfValue)) ? Number(r.snapshotEfValue) : undefined;
+    const totalTco2e = efValue !== undefined ? (qtyYear * efValue) / 1000 : undefined;
 
     const { fuelKey, slotNo } = this.parseFuelKeyAndSlot(r.subCategoryCode);
     const fallbackLabel = this.getScope1Label(fuelKey);
@@ -143,6 +145,8 @@ export class CanonicalGhgService {
       itemLabel,
       unit: r.categoryCode === '1.4.4' ? 'Kg' : r.unit,
       quantityPerYear: qtyYear,
+      ef: efValue,
+      totalTco2e,
       remark,
       dataEvidence: r.referenceText ?? '',
 

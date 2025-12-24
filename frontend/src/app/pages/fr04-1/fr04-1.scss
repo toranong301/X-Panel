@@ -37,6 +37,34 @@
   margin: 8px 0 10px;
 }
 
+.table-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 8px;
+  font-size: 13px;
+
+  .muted {
+    opacity: 0.7;
+  }
+}
+
+.empty-state {
+  background: #fff8e1;
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.table-title {
+  font-weight: 700;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
 .table-wrap {
   overflow: auto;
   padding-top: 10px;
