@@ -1,23 +1,15 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ActivatedRoute, Router } from '@angular/router';
+
+import { DataEntryService } from '../../core/services/data-entry.service';
 import { createEmptyMonths } from '../../models/entry-row.helpers';
 import { EntryRow } from '../../models/entry-row.model';
 import { CategorySectionComponent } from '../../shared/components/category-section/category-section.component';
-import { MonthlyEntryGridComponent } from '../../shared/components/monthly-entry-grid/monthly-entry-grid.component';
-
-
-
-export interface ActivityRow {
-  activity: string;
-  unit: string;
-  quantity: number;
-}
-
 @Component({
   selector: 'app-data-entry',
   standalone: true,
@@ -27,84 +19,58 @@ export interface ActivityRow {
     MatInputModule,
     MatButtonModule,
     FormsModule,
-    MonthlyEntryGridComponent,
     CategorySectionComponent,
   ],
   templateUrl: './data-entry.html',
   styleUrls: ['./data-entry.scss'],
 })
 export class DataEntryComponent {
+  private route = inject(ActivatedRoute);
+private router = inject(Router);
+private entrySvc = inject(DataEntryService);
 
-  
-  cycleId!: number;
+cycleId = Number(this.route.snapshot.paramMap.get('cycleId'));
 
-  displayedColumns = ['activity', 'unit', 'quantity'];
-  
+scope11Rows: EntryRow[] = [];
+scope12Rows: EntryRow[] = [];
+scope2Rows: EntryRow[] = [];
+scope3Rows: EntryRow[] = [];
 
-  /* ---------- MOCK DATA ---------- */
+constructor() {
+  const saved = this.entrySvc.load(this.cycleId);
 
-  scope1Rows: EntryRow[] = [
-  {
-    cycleId: String(this.cycleId),
-    scope: 'S1',
-    categoryCode: '1.1',
-    itemName: 'Diesel (Stationary combustion)',
-    unit: 'liter',
-    months: createEmptyMonths(),
-    dataSourceType: 'ORG',
-  },
-];
+  if (saved) {
+    this.scope11Rows = (saved.scope1 || []).filter(r => r.categoryCode === '1.1');
+    this.scope12Rows = (saved.scope1 || []).filter(r => r.categoryCode === '1.2');
+    this.scope2Rows = saved.scope2 || [];
+    this.scope3Rows = saved.scope3 || [];
+    return;
+  }
 
-scope2Rows: EntryRow[] = [
-  {
-    cycleId: String(this.cycleId),
-    scope: 'S2',
-    categoryCode: '2.1',
-    itemName: 'Electricity (Grid)',
-    unit: 'kWh',
-    months: createEmptyMonths(),
-    dataSourceType: 'ORG',
-  },
-];
+  // default rows (ผูก fuelKey ผ่าน subCategoryCode)
+  this.scope11Rows = [
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.1', subCategoryCode: 'DIESEL_B7_STATIONARY', itemName: 'Diesel (Stationary)', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.1', subCategoryCode: 'GASOHOL_9195_STATIONARY', itemName: 'Gasohol 91/95 (Stationary)', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.1', subCategoryCode: 'ACETYLENE_TANK5_MAINT_2', itemName: 'Acetylene tank 5kg (type 2)', unit: 'tank', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.1', subCategoryCode: 'ACETYLENE_TANK5_MAINT_3', itemName: 'Acetylene tank 5kg (type 3)', unit: 'tank', months: createEmptyMonths(), dataSourceType: 'ORG' },
+  ];
 
-scope3Rows: EntryRow[] = [
-  {
-    cycleId: String(this.cycleId),
-    scope: 'S3',
-    categoryCode: '3.4',
-    itemName: 'Employee commuting',
-    unit: 'km',
-    months: createEmptyMonths(),
-    dataSourceType: 'ORG',
-  },
-];
-
-
-  constructor(
-  private route: ActivatedRoute,
-  private router: Router
-) {
-  this.cycleId = Number(this.route.snapshot.paramMap.get('cycleId'));
+  this.scope12Rows = [
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.2', subCategoryCode: 'DIESEL_B7_ONROAD#1', itemName: 'Diesel B7 (on-road) #1', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.2', subCategoryCode: 'DIESEL_B10_ONROAD#1', itemName: 'Diesel B10 (on-road) #1', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.2', subCategoryCode: 'GASOHOL_9195#1', itemName: 'Gasohol 91/95 #1', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.2', subCategoryCode: 'GASOHOL_E20#1', itemName: 'Gasohol E20 #1', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+    { cycleId: String(this.cycleId), scope: 'S1', categoryCode: '1.2', subCategoryCode: 'DIESEL_B7_OFFROAD', itemName: 'Diesel B7 (forklift / off-road)', unit: 'liter', months: createEmptyMonths(), dataSourceType: 'ORG' },
+  ];
 }
 
-goScope3() {
-  this.router.navigate([
-    '/cycles',
-    this.cycleId,
-    'scope3-screen'
-  ]);
-}
-
-  save() {
-  const payload = {
-    cycleId: this.cycleId,
-    scope1: this.scope1Rows,
+save() {
+  this.entrySvc.save(this.cycleId, {
+    scope1: [...this.scope11Rows, ...this.scope12Rows],
     scope2: this.scope2Rows,
     scope3: this.scope3Rows,
-  };
-
-  console.log('SAVE PAYLOAD', payload);
-  alert('Saved (mock)');
+  });
+  alert('Saved');
 }
 
 }

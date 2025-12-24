@@ -289,6 +289,10 @@ export class Fr032Component implements OnInit {
     this.router.navigate(['/cycles', this.cycleId, 'scope3-screen']);
   }
 
+  goFr041() {
+    this.router.navigate(['/cycles', this.cycleId, 'fr04-1']);
+  }
+
   fmt(n: number, digits = 2) {
     if (n === null || n === undefined) return '';
     return Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });

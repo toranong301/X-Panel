@@ -71,6 +71,9 @@ goFr032(c: { id: number }) {
 goScreenScope3(c: { id: number }) {
   this.router.navigate(['/cycles', c.id, 'scope3-screen']);
 }
+goFr041(c: { id: number }) {
+  this.router.navigate(['/cycles', c.id, 'fr04-1']);
+}
 
 
 

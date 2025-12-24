@@ -45,7 +45,14 @@ export interface InventoryItemRow {
   totalTco2e?: number;           // quantity * ef / 1000 (ถ้า ef รวม)
   sharePct?: number;             // total / sum(total) * 100
 
-  trace?: TraceRef;              // เพื่อ export เป็นสูตรอ้างอิงย้อนกลับได้
+  trace?: TraceRef;  
+    fuelKey?: string;
+
+  /** ปริมาณรายเดือน 12 เดือน (index 0=Jan ... 11=Dec) สำหรับชีทย่อย 1.1/1.2 */
+  quantityMonthly?: number[];
+
+  /** กรณีมีหลาย slot แถว (เช่น 1.2 on-road มีหลายบรรทัด) */
+  slotNo?: number;            // เพื่อ export เป็นสูตรอ้างอิงย้อนกลับได้
 }
 
 // evaluation.model.ts (FR-03.2 canonical)

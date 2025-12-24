@@ -6,6 +6,7 @@ import { Fr01Component } from './pages/fr01/fr01';
 import { Fr02Component } from './pages/fr02/fr02';
 import { Fr031Component } from './pages/fr03-1/fr03-1';
 import { Fr032Component } from './pages/fr03-2/fr03-2';
+import { Fr041Component } from './pages/fr04-1/fr04-1';
 import { Scope3ScreenComponent } from './pages/scope3-screen/scope3-screen';
 
 export const routes: Routes = [
@@ -22,6 +23,8 @@ export const routes: Routes = [
       { path: 'cycles/:cycleId/fr02', component: Fr02Component },
       { path: 'cycles/:cycleId/fr03-1', component: Fr031Component },
       { path: 'cycles/:cycleId/fr03-2', component: Fr032Component },
+
+      { path: 'cycles/:cycleId/fr04-1', component: Fr041Component },
 
 
 

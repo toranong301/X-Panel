@@ -1,0 +1,218 @@
+import { Injectable } from '@angular/core';
+
+import { EntryRow } from '../../models/entry-row.model';
+import { InventoryItemRow, Scope3SignificanceRow } from '../../models/refs.model';
+import { Scope3ItemRow } from '../../models/scope3-summary.model';
+
+import { DataEntryService } from './data-entry.service';
+import { Fr032Service } from './fr03-2.service';
+import { Scope3SummaryService } from './scope3-summary.service';
+
+export interface Fr032CanonicalRow extends Scope3SignificanceRow {
+  isoNo: string;
+}
+
+export interface CanonicalCycleData {
+  inventory: InventoryItemRow[];
+  fr03_2: Fr032CanonicalRow[];
+}
+
+@Injectable({ providedIn: 'root' })
+export class CanonicalGhgService {
+  constructor(
+    private scope3Svc: Scope3SummaryService,
+    private fr032Svc: Fr032Service,
+    private entrySvc: DataEntryService,
+  ) {}
+
+  /**
+   * Build canonical datasets for export.
+   * - Scope 3 comes from Scope3Screen store.
+   * - Scope 1.1/1.2 comes from DataEntryService (localStorage).
+   */
+  build(cycleId: number): CanonicalCycleData {
+    // --- Scope 3 source ---
+    const scope3Doc = this.scope3Svc.load(cycleId);
+    const scope3Items: Scope3ItemRow[] =
+      scope3Doc?.rows?.length ? scope3Doc.rows : this.scope3Svc.getMockRows(cycleId);
+
+    // ensure computed fields exist
+    this.computeScope3(scope3Items);
+
+    // --- Scope 1/2 from Data Entry ---
+    const inventoryScope1: InventoryItemRow[] = this.buildScope1Inventory(cycleId);
+    const inventoryScope2: InventoryItemRow[] = this.buildScope2Inventory(cycleId);
+
+    // --- Scope 3 canonical inventory ---
+    const inventoryScope3: InventoryItemRow[] =
+      scope3Items.map((it: Scope3ItemRow) => this.mapScope3ToInventory(it));
+
+    // --- merged inventory ---
+    const inventory: InventoryItemRow[] = [
+      ...inventoryScope1,
+      ...inventoryScope2,
+      ...inventoryScope3,
+    ];
+
+    // --- FR-03.2 canonical (significance result per Scope3 item) ---
+    const saved = this.fr032Svc.load(cycleId) || {};
+    const fr03_2: Fr032CanonicalRow[] = [];
+
+    for (const it of scope3Items) {
+      const subScope = this.parseSubScope(it.tgoNo);
+      const itemLabel = (it.itemName ?? it.itemLabel) || '';
+      const key = `${subScope}|${itemLabel}`;
+      const savedRow = saved[key] || {};
+
+      fr03_2.push({
+        key,
+        subScope,
+        isoNo: this.parseIsoNo(it.scopeIso),
+        categoryLabel: it.categoryLabel,
+        itemLabel,
+        ghgTco2e: Number(it.totalTco2e || 0),
+        sharePct: Number(it.sharePct || 0),
+        assessment: (savedRow as any).assessment ?? '',
+        selection: (savedRow as any).selection ?? '',
+      });
+    }
+
+    return { inventory, fr03_2 };
+  }
+
+  public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {
+    return this.build(cycleId);
+  }
+
+  // ✅ Scope 1.1 + 1.2: สร้าง InventoryItemRow ที่มี quantityMonthly + fuelKey + slotNo
+  private buildScope1Inventory(cycleId: number): InventoryItemRow[] {
+    const doc = this.entrySvc.load(cycleId);
+    const rows = (doc?.scope1 ?? []).filter(r => r.scope === 'S1');
+
+    return rows
+      .filter(r => r.categoryCode === '1.1' || r.categoryCode === '1.2')
+      .map(r => this.mapEntryRowToInventory(r, 1));
+  }
+
+  private buildScope2Inventory(_cycleId: number): InventoryItemRow[] {
+    return []; // ยังไม่ทำในงานนี้
+  }
+
+  private mapEntryRowToInventory(r: EntryRow, scopeNo: 1 | 2 | 3): InventoryItemRow {
+    const monthly = this.toMonthlyArray(r.months || []);
+    const qtyYear = monthly.reduce((s, n) => s + Number(n || 0), 0);
+
+    const { fuelKey, slotNo } = this.parseFuelKeyAndSlot(r.subCategoryCode);
+
+    const categoryLabel =
+      r.categoryCode === '1.1' ? 'Stationary combustion' :
+      r.categoryCode === '1.2' ? 'Mobile combustion' :
+      r.categoryCode;
+
+    return {
+      id: r.id || `${r.scope}:${r.categoryCode}:${slug(r.itemName)}:${fuelKey ?? ''}:${slotNo ?? ''}`,
+      scope: scopeNo,
+      subScope: r.categoryCode,          // '1.1' | '1.2'
+      tgoNo: `Scope ${r.categoryCode}`,  // ให้ filter แบบเดิมใน adapter ผ่านแน่นอน
+      isoScope: '',
+      categoryLabel,
+      itemLabel: r.itemName,
+      unit: r.unit,
+      quantityPerYear: qtyYear,
+
+      fuelKey,
+      quantityMonthly: monthly,
+      slotNo,
+    };
+  }
+
+  private toMonthlyArray(months: { month: number; qty: number }[]): number[] {
+    const out = Array.from({ length: 12 }, () => 0);
+    for (const m of months || []) {
+      const idx = Number(m.month) - 1;
+      if (idx >= 0 && idx < 12) out[idx] = Number((m as any).qty || 0);
+    }
+    return out;
+  }
+
+  /**
+   * รองรับรูปแบบ subCategoryCode:
+   * - "DIESEL_B7_ONROAD#3" => fuelKey=DIESEL_B7_ONROAD, slotNo=3
+   * - "DIESEL_B7_STATIONARY" => fuelKey อย่างเดียว
+   */
+  private parseFuelKeyAndSlot(subCategoryCode?: string): { fuelKey?: string; slotNo?: number } {
+    const raw = String(subCategoryCode || '').trim();
+    if (!raw) return {};
+
+    const [k, n] = raw.split('#');
+    const fuelKey = String(k || '').trim();
+    const slotNo = n ? Number(n) : undefined;
+
+    return {
+      fuelKey: fuelKey || undefined,
+      slotNo: Number.isFinite(slotNo) ? slotNo : undefined,
+    };
+  }
+
+  private mapScope3ToInventory(it: Scope3ItemRow): InventoryItemRow {
+    const subScope = this.parseSubScope(it.tgoNo);
+    const itemLabel = (it.itemName ?? it.itemLabel) || '';
+
+    return {
+      id: `S3:${subScope}:${slug(itemLabel)}`,
+      scope: 3,
+      subScope,
+      tgoNo: it.tgoNo,
+      isoScope: it.scopeIso,
+      categoryLabel: it.categoryLabel,
+      itemLabel,
+      unit: it.unit,
+      quantityPerYear: Number(it.quantityPerYear || 0),
+      remark: it.remark ?? '',
+      dataEvidence: it.dataEvidence ?? '',
+      ef: Number(it.ef || 0),
+      efEvidence: it.efEvidence ?? '',
+      totalTco2e: Number(it.totalTco2e || 0),
+      sharePct: Number(it.sharePct || 0),
+      trace: it.refs ? {
+        itemLabel: it.refs.itemLabel,
+        unit: it.refs.unit,
+        quantity: it.refs.quantityPerYear,
+        dataEvidence: it.refs.dataEvidence,
+        ef: it.refs.ef,
+        efEvidence: it.refs.efEvidence,
+      } : undefined,
+    };
+  }
+
+  private computeScope3(items: Scope3ItemRow[]) {
+    for (const r of items) {
+      const qty = Number(r.quantityPerYear || 0);
+      const ef = Number(r.ef || 0);
+      r.totalTco2e = (qty * ef) / 1000;
+      r.ghgTco2e = r.totalTco2e;
+    }
+    const total = items.reduce((s, r) => s + Number(r.totalTco2e || 0), 0);
+    for (const r of items) {
+      r.sharePct = total > 0 ? (Number(r.totalTco2e || 0) / total) * 100 : 0;
+      r.pct = r.sharePct;
+    }
+  }
+
+  private parseSubScope(tgoNo: string): string {
+    return String(tgoNo || '').replace(/scope\s*/i, '').trim();
+  }
+
+  private parseIsoNo(scopeIso: string): string {
+    const m = String(scopeIso || '').match(/(\d+(?:\.\d+)?)/);
+    return m ? m[1] : '';
+  }
+}
+
+function slug(s: string): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-_.]+/g, '');
+}
