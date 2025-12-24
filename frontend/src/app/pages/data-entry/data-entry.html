@@ -1,19 +1,42 @@
-<mat-tab label="Scope 1">
-<app-category-section
-  [cycleId]="cycleId"
-  scope="S1"
-  categoryCode="1.1"
-  title="1.1 Stationary combustion"
-  [rows]="scope11Rows"
-  (rowsChange)="scope11Rows = $event">
-</app-category-section>
+<div class="page-header">
+  <h2>Data Entry</h2>
+  <span class="cycle">Cycle ID: {{ cycleId }}</span>
+</div>
 
-<app-category-section
-  [cycleId]="cycleId"
-  scope="S1"
-  categoryCode="1.2"
-  title="1.2 Mobile combustion"
-  [rows]="scope12Rows"
-  (rowsChange)="scope12Rows = $event">
-</app-category-section>
-</mat-tab>
+<mat-tab-group>
+
+  <mat-tab label="Scope 1">
+
+    <mat-card>
+      <mat-card-title>1.1 Stationary</mat-card-title>
+      <mat-card-subtitle>กรอก “รายเดือน” แล้ว Save (export จะเขียนเฉพาะ input cells)</mat-card-subtitle>
+      <mat-divider></mat-divider>
+
+      <app-monthly-entry-grid [(rows)]="scope11Rows"></app-monthly-entry-grid>
+    </mat-card>
+
+    <mat-card style="margin-top:16px;">
+      <mat-card-title>1.2 Mobile</mat-card-title>
+      <mat-card-subtitle>มี slot เต็มตาม template (กรอกเฉพาะที่ใช้)</mat-card-subtitle>
+      <mat-divider></mat-divider>
+
+      <app-monthly-entry-grid [(rows)]="scope12Rows"></app-monthly-entry-grid>
+    </mat-card>
+
+  </mat-tab>
+
+</mat-tab-group>
+
+<div class="actions" style="margin-top:16px;">
+  <button mat-stroked-button color="primary" (click)="resetDefaults()">
+    Reset defaults
+  </button>
+
+  <button mat-stroked-button color="primary" (click)="goFr041()">
+    Go to FR-04.1 (Export)
+  </button>
+
+  <button mat-raised-button color="primary" (click)="save()">
+    Save
+  </button>
+</div>
