@@ -282,50 +282,51 @@ const screenRow =
 
   const MONTH_COLS = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const; // เดือน 1..12
 
-  const readMonths = (x: any): number[] | undefined =>
-    Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
-    Array.isArray(x?.months) ? x.months :
-    undefined;
-
-  const writeMonths = (excelRow: number, months?: number[]) => {
+  const setMonths = (excelRow: number, months?: number[]) => {
     for (let i = 0; i < 12; i++) {
       const v = Number(months?.[i] ?? 0);
-      // 0 ให้เป็นค่าว่าง เพื่อไม่ “ดูเหมือนเขียนทับสูตร”
-      ws.getCell(`${MONTH_COLS[i]}${excelRow}`).value = v ? v : null;
+      ws.getCell(`${MONTH_COLS[i]}${excelRow}`).value = v ? v : null; // 0 = ว่าง
     }
   };
 
-  // ✅ แถว input รายเดือน (ตามที่ล็อกไว้)
+  // ✅ แถว input รายเดือน (ตาม template)
   const dieselRow = 9;       // E9:P9
   const gasoholRow = 10;     // E10:P10
   const acetyl2TankRow = 12; // E12:P12
   const acetyl3TankRow = 14; // E14:P14
 
-  // เคลียร์เฉพาะ input cells
-  [dieselRow, gasoholRow, acetyl2TankRow, acetyl3TankRow].forEach(r => writeMonths(r));
+  // เคลียร์ข้อมูลเก่าเฉพาะ input cells
+  for (const r of [dieselRow, gasoholRow, acetyl2TankRow, acetyl3TankRow]) {
+    setMonths(r, new Array(12).fill(0));
+  }
 
-  const items = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.1');
+  // ดึง canonical
+  const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
+    String(x?.subScope ?? '') === '1.1' || String(x?.tgoNo ?? '').includes('1.1')
+  );
 
-  const keyOf = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
-  const findByKeys = (...keys: string[]) => {
-    const set = new Set(keys.map(k => k.toUpperCase()));
-    return items.find((x: any) => set.has(keyOf(x)));
-  };
+  const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+  const getMonths = (x: any) =>
+    Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
+    Array.isArray(x?.months) ? x.months :
+    undefined;
 
-  // ✅ contract fuelKey (แนะนำให้ใช้ตามนี้ใน canonical)
-  // 1.1 Stationary
-  const diesel   = findByKeys('DIESEL_B7_STATIONARY');
-  const gasohol  = findByKeys('GASOHOL_9195_STATIONARY');
-  const acetyl2  = findByKeys('ACETYLENE_TANK5_MAINT_2');
-  const acetyl3  = findByKeys('ACETYLENE_TANK5_MAINT_3');
+  const byFuelKey = (k: string) => rows.find((x: any) => getFuelKey(x) === k.toUpperCase());
 
-  if (diesel)  writeMonths(dieselRow, readMonths(diesel));
-  if (gasohol) writeMonths(gasoholRow, readMonths(gasohol));
-  if (acetyl2) writeMonths(acetyl2TankRow, readMonths(acetyl2));
-  if (acetyl3) writeMonths(acetyl3TankRow, readMonths(acetyl3));
+  // ✅ map fuelKey → แถวในชีท
+  const diesel  = byFuelKey('DIESEL_B7_STATIONARY');
+  const gasohol = byFuelKey('GASOHOL_9195_STATIONARY');
+  const acetyl2 = byFuelKey('ACETYLENE_TANK5_MAINT_2');
+  const acetyl3 = byFuelKey('ACETYLENE_TANK5_MAINT_3');
 
-  // ⚠️ ไม่แตะเซลล์สรุป/แปลงหน่วยด้านบน และไม่แตะ FR-04.1 — ให้ template คำนวณเอง
+  if (diesel)  setMonths(dieselRow, getMonths(diesel));
+  if (gasohol) setMonths(gasoholRow, getMonths(gasohol));
+  if (acetyl2) setMonths(acetyl2TankRow, getMonths(acetyl2));
+  if (acetyl3) setMonths(acetyl3TankRow, getMonths(acetyl3));
+
+  // ⚠️ ไม่แตะสูตรสรุป/แปลงหน่วยด้านบน และไม่แตะ FR-04.1
 }
+
 
 private writeScope12Mobile(ctx: ExportContext): void {
   const ws = ctx.workbook.getWorksheet('1.2 Mobile');
@@ -333,12 +334,7 @@ private writeScope12Mobile(ctx: ExportContext): void {
 
   const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12
 
-  const readMonths = (x: any): number[] | undefined =>
-    Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
-    Array.isArray(x?.months) ? x.months :
-    undefined;
-
-  const writeMonths = (excelRow: number, months?: number[]) => {
+  const setMonths = (excelRow: number, months?: number[]) => {
     for (let i = 0; i < 12; i++) {
       const v = Number(months?.[i] ?? 0);
       ws.getCell(`${MONTH_COLS[i]}${excelRow}`).value = v ? v : null;
@@ -360,53 +356,71 @@ private writeScope12Mobile(ctx: ExportContext): void {
 
   const offroadForkliftRow = 58;
 
-  // เคลียร์เฉพาะ input cells
-  [...dieselB7Rows, ...dieselB10Rows, ...gasohol9195Rows, ...gasoholE20Rows, offroadForkliftRow]
-    .forEach(r => writeMonths(r));
+  // เคลียร์เฉพาะ input เดือน (กันข้อมูลเก่าค้าง)
+  const clearRows = [...dieselB7Rows, ...dieselB10Rows, ...gasohol9195Rows, ...gasoholE20Rows, offroadForkliftRow];
+  for (const r of clearRows) setMonths(r, new Array(12).fill(0));
 
-  const items = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.2');
-  const keyOf = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+  // ดึง canonical
+  const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
+    String(x?.subScope ?? '') === '1.2' || String(x?.tgoNo ?? '').includes('1.2')
+  );
 
-  const byKey = (k: string) => items.filter((x: any) => keyOf(x) === k.toUpperCase());
+  type MobileRow = { fuelKey: string; months?: number[]; slotNo?: number };
 
-  const fillSlots = (slots: number[], list: any[]) => {
-    // 1) ถ้ามี slotNo ให้ลงตาม slotNo (1-based)
-    const used = new Set<number>(); // idx
+  const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+  const getMonths = (x: any) =>
+    Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
+    Array.isArray(x?.months) ? x.months :
+    undefined;
+
+  const mobileRows: MobileRow[] = rows
+    .map((x: any) => ({
+      fuelKey: getFuelKey(x),
+      months: getMonths(x),
+      slotNo: Number.isFinite(Number(x?.slotNo)) ? Number(x.slotNo) : undefined,
+    }))
+    .filter(x => !!x.fuelKey);
+
+  const byKey = (k: string) => mobileRows.filter(x => x.fuelKey === k.toUpperCase());
+
+  const fillSlots = (slots: number[], list: MobileRow[]) => {
+    // 1) วางตาม slotNo ก่อน (slotNo เป็น 1-based)
+    const used = new Set<number>(); // idx 0..n-1
     const withSlot = list
-      .filter(x => Number.isFinite(Number(x?.slotNo)))
+      .filter(x => Number.isFinite(Number(x.slotNo)))
       .sort((a, b) => Number(a.slotNo) - Number(b.slotNo));
 
     for (const it of withSlot) {
       const idx = Number(it.slotNo) - 1;
       if (idx >= 0 && idx < slots.length && !used.has(idx)) {
-        writeMonths(slots[idx], readMonths(it));
+        setMonths(slots[idx], it.months);
         used.add(idx);
       }
     }
 
-    // 2) ที่เหลือ (ไม่มี slotNo) เติมลงช่องว่างตามลำดับ
-    const withoutSlot = list.filter(x => !Number.isFinite(Number(x?.slotNo)));
+    // 2) ที่เหลือเติมลงช่องว่างตามลำดับ
+    const withoutSlot = list.filter(x => !Number.isFinite(Number(x.slotNo)));
     let ptr = 0;
     for (const it of withoutSlot) {
       while (ptr < slots.length && used.has(ptr)) ptr++;
       if (ptr >= slots.length) break;
-      writeMonths(slots[ptr], readMonths(it));
+      setMonths(slots[ptr], it.months);
       used.add(ptr);
       ptr++;
     }
   };
 
-  // ✅ contract fuelKey (แนะนำให้ใช้ตามนี้ใน canonical)
-  fillSlots(dieselB7Rows,   byKey('DIESEL_B7_ONROAD'));
-  fillSlots(dieselB10Rows,  byKey('DIESEL_B10_ONROAD'));
-  fillSlots(gasohol9195Rows,byKey('GASOHOL_9195'));
+  fillSlots(dieselB7Rows, byKey('DIESEL_B7_ONROAD'));
+  fillSlots(dieselB10Rows, byKey('DIESEL_B10_ONROAD'));
+  fillSlots(gasohol9195Rows, byKey('GASOHOL_9195'));
   fillSlots(gasoholE20Rows, byKey('GASOHOL_E20'));
 
   const offroad = byKey('DIESEL_B7_OFFROAD')[0];
-  if (offroad) writeMonths(offroadForkliftRow, readMonths(offroad));
+  if (offroad) setMonths(offroadForkliftRow, offroad.months);
 
-  // ⚠️ ไม่แตะสูตรสรุปบนสุดของชีท และ FR-04.1 — ให้ template คำนวณเอง
+  // ⚠️ ไม่แตะสูตรสรุปบนสุดของชีท และไม่แตะ FR-04.1
 }
+
 
 
 }
