@@ -34,6 +34,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeScope11Stationary(ctx);
     this.writeScope12Mobile(ctx);
     this.writeScope142FireSuppression(ctx);
+    this.writeScope143Septic(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
 
@@ -401,6 +402,19 @@ const screenRow =
     if (target?.formula || target?.value?.formula) return;
     target.value = value === '' ? null : value;
   }
+
+  private getCellText(value: any): string {
+    if (value == null) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') {
+      if (Array.isArray((value as any).richText)) {
+        return (value as any).richText.map((r: any) => r.text).join('').trim();
+      }
+      if (typeof (value as any).text === 'string') return (value as any).text.trim();
+    }
+    return String(value).trim();
+  }
   private writeScope11Stationary(ctx: ExportContext): void {
   // ชื่อชีทตาม template จริง: มีเว้นวรรคท้ายด้วย
   const ws = ctx.workbook.getWorksheet('1.1 Stationary ');
@@ -584,6 +598,51 @@ private writeScope12Mobile(ctx: ExportContext): void {
       for (let m = 0; m < 12; m++) {
         const v = Number(months?.[m] ?? 0);
         this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
+      }
+    }
+  }
+
+  private writeScope143Septic(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('1.4.3 Septic');
+    if (!ws) return;
+
+    const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+    const startRows: number[] = [];
+    for (let r = 1; r <= 200; r++) {
+      const text = this.getCellText(ws.getCell(`A${r}`).value);
+      if (text === monthLabels[0]) startRows.push(r);
+    }
+
+    if (!startRows.length) return;
+
+    const rows = (ctx.canonical.inventory ?? []).filter((x: any) => String(x?.subScope ?? '') === '1.4.3');
+
+    const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
+    const getMonths = (x: any) =>
+      Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
+      Array.isArray(x?.months) ? x.months :
+      [];
+
+    const byFuelKey = (k: string) => rows.find((x: any) => getFuelKey(x) === k.toUpperCase());
+
+    const sectionKeys = [
+      'SEPTIC_LAEM_CHABANG_FACTORY',
+      'SEPTIC_BANGKOK_OFFICE',
+      'SEPTIC_SECURITY',
+      'SEPTIC_NURSE',
+    ];
+
+    const maxSections = Math.min(startRows.length, sectionKeys.length);
+    for (let s = 0; s < maxSections; s++) {
+      const startRow = startRows[s];
+      const item = byFuelKey(sectionKeys[s]);
+      if (!item) continue;
+      const months = getMonths(item);
+
+      for (let m = 0; m < 12; m++) {
+        const v = Number(months?.[m] ?? 0);
+        this.setCellValueSafely(ws, `B${startRow + m}`, v ? v : null);
       }
     }
   }

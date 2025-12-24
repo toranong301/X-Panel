@@ -95,7 +95,12 @@ export class CanonicalGhgService {
     const rows = (doc?.scope1 ?? []).filter(r => r.scope === 'S1');
 
     return rows
-      .filter(r => r.categoryCode === '1.1' || r.categoryCode === '1.2' || r.categoryCode === '1.4.2')
+      .filter(r =>
+        r.categoryCode === '1.1' ||
+        r.categoryCode === '1.2' ||
+        r.categoryCode === '1.4.2' ||
+        r.categoryCode === '1.4.3',
+      )
       .map(r => this.mapEntryRowToInventory(r, 1));
   }
 
