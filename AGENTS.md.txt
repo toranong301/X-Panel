@@ -1,8 +1,0 @@
-# AGENTS.md
-- This is an Angular standalone + Material project.
-- Use npm (not pnpm).
-- After code changes: run `npm run build` and `npm run test` (if present).
-- Excel export must not overwrite template formulas; write input cells only.
-- Key files:
-  - mbax.adapter.ts for template writing
-  - canonical-ghg.service.ts for canonical inventory
