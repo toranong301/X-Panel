@@ -1,0 +1,197 @@
+<section class="scope11-stationary">
+  <div class="section-header">
+    <h3>1.1 Stationary combustion</h3>
+    <p>รูปแบบตาม Excel (ตารางสรุปด้านบน + ตารางรายเดือนด้านล่าง)</p>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>รายการ</th>
+          <th>ชนิด</th>
+          <th>หลักฐาน</th>
+          <th>หน่วย</th>
+          <th>ปริมาณน้ำมัน</th>
+          <th>Diesel(L)</th>
+          <th>Biodiesel(L)</th>
+          <th>Biodiesel(kg)</th>
+          <th>Gasoline(L)</th>
+          <th>Ethanol(L)</th>
+          <th>Ethanol(kg)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>น้ำมัน Diesel B7 (Fire Pump)</td>
+          <td>B7</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(dieselCode)"
+              (ngModelChange)="updateEvidence(dieselCode, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>L</td>
+          <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
+          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.93) }}</td>
+          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.07) }}</td>
+          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.07 * 0.87) }}</td>
+          <td class="num">-</td>
+          <td class="num">-</td>
+          <td class="num">-</td>
+        </tr>
+        <tr>
+          <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
+          <td>91/95</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(gasoholCode)"
+              (ngModelChange)="updateEvidence(gasoholCode, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>L</td>
+          <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
+          <td class="num">-</td>
+          <td class="num">-</td>
+          <td class="num">-</td>
+          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.9) }}</td>
+          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.1) }}</td>
+          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.1 * 0.79) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="monthly-table">
+      <thead>
+        <tr>
+          <th>รายการ</th>
+          <th>หลักฐาน</th>
+          <th>หน่วย</th>
+          <th>รวม</th>
+          <th *ngFor="let m of months">เดือน {{ m }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>น้ำมัน Diesel B7 (Fire Pump)</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(dieselCode)"
+              (ngModelChange)="updateEvidence(dieselCode, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>L</td>
+          <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty(dieselCode, m)"
+              (ngModelChange)="updateMonthQty(dieselCode, m, $event)"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(gasoholCode)"
+              (ngModelChange)="updateEvidence(gasoholCode, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>L</td>
+          <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty(gasoholCode, m)"
+              (ngModelChange)="updateMonthQty(gasoholCode, m, $event)"
+            />
+          </td>
+        </tr>
+        <tr class="display-only">
+          <td>Acetylene Gas (ซ่อมบำรุง)</td>
+          <td class="placeholder">-</td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalFromMonths(acetyleneTotalKgMonths()), true) }}</td>
+          <td *ngFor="let v of acetyleneTotalKgMonths()" class="num">
+            {{ formatNumber(v, true) }}
+          </td>
+        </tr>
+        <tr>
+          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(acetyleneMaint2Code)"
+              (ngModelChange)="updateEvidence(acetyleneMaint2Code, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>ถัง</td>
+          <td class="num">{{ formatNumber(totalForCode(acetyleneMaint2Code)) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty(acetyleneMaint2Code, m)"
+              (ngModelChange)="updateMonthQty(acetyleneMaint2Code, m, $event)"
+            />
+          </td>
+        </tr>
+        <tr class="display-only">
+          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2 (kg)</td>
+          <td class="placeholder">-</td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalFromMonths(acetyleneMaint2KgMonths()), true) }}</td>
+          <td *ngFor="let v of acetyleneMaint2KgMonths()" class="num">
+            {{ formatNumber(v, true) }}
+          </td>
+        </tr>
+        <tr>
+          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3</td>
+          <td>
+            <select
+              [ngModel]="getEvidence(acetyleneMaint3Code)"
+              (ngModelChange)="updateEvidence(acetyleneMaint3Code, $event)"
+            >
+              <option value="">-</option>
+              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </td>
+          <td>ถัง</td>
+          <td class="num">{{ formatNumber(totalForCode(acetyleneMaint3Code)) }}</td>
+          <td *ngFor="let m of months">
+            <input
+              type="number"
+              [ngModel]="getMonthQty(acetyleneMaint3Code, m)"
+              (ngModelChange)="updateMonthQty(acetyleneMaint3Code, m, $event)"
+            />
+          </td>
+        </tr>
+        <tr class="display-only">
+          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3 (kg)</td>
+          <td class="placeholder">-</td>
+          <td>kg</td>
+          <td class="num">{{ formatNumber(totalFromMonths(acetyleneMaint3KgMonths()), true) }}</td>
+          <td *ngFor="let v of acetyleneMaint3KgMonths()" class="num">
+            {{ formatNumber(v, true) }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
