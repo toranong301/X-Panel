@@ -4,6 +4,7 @@ import { EntryRow } from '../../models/entry-row.model';
 import { InventoryItemRow, Scope3SignificanceRow } from '../../models/refs.model';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
 
+import { VSheetDataDoc } from '../vsheet/vsheet.schema';
 import { DataEntryService } from './data-entry.service';
 import { Fr032Service } from './fr03-2.service';
 import { Scope3SummaryService } from './scope3-summary.service';
@@ -15,6 +16,7 @@ export interface Fr032CanonicalRow extends Scope3SignificanceRow {
 export interface CanonicalCycleData {
   inventory: InventoryItemRow[];
   fr03_2: Fr032CanonicalRow[];
+  vsheet: VSheetDataDoc;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +33,9 @@ export class CanonicalGhgService {
    * - Scope 1.1/1.2 comes from DataEntryService (localStorage).
    */
   build(cycleId: number): CanonicalCycleData {
+    // --- V-Sheet data (fixed + subsheets) ---
+    const vsheet = this.entrySvc.loadVSheet(cycleId);
+
     // --- Scope 3 source ---
     const scope3Doc = this.scope3Svc.load(cycleId);
     const scope3Items: Scope3ItemRow[] =
@@ -77,7 +82,7 @@ export class CanonicalGhgService {
       });
     }
 
-    return { inventory, fr03_2 };
+    return { inventory, fr03_2, vsheet };
   }
 
   public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {

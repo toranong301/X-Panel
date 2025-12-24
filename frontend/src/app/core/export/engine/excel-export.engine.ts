@@ -6,6 +6,7 @@ import { VSheetTemplateSpec, ExcelFeatures } from '../models/template-spec.model
 import { runSelections } from './selection';
 import { buildFormula } from './formula-builder';
 import { runValidations, ValidationResult } from './validators';
+import { CanonicalCycleData } from '../../services/canonical-ghg.service';
 
 export interface ExportReport {
   templateId: string;
@@ -16,7 +17,7 @@ export interface ExportReport {
 export interface ExportContext {
   spec: VSheetTemplateSpec;
   workbook: any;
-  canonical: { inventory: any[]; fr03_2: any[] };
+  canonical: CanonicalCycleData;
   selections: Record<string, any[]>;
   report: ExportReport;
 }
@@ -38,7 +39,7 @@ export class ExcelExportEngine {
     templateArrayBuffer: ArrayBuffer;
     spec: VSheetTemplateSpec;
     adapter: TemplateAdapter;
-    canonical: { inventory: any[]; fr03_2: any[] };
+    canonical: CanonicalCycleData;
     filename: string;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
   }): Promise<ExportReport> {
@@ -97,7 +98,7 @@ export class ExcelExportEngine {
     templateUrl: string;
     spec: VSheetTemplateSpec;
     adapter: TemplateAdapter;
-    canonical: { inventory: any[]; fr03_2: any[] };
+    canonical: CanonicalCycleData;
     filename: string;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
   }): Promise<ExportReport> {

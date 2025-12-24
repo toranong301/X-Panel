@@ -1,0 +1,11 @@
+.page-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}

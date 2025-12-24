@@ -1,4 +1,14 @@
 import { ExportContext, TemplateAdapter } from '../../engine/excel-export.engine';
+import {
+  VSheetDataDoc,
+  VSheetDetailBlock,
+  VSheetFixedBlock,
+  VSheetMonthly12Block,
+  VSheetRowData,
+  VSheetRowPoolBlock,
+  getDynamicBlocks,
+  getFixedBlocks,
+} from '../../../vsheet/vsheet.schema';
 
 /**
  * Company-specific adapter for MBAX v-sheet (MBAX-TGO-11102567 demo).
@@ -16,9 +26,13 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
   }
 
   async apply(ctx: ExportContext): Promise<void> {
-  // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
-  this.writeScope11Stationary(ctx);
-  this.writeScope12Mobile(ctx);
+    const vsheet = ctx.canonical.vsheet;
+    this.writeFixedBlocks(ctx, getFixedBlocks(), vsheet);
+    this.writeDynamicBlocks(ctx, getDynamicBlocks(), vsheet);
+
+    // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
+    this.writeScope11Stationary(ctx);
+    this.writeScope12Mobile(ctx);
     // 1) Write Screen scope 3 table (lookup base)
     const screenRowMap = this.writeScreenScope3(ctx);
 
@@ -274,6 +288,117 @@ const screenRow =
         ws.getCell(`B${destRow}`).value = (item as any).itemLabel ?? '';
       }
     }
+  }
+
+  private writeFixedBlocks(ctx: ExportContext, blocks: VSheetFixedBlock[], data: VSheetDataDoc) {
+    for (const block of blocks) {
+      const ws = ctx.workbook.getWorksheet(block.sheetName);
+      if (!ws) continue;
+
+      const values = data?.cfoFixed?.[block.id] ?? {};
+      for (const input of block.inputs) {
+        const value = values[input.key];
+        if (value === undefined) continue;
+        this.setCellValueSafely(ws, input.cell, value);
+      }
+    }
+  }
+
+  private writeDynamicBlocks(
+    ctx: ExportContext,
+    blocks: Array<VSheetRowPoolBlock | VSheetMonthly12Block | VSheetDetailBlock>,
+    data: VSheetDataDoc,
+  ) {
+    for (const block of blocks) {
+      if (block.blockType === 'rowPool') {
+        this.writeRowPoolBlock(ctx, block, data);
+      } else if (block.blockType === 'monthly12') {
+        this.writeMonthly12Block(ctx, block, data);
+      } else if (block.blockType === 'detail') {
+        this.writeDetailBlocks(ctx, block, data);
+      }
+    }
+  }
+
+  private writeRowPoolBlock(ctx: ExportContext, block: VSheetRowPoolBlock, data: VSheetDataDoc) {
+    const ws = ctx.workbook.getWorksheet(block.sheetName);
+    if (!ws) return;
+
+    const rows = data?.subsheets?.[this.blockKey(block)] ?? [];
+    const step = block.step ?? 1;
+
+    for (let i = 0; i < block.maxRows; i++) {
+      const excelRow = block.startRow + i * step;
+      const rowData = rows[i];
+      for (const col of block.columns) {
+        const cellRef = `${col.column}${excelRow}`;
+        const value = rowData?.inputs?.[col.key];
+        this.setCellValueSafely(ws, cellRef, value ?? null);
+      }
+    }
+  }
+
+  private writeMonthly12Block(ctx: ExportContext, block: VSheetMonthly12Block, data: VSheetDataDoc) {
+    const ws = ctx.workbook.getWorksheet(block.sheetName);
+    if (!ws) return;
+
+    const rows = data?.subsheets?.[this.blockKey(block)] ?? [];
+    const step = block.step ?? 1;
+
+    for (let i = 0; i < block.maxRows; i++) {
+      const excelRow = block.startRow + i * step;
+      const rowData = rows[i];
+
+      if (block.columns?.length) {
+        for (const col of block.columns) {
+          const cellRef = `${col.column}${excelRow}`;
+          const value = rowData?.inputs?.[col.key];
+          this.setCellValueSafely(ws, cellRef, value ?? null);
+        }
+      }
+
+      for (let m = 0; m < block.monthColumns.length; m++) {
+        const monthCol = block.monthColumns[m];
+        const cellRef = `${monthCol}${excelRow}`;
+        const value = rowData?.months?.[m];
+        this.setCellValueSafely(ws, cellRef, value ?? null);
+      }
+    }
+  }
+
+  private writeDetailBlocks(ctx: ExportContext, block: VSheetDetailBlock, data: VSheetDataDoc) {
+    const ws = ctx.workbook.getWorksheet(block.sheetName);
+    if (!ws) return;
+
+    const parentRows =
+      data?.subsheets?.[this.blockKey({ sheetName: block.sheetName, id: block.parentBlockId })] ??
+      [];
+    const flattened: VSheetRowData[] = [];
+    for (const row of parentRows) {
+      if (row.details?.length) flattened.push(...row.details);
+    }
+
+    const step = block.step ?? 1;
+    for (let i = 0; i < block.maxRows; i++) {
+      const excelRow = block.startRow + i * step;
+      const rowData = flattened[i];
+      for (const col of block.columns) {
+        const cellRef = `${col.column}${excelRow}`;
+        const value = rowData?.inputs?.[col.key];
+        this.setCellValueSafely(ws, cellRef, value ?? null);
+      }
+    }
+  }
+
+  private blockKey(block: { sheetName: string; id: string }): string {
+    return `${block.sheetName}::${block.id}`;
+  }
+
+  private setCellValueSafely(ws: any, cellRef: string, value: any) {
+    const cell = ws.getCell(cellRef);
+    const target = cell?.master ?? cell;
+    if (target?.formula || target?.value?.formula) return;
+    target.value = value === '' ? null : value;
   }
   private writeScope11Stationary(ctx: ExportContext): void {
   // ชื่อชีทตาม template จริง: มีเว้นวรรคท้ายด้วย

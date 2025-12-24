@@ -1,0 +1,82 @@
+<div class="dynamic-form">
+  <mat-card *ngFor="let block of blocks" class="block-card">
+    <div class="block-header">
+      <div>
+        <mat-card-title>{{ block.title }}</mat-card-title>
+        <mat-card-subtitle>{{ block.sheetName }} · max {{ block.maxRows }} rows</mat-card-subtitle>
+      </div>
+      <button
+        mat-raised-button
+        color="primary"
+        (click)="addRow(block)"
+        [disabled]="rowsFor(block).length >= block.maxRows"
+      >
+        Add row
+      </button>
+    </div>
+
+    <div class="block-table">
+      <table>
+        <thead>
+          <tr>
+            <th *ngIf="block.columns?.length">#</th>
+            <th *ngFor="let col of block.columns">{{ col.label }}</th>
+            <th *ngIf="block.blockType === 'monthly12'" class="month-header" colspan="12">Months</th>
+            <th class="actions">Actions</th>
+          </tr>
+          <tr *ngIf="block.blockType === 'monthly12'">
+            <th *ngIf="block.columns?.length"></th>
+            <th *ngFor="let col of block.columns"></th>
+            <th *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">{{ m }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of rowsFor(block); let i = index">
+            <td *ngIf="block.columns?.length">{{ i + 1 }}</td>
+            <td *ngFor="let col of block.columns">
+              <mat-form-field appearance="fill" class="cell-input">
+                <mat-select
+                  *ngIf="col.inputKind === 'select'"
+                  [(ngModel)]="row.inputs![col.key]"
+                >
+                  <mat-option
+                    *ngFor="let option of col.options || []"
+                    [value]="option.value"
+                  >
+                    {{ option.label }}
+                  </mat-option>
+                </mat-select>
+                <input
+                  *ngIf="col.inputKind !== 'select'"
+                  matInput
+                  [type]="inputType(col.inputKind)"
+                  [(ngModel)]="row.inputs![col.key]"
+                />
+              </mat-form-field>
+            </td>
+            <td *ngIf="block.blockType === 'monthly12'" class="month-cell" colspan="12">
+              <div class="month-grid">
+                <mat-form-field
+                  appearance="fill"
+                  class="month-input"
+                  *ngFor="let m of [0,1,2,3,4,5,6,7,8,9,10,11]"
+                >
+                  <input
+                    matInput
+                    type="number"
+                    [(ngModel)]="row.months![m]"
+                  />
+                </mat-form-field>
+              </div>
+            </td>
+            <td class="actions">
+              <button mat-button color="warn" (click)="removeRow(block, i)">Remove</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="empty" *ngIf="rowsFor(block).length === 0">No rows yet.</p>
+    </div>
+  </mat-card>
+</div>

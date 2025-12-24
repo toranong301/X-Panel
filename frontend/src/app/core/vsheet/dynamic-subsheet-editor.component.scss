@@ -1,0 +1,56 @@
+.dynamic-form {
+  display: grid;
+  gap: 16px;
+}
+
+.block-card {
+  padding: 12px;
+}
+
+.block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.block-table {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.block-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.block-table th,
+.block-table td {
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  vertical-align: top;
+}
+
+.cell-input {
+  width: 160px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(70px, 1fr));
+  gap: 8px;
+}
+
+.month-input {
+  width: 70px;
+}
+
+.actions {
+  text-align: right;
+  min-width: 90px;
+}
+
+.empty {
+  margin-top: 8px;
+  color: #666;
+}
