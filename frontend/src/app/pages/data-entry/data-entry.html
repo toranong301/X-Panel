@@ -129,6 +129,19 @@
       ></app-scope144-fertilizer>
     </mat-card>
 
+    <mat-card style="margin-top:16px;">
+      <mat-card-title>1.4.5 ระบบบำบัดน้ำเสีย (WWTP)</mat-card-title>
+      <mat-card-subtitle>กรอกข้อมูลคุณภาพน้ำออกและมิเตอร์น้ำตามแบบ Excel</mat-card-subtitle>
+      <mat-divider></mat-divider>
+
+      <app-scope145-wwtp
+        [cycleId]="cycleId"
+        [(rows)]="scope145Rows"
+        [evidenceModel]="evidenceFor('S1::1.4.5')"
+        (evidenceModelChange)="updateEvidence('S1::1.4.5', $event)"
+      ></app-scope145-wwtp>
+    </mat-card>
+
   </mat-tab>
 
 </mat-tab-group>

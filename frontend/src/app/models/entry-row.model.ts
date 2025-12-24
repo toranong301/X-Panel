@@ -35,6 +35,7 @@ export interface EntryRow {
   efId?: string;
   dataSourceType?: DataSourceType;
   referenceText?: string;
+  remark?: string;
 
   /** ค่าที่ถูก “freeze” ตอน Lock */
   snapshotEfValue?: number;

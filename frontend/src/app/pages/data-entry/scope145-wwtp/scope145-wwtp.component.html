@@ -1,0 +1,163 @@
+<h3>1.4.5 ระบบบำบัดน้ำเสีย (WWTP)</h3>
+
+<section class="section">
+  <div class="section-header">
+    <h4>คุณภาพน้ำออก (mg/L)</h4>
+    <button type="button" class="btn" (click)="addRowQual()">+ เพิ่มรายการ</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>รายการ</th>
+          <th style="width: 160px">ระบบ WWTP</th>
+          <th style="width: 160px">หลักฐาน</th>
+          <th style="width: 80px">หน่วย</th>
+          <th style="width: 110px">มาตรฐาน (mg/L)</th>
+          <th style="width: 110px">รวม</th>
+          <th *ngFor="let m of months">{{ m }}</th>
+          <th style="width: 80px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of qualityRows()">
+          <td>
+            <input
+              class="text"
+              [ngModel]="r.itemName"
+              (ngModelChange)="updateField(r, 'itemName', $event)"
+              placeholder="BOD/COD"
+            />
+          </td>
+          <td>
+            <input
+              class="text"
+              [ngModel]="r.location"
+              (ngModelChange)="updateField(r, 'location', $event)"
+              placeholder="ระบบ WWTP"
+            />
+          </td>
+          <td>
+            <input
+              class="text"
+              [ngModel]="r.referenceText"
+              (ngModelChange)="updateField(r, 'referenceText', $event)"
+              placeholder="หลักฐาน"
+            />
+          </td>
+          <td>
+            <input
+              class="text center"
+              [ngModel]="r.unit || 'mg/l'"
+              (ngModelChange)="updateField(r, 'unit', $event)"
+            />
+          </td>
+          <td>
+            <input
+              class="text center"
+              [ngModel]="getStandard(r)"
+              (ngModelChange)="updateStandard(r, $event)"
+              placeholder="มาตรฐาน"
+            />
+          </td>
+          <td class="right">{{ formatNumber(total(r), 2) }}</td>
+          <td class="month" *ngFor="let m of months">
+            <input
+              type="number"
+              class="num"
+              [ngModel]="getMonthQty(r, m)"
+              (ngModelChange)="updateMonthQty(r, m, $event)"
+              placeholder="0"
+            />
+          </td>
+          <td class="center">
+            <button type="button" class="btn-danger" (click)="removeRow(r)">ลบ</button>
+          </td>
+        </tr>
+
+        <tr *ngIf="qualityRows().length === 0">
+          <td colspan="22" class="empty">ยังไม่มีรายการ — กด “เพิ่มรายการ” เพื่อเพิ่มแถว</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <app-evidence-block
+    evidenceKey="S1::1.4.5"
+    [model]="evidenceModel"
+    (modelChange)="evidenceModelChange.emit($event)"
+  ></app-evidence-block>
+</section>
+
+<section class="section">
+  <div class="section-header">
+    <h4>ตำแหน่งที่ตั้งของมิเตอร์</h4>
+    <button type="button" class="btn" (click)="addRowMeter()">+ เพิ่มมิเตอร์</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>ตำแหน่งมิเตอร์</th>
+          <th style="width: 160px">หลักฐาน</th>
+          <th style="width: 80px">หน่วย</th>
+          <th style="width: 110px">รวม</th>
+          <th *ngFor="let m of months">{{ m }}</th>
+          <th style="width: 80px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of meterRows()">
+          <td>
+            <input
+              class="text"
+              [ngModel]="r.itemName"
+              (ngModelChange)="updateField(r, 'itemName', $event)"
+              placeholder="ตำแหน่งมิเตอร์"
+            />
+          </td>
+          <td>
+            <input
+              class="text"
+              [ngModel]="r.referenceText"
+              (ngModelChange)="updateField(r, 'referenceText', $event)"
+              placeholder="หลักฐาน"
+            />
+          </td>
+          <td>
+            <input
+              class="text center"
+              [ngModel]="r.unit || 'm3'"
+              (ngModelChange)="updateField(r, 'unit', $event)"
+            />
+          </td>
+          <td class="right">{{ formatNumber(total(r), 2) }}</td>
+          <td class="month" *ngFor="let m of months">
+            <input
+              type="number"
+              class="num"
+              [ngModel]="getMonthQty(r, m)"
+              (ngModelChange)="updateMonthQty(r, m, $event)"
+              placeholder="0"
+            />
+          </td>
+          <td class="center">
+            <button type="button" class="btn-danger" (click)="removeRow(r)">ลบ</button>
+          </td>
+        </tr>
+
+        <tr *ngIf="meterRows().length === 0">
+          <td colspan="18" class="empty">ยังไม่มีรายการ — กด “เพิ่มมิเตอร์” เพื่อเพิ่มแถว</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <app-evidence-block
+    evidenceKey="S1::1.4.5"
+    [model]="evidenceModel"
+    (modelChange)="evidenceModelChange.emit($event)"
+  ></app-evidence-block>
+</section>

@@ -103,7 +103,8 @@ export class CanonicalGhgService {
         r.categoryCode === '1.2' ||
         r.categoryCode === '1.4.2' ||
         r.categoryCode === '1.4.3' ||
-        r.categoryCode === '1.4.4',
+        r.categoryCode === '1.4.4' ||
+        r.categoryCode === '1.4.5',
       )
       .map(r => this.mapEntryRowToInventory(r, 1));
   }
@@ -122,10 +123,13 @@ export class CanonicalGhgService {
       r.categoryCode === '1.1' ? 'Stationary combustion' :
       r.categoryCode === '1.2' ? 'Mobile combustion' :
       r.categoryCode;
+    const standard = r.categoryCode === '1.4.5' ? String(r.remark ?? '').trim() : '';
     const remark =
-      r.categoryCode === '1.4.4'
-        ? (r.location ?? r.itemName ?? '')
-        : (r.location ?? '');
+      r.categoryCode === '1.4.5'
+        ? [r.location ?? '', standard ? `standard=${standard}` : ''].filter(Boolean).join(' | ')
+        : r.categoryCode === '1.4.4'
+          ? (r.location ?? r.itemName ?? '')
+          : (r.location ?? '');
 
     return {
       id: r.id || `${r.scope}:${r.categoryCode}:${slug(r.itemName)}:${fuelKey ?? ''}:${slotNo ?? ''}`,
