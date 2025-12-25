@@ -703,6 +703,18 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
       Number((x as any).scope) === 1 && (String(x?.subScope ?? '') === '1.1' || String(x?.subScope ?? '') === '1.2'),
     );
 
+    const fuelKeyLabelMap: Record<string, string[]> = {
+      DIESEL_B7_STATIONARY: ['น้ำมัน Diesel B7', 'Diesel B7'],
+      GASOHOL_9195_STATIONARY: ['น้ำมัน Gasohol 91/95', 'Gasohol 91/95'],
+      ACETYLENE_TANK5_MAINT_2: ['Acetylene gas', 'อะเซทิลีน'],
+      ACETYLENE_TANK5_MAINT_3: ['Acetylene gas', 'อะเซทิลีน'],
+      DIESEL_B7_ONROAD: ['Diesel B7 on-road', 'Diesel B7'],
+      DIESEL_B10_ONROAD: ['Diesel B10 on-road', 'Diesel B10'],
+      GASOHOL_9195: ['Gasohol 91/95'],
+      GASOHOL_E20: ['Gasohol E20'],
+      DIESEL_B7_OFFROAD: ['Diesel B7 off-road', 'forklift'],
+    };
+
     for (const item of scope1Items) {
       const fuelKey = getFuelKey(item);
       if (!fuelKey) continue;
@@ -712,11 +724,17 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
       const totalRef = totals[key];
       if (!totalRef) continue;
 
-      const label = normalizeText(String((item as any).itemLabel ?? ''));
-      if (!label) continue;
+      const labelCandidates = [
+        String((item as any).itemLabel ?? ''),
+        ...(fuelKeyLabelMap[fuelKey] ?? []),
+      ]
+        .map(normalizeText)
+        .filter(Boolean);
+
+      if (!labelCandidates.length) continue;
 
       const matches = rowLabels
-        .filter(r => r.label && (r.label.includes(label) || label.includes(r.label)))
+        .filter(r => r.label && labelCandidates.some(label => r.label.includes(label) || label.includes(r.label)))
         .map(r => r.row)
         .sort((a, b) => a - b);
       if (!matches.length) continue;
