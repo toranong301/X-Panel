@@ -86,8 +86,7 @@ export class Scope12MobileComponent {
         sheetName: this.sheetName,
         templateKey: this.templateKey,
         cycleId: this.cycleId,
-        // Limit preview window (template has very wide formatted area)
-        range: 'A1:Z60',
+        range: 'A1:AA70',
       },
     });
   }

@@ -26,6 +26,14 @@ export type SheetPreview = {
 export class ExcelPreviewService {
   constructor(private canonicalSvc: CanonicalGhgService) {}
 
+  /**
+   * Safety cap for UI preview.
+   * Many Excel templates (incl. MBAX) have formatting that extends to hundreds/thousands of rows.
+   * Rendering the full used range will freeze the browser.
+   */
+  private readonly DEFAULT_MAX_ROWS = 60;
+  private readonly DEFAULT_MAX_COLS = 26; // A..Z
+
   async loadSheet(params: {
     cycleId: number;
     templateKey: string;
@@ -42,7 +50,28 @@ export class ExcelPreviewService {
 
     const buffer = await res.arrayBuffer();
     const workbook = new (ExcelJS as any).Workbook();
-    await workbook.xlsx.load(buffer);
+
+    // ExcelJS parsing of large, heavily-formatted templates can block the browser UI long enough
+    // to trigger "Page unresponsive". For preview we can safely skip many heavy nodes.
+    // NOTE: Types don't expose these options, so we call through `any`.
+    const maxRows = this.DEFAULT_MAX_ROWS + 40;
+    const maxCols = this.DEFAULT_MAX_COLS + 10;
+    await (workbook.xlsx as any).load(buffer, {
+      maxRows,
+      maxCols,
+      ignoreNodes: [
+        'dataValidations',
+        'conditionalFormatting',
+        'picture',
+        'drawing',
+        'sheetProtection',
+        'tableParts',
+        'rowBreaks',
+        'hyperlinks',
+        'extLst',
+        // keep sheetData
+      ],
+    });
 
     const selections = runSelections(bundle.spec.selectionRules, canonical);
     if (!bundle.adapter.supports(bundle.spec)) {
@@ -61,23 +90,9 @@ export class ExcelPreviewService {
     const ws = workbook.getWorksheet(resolvedSheetName);
     if (!ws) throw new Error(`Sheet '${resolvedSheetName}' not found in template`);
 
-    // NOTE: Many v-sheet templates have formatting extended to hundreds/thousands of rows/cols.
-    // Rendering the whole used range in the browser will appear to "hang".
-    // So when caller doesn't specify a range, we cap the preview size to a reasonable window.
-    const baseRange = params.range ?? this.buildRangeFromWorksheet(ws);
-    const cap = { maxRows: 60, maxCols: 26 };
-    const parsed = this.parseRange(baseRange);
-
-    const startRow = parsed.startRow;
-    const startCol = parsed.startCol;
-    const endRow = params.range
-      ? parsed.endRow
-      : Math.min(parsed.endRow, startRow + cap.maxRows - 1);
-    const endCol = params.range
-      ? parsed.endCol
-      : Math.min(parsed.endCol, startCol + cap.maxCols - 1);
-
-    const range = `${this.colToLetter(startCol)}${startRow}:${this.colToLetter(endCol)}${endRow}`;
+    // If caller doesn't provide a range, use a capped preview range to avoid UI lockups.
+    const range = params.range ?? this.buildCappedRangeFromWorksheet(ws);
+    const { startRow, endRow, startCol, endCol } = this.parseRange(range);
 
     const columns: string[] = [];
     for (let c = startCol; c <= endCol; c++) {
@@ -107,10 +122,15 @@ export class ExcelPreviewService {
 
     if (raw && typeof raw === 'object' && 'formula' in raw) {
       const formula = this.normalizeFormula((raw as any).formula ?? '');
-      const evaluated = this.evaluateFormula(formula, workbook, ws, seen);
-      if (evaluated !== null && evaluated !== undefined && evaluated !== '') {
-        return this.formatDisplay(evaluated);
+      // ExcelJS may include cached results ("result") in the file. Prefer that.
+      const cached = (raw as any).result;
+      if (cached !== null && cached !== undefined && cached !== '') {
+        const formatted = this.formatDisplay(cached);
+        return { ...formatted, type: 'formula' };
       }
+
+      // IMPORTANT: Do NOT attempt to evaluate formulas in the browser preview.
+      // Templates contain large SUM ranges which can freeze the UI.
       return { display: `=${formula}`, type: 'formula' };
     }
 
@@ -198,12 +218,20 @@ export class ExcelPreviewService {
     return { display: String(value), type: 'text' };
   }
 
-  private buildRangeFromWorksheet(ws: any): string {
+  /**
+   * Builds a *capped* range from worksheet dimensions to keep preview responsive.
+   */
+  private buildCappedRangeFromWorksheet(ws: any): string {
     const dimensions = ws.dimensions || {};
     const top = Number(dimensions.top ?? 1);
     const left = Number(dimensions.left ?? 1);
-    const bottom = Number(dimensions.bottom ?? ws.rowCount ?? 1);
-    const right = Number(dimensions.right ?? ws.columnCount ?? 1);
+
+    // Worksheet dimensions often include formatted-but-empty cells (e.g., up to row 1000+).
+    const rawBottom = Number(dimensions.bottom ?? ws.rowCount ?? 1);
+    const rawRight = Number(dimensions.right ?? ws.columnCount ?? 1);
+
+    const bottom = Math.min(rawBottom, top + this.DEFAULT_MAX_ROWS - 1);
+    const right = Math.min(rawRight, left + this.DEFAULT_MAX_COLS - 1);
 
     return `${this.colToLetter(left)}${top}:${this.colToLetter(right)}${bottom}`;
   }
