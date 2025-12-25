@@ -39,13 +39,12 @@
           <td>น้ำมัน Diesel B7 (Fire Pump)</td>
           <td>B7</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(dieselCode)"
               (ngModelChange)="updateEvidence(dieselCode, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>L</td>
           <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
@@ -60,13 +59,12 @@
           <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
           <td>91/95</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(gasoholCode)"
               (ngModelChange)="updateEvidence(gasoholCode, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>L</td>
           <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
@@ -99,13 +97,12 @@
         <tr>
           <td>น้ำมัน Diesel B7 (Fire Pump)</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(dieselCode)"
               (ngModelChange)="updateEvidence(dieselCode, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>L</td>
           <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
@@ -120,13 +117,12 @@
         <tr>
           <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(gasoholCode)"
               (ngModelChange)="updateEvidence(gasoholCode, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>L</td>
           <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
@@ -150,13 +146,12 @@
         <tr>
           <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(acetyleneMaint2Code)"
               (ngModelChange)="updateEvidence(acetyleneMaint2Code, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>ถัง</td>
           <td class="num">{{ formatNumber(totalForCode(acetyleneMaint2Code)) }}</td>
@@ -180,13 +175,12 @@
         <tr>
           <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3</td>
           <td>
-            <select
+            <input
+              type="text"
+              placeholder="กรอกข้อมูล"
               [ngModel]="getEvidence(acetyleneMaint3Code)"
               (ngModelChange)="updateEvidence(acetyleneMaint3Code, $event)"
-            >
-              <option value="">-</option>
-              <option *ngFor="let opt of evidenceOptions" [value]="opt">{{ opt }}</option>
-            </select>
+            />
           </td>
           <td>ถัง</td>
           <td class="num">{{ formatNumber(totalForCode(acetyleneMaint3Code)) }}</td>
