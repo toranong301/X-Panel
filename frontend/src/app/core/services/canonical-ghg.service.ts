@@ -102,6 +102,10 @@ export class CanonicalGhgService {
     return this.build(cycleId);
   }
 
+  public buildScope11StationaryExport(cycleId: number): CanonicalCycleData {
+    return this.build(cycleId);
+  }
+
   // ✅ Scope 1.1 + 1.2: สร้าง InventoryItemRow ที่มี quantityMonthly + fuelKey + slotNo
   private buildScope1Inventory(cycleId: number): InventoryItemRow[] {
     const doc = this.entrySvc.load(cycleId);
