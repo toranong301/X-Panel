@@ -43,8 +43,10 @@ export class ExcelExportEngine {
     filename: string;
     selections?: Record<string, any[]>;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
+    requiredSheets?: string[];
   }): Promise<ExportReport> {
-    const { templateArrayBuffer, spec, adapter, canonical, filename, excelFeaturesOverride, selections } = params;
+    const { templateArrayBuffer, spec, adapter, canonical, filename, excelFeaturesOverride, selections, requiredSheets } =
+      params;
 
     const mergedSpec: VSheetTemplateSpec = {
       ...spec,
@@ -53,6 +55,13 @@ export class ExcelExportEngine {
 
     const workbook = new (ExcelJS as any).Workbook();
     await workbook.xlsx.load(templateArrayBuffer);
+
+    if (requiredSheets?.length) {
+      const missingSheets = requiredSheets.filter(name => !workbook.getWorksheet(name));
+      if (missingSheets.length) {
+        throw new Error(`Missing worksheet(s): ${missingSheets.join(', ')}`);
+      }
+    }
 
     const resolvedSelections = selections ?? runSelections(mergedSpec.selectionRules, canonical);
     const report: ExportReport = { templateId: mergedSpec.templateId, version: mergedSpec.version, validations: [] };
@@ -103,6 +112,7 @@ export class ExcelExportEngine {
     selections?: Record<string, any[]>;
     outputName: string;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
+    requiredSheets?: string[];
   }): Promise<ExportReport> {
     const res = await fetch(params.templateUrl);
     if (!res.ok) throw new Error(`Failed to load template: ${params.templateUrl}`);
@@ -115,6 +125,30 @@ export class ExcelExportEngine {
       selections: params.selections,
       filename: params.outputName,
       excelFeaturesOverride: params.excelFeaturesOverride,
+      requiredSheets: params.requiredSheets,
+    });
+  }
+
+  async exportScope11StationaryFromUrl(params: {
+    templateUrl: string;
+    templateSpec: VSheetTemplateSpec;
+    adapter: TemplateAdapter;
+    canonical: CanonicalCycleData;
+    selections?: Record<string, any[]>;
+    outputName: string;
+    sheetName?: string;
+    excelFeaturesOverride?: Partial<ExcelFeatures>;
+  }): Promise<ExportReport> {
+    const sheetName = params.sheetName ?? '1.1 Stationary ';
+    return this.exportFromUrl({
+      templateUrl: params.templateUrl,
+      templateSpec: params.templateSpec,
+      adapter: params.adapter,
+      canonical: params.canonical,
+      selections: params.selections,
+      outputName: params.outputName,
+      excelFeaturesOverride: params.excelFeaturesOverride,
+      requiredSheets: [sheetName],
     });
   }
 }

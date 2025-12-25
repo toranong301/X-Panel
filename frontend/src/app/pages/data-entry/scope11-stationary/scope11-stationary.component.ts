@@ -71,19 +71,20 @@ export class Scope11StationaryComponent {
   async exportSheet() {
     this.exporting = true;
     try {
-      const canonical = this.canonicalSvc.build(this.cycleId);
+      const canonical = this.canonicalSvc.buildScope11StationaryExport(this.cycleId);
       const bundle = resolveTemplate(this.templateKey);
-      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+      const outputName = `MBAX_1.1_Stationary_cycle-${this.cycleId}.xlsx`;
 
-      await this.exportEngine.exportFromUrl({
+      await this.exportEngine.exportScope11StationaryFromUrl({
         templateUrl: bundle.templateUrl,
         templateSpec: bundle.spec,
         adapter: bundle.adapter,
         canonical,
         outputName,
+        sheetName: this.sheetName,
       });
 
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      this.snackBar.open('Export 1.1 Stationary สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {
       console.error('Export sheet failed', error);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
