@@ -2,6 +2,16 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { ExcelExportEngine } from '../../../core/export/engine/excel-export.engine';
+import { resolveTemplate } from '../../../core/export/registry/template-registry';
+import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
+import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
 
@@ -30,7 +40,15 @@ const LABELS: Record<FuelKey, string> = {
 @Component({
   selector: 'app-scope12-mobile',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+  ],
   templateUrl: './scope12-mobile.component.html',
   styleUrls: ['./scope12-mobile.component.scss'],
 })
@@ -47,6 +65,55 @@ export class Scope12MobileComponent {
     'GASOHOL_9195',
     'GASOHOL_E20',
   ];
+
+  exporting = false;
+  readonly templateKey = 'MBAX_TGO_11102567::demo';
+  readonly sheetName = '1.2 Mobile';
+
+  constructor(
+    private dialog: MatDialog,
+    private exportEngine: ExcelExportEngine,
+    private canonicalSvc: CanonicalGhgService,
+    private snackBar: MatSnackBar,
+  ) {}
+
+  openReview() {
+    this.dialog.open(ExcelSheetReviewDialogComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      data: {
+        title: 'Review: 1.2 Mobile',
+        sheetName: this.sheetName,
+        templateKey: this.templateKey,
+        cycleId: this.cycleId,
+      },
+    });
+  }
+
+  async exportSheet() {
+    this.exporting = true;
+    try {
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      const bundle = resolveTemplate(this.templateKey);
+      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+
+      await this.exportEngine.exportFromUrl({
+        templateUrl: bundle.templateUrl,
+        templateSpec: bundle.spec,
+        adapter: bundle.adapter,
+        canonical,
+        outputName,
+      });
+
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+    } catch (error: any) {
+      console.error('Export sheet failed', error);
+      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+      this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
+    } finally {
+      this.exporting = false;
+    }
+  }
 
   labelFor(key: FuelKey): string {
     return LABELS[key];
@@ -81,7 +148,7 @@ export class Scope12MobileComponent {
       scope: 'S1',
       categoryCode: '1.2',
       subCategoryCode: `${key}#${slotNo}`,
-      itemName: '',
+      itemName: this.labelFor(key),
       unit: 'L',
       months: createEmptyMonths(),
       dataSourceType: 'ORG',
@@ -92,14 +159,49 @@ export class Scope12MobileComponent {
   }
 
   removeRow(row: EntryRow) {
-    // ไม่ให้ลบ forklift โดยไม่ตั้งใจ: ถ้าต้องการให้ลบได้ ให้เอา if นี้ออก
-    if ((row.subCategoryCode ?? '').trim() === 'DIESEL_B7_OFFROAD') return;
     this.rows = this.rows.filter(r => r !== row);
     this.rowsChange.emit(this.rows);
   }
 
-  getForkliftRow(): EntryRow {
-    let row = this.rows.find(r => (r.subCategoryCode ?? '') === 'DIESEL_B7_OFFROAD');
+  updateItemName(row: EntryRow, value: string) {
+    row.itemName = value;
+    this.rowsChange.emit(this.rows);
+  }
+
+  updateEvidence(row: EntryRow, value: string) {
+    row.referenceText = value;
+    this.rowsChange.emit(this.rows);
+  }
+
+  getMonthQty(row: EntryRow, month: number): number {
+    const m = row.months.find(x => x.month === month);
+    return m ? m.qty : 0;
+  }
+
+  updateMonthQty(row: EntryRow, month: number, value: number | string) {
+    let m = row.months.find(x => x.month === month);
+    if (!m) {
+      m = { month, qty: 0 };
+      row.months.push(m);
+    }
+    m.qty = Number(value) || 0;
+    this.rowsChange.emit(this.rows);
+  }
+
+  total(row: EntryRow): number {
+    return row.months.reduce((sum, m) => sum + (m.qty || 0), 0);
+  }
+
+  totalAll(key: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>): number {
+    return this.groupRows(key).reduce((sum, row) => sum + this.total(row), 0);
+  }
+
+  getOffroadRow(): EntryRow | undefined {
+    return this.rows.find(r => this.parseKey(r.subCategoryCode).fuelKey === 'DIESEL_B7_OFFROAD');
+  }
+
+  ensureOffroadRow(): EntryRow {
+    let row = this.getOffroadRow();
     if (row) return row;
 
     row = {
@@ -107,7 +209,7 @@ export class Scope12MobileComponent {
       scope: 'S1',
       categoryCode: '1.2',
       subCategoryCode: 'DIESEL_B7_OFFROAD',
-      itemName: '',
+      itemName: LABELS.DIESEL_B7_OFFROAD,
       unit: 'L',
       months: createEmptyMonths(),
       dataSourceType: 'ORG',
@@ -118,64 +220,12 @@ export class Scope12MobileComponent {
     return row;
   }
 
-  /** -------- cell helpers -------- */
-
-  slotLabel(row: EntryRow): string {
-    const { fuelKey, slotNo } = this.parseKey(row.subCategoryCode);
-    if (!fuelKey) return '';
-    return fuelKey === 'DIESEL_B7_OFFROAD' ? '' : `#${slotNo ?? ''}`;
-  }
-
-  total(row: EntryRow): number {
-    return this.toMonthlyArray(row).reduce((s, n) => s + n, 0);
-  }
-
-  getMonthQty(row: EntryRow, month: number): number {
-    const m = (row.months ?? []).find(x => x.month === month);
-    return m ? Number(m.qty || 0) : 0;
-  }
-
-  updateMonthQty(row: EntryRow, month: number, value: number | string) {
-    const qty = Number(value) || 0;
-    let m = (row.months ?? []).find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months = [...(row.months ?? []), m];
-    }
-    m.qty = qty;
-    this.rowsChange.emit(this.rows);
-  }
-
-  updateField(row: EntryRow, field: keyof Pick<EntryRow, 'itemName' | 'location' | 'referenceText'>, value: string) {
-    (row as any)[field] = value;
-    this.rowsChange.emit(this.rows);
-  }
-
-  formatNumber(value: number, zeroAsDash = false, decimals = 2): string {
-    if (zeroAsDash && value === 0) return '-';
-    return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-  }
-
-  private toMonthlyArray(row?: EntryRow): number[] {
-    const out = Array.from({ length: 12 }, () => 0);
-    for (const m of row?.months ?? []) {
-      const idx = Number(m.month) - 1;
-      if (idx >= 0 && idx < 12) out[idx] = Number(m.qty || 0);
-    }
-    return out;
-  }
-
-  private parseKey(subCategoryCode?: string): { fuelKey?: FuelKey; slotNo?: number } {
-    const raw = String(subCategoryCode ?? '').trim();
+  private parseKey(code?: string): { fuelKey?: FuelKey; slotNo?: number } {
+    const raw = String(code || '').trim();
     if (!raw) return {};
-    if (raw === 'DIESEL_B7_OFFROAD') return { fuelKey: 'DIESEL_B7_OFFROAD' };
-
     const [k, n] = raw.split('#');
-    const fuelKey = (k || '').trim() as FuelKey;
+    const fuelKey = k as FuelKey;
     const slotNo = n ? Number(n) : undefined;
-    return {
-      fuelKey: fuelKey || undefined,
-      slotNo: Number.isFinite(slotNo) ? slotNo : undefined,
-    };
+    return { fuelKey, slotNo: Number.isFinite(slotNo) ? slotNo : undefined };
   }
 }

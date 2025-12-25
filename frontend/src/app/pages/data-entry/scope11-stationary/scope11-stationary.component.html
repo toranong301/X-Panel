@@ -1,7 +1,20 @@
 <section class="scope11-stationary">
   <div class="section-header">
-    <h3>1.1 Stationary combustion</h3>
-    <p>รูปแบบตาม Excel (ตารางสรุปด้านบน + ตารางรายเดือนด้านล่าง)</p>
+    <div>
+      <h3>1.1 Stationary combustion</h3>
+      <p>รูปแบบตาม Excel (ตารางสรุปด้านบน + ตารางรายเดือนด้านล่าง)</p>
+    </div>
+    <div class="header-actions">
+      <button mat-stroked-button (click)="openReview()">
+        <mat-icon>preview</mat-icon>
+        Review
+      </button>
+      <button mat-raised-button color="primary" (click)="exportSheet()" [disabled]="exporting">
+        <mat-icon *ngIf="!exporting">download</mat-icon>
+        <mat-progress-spinner *ngIf="exporting" diameter="18" mode="indeterminate"></mat-progress-spinner>
+        <span>{{ exporting ? 'กำลัง Export...' : 'Export (this sheet)' }}</span>
+      </button>
+    </div>
   </div>
 
   <div class="table-wrapper">
