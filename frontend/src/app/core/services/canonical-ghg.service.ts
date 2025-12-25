@@ -22,6 +22,7 @@ export interface CanonicalCycleData {
   vsheet: VSheetDataDoc;
   evidence?: Record<string, EvidenceModel>;
   fr01?: Fr01Data | null;
+  fr041Selection?: any[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -90,7 +91,11 @@ export class CanonicalGhgService {
     }
 
     const fr01 = this.fr01Svc.load(cycleId);
-    return { inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {}, fr01 };
+    const fr041Selection =
+      (entryDoc as any)?.fr041Selection ??
+      (entryDoc as any)?.fr041Selections ??
+      undefined;
+    return { inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {}, fr01, fr041Selection };
   }
 
   public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {
