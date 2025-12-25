@@ -57,6 +57,7 @@ export class Scope14FugitiveComponent {
         sheetName: this.sheetName,
         templateKey: this.templateKey,
         cycleId: this.cycleId,
+        range: 'A1:Q50',
       },
     });
   }

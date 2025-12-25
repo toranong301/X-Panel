@@ -62,6 +62,8 @@ export class Scope11StationaryComponent {
         sheetName: this.sheetName,
         templateKey: this.templateKey,
         cycleId: this.cycleId,
+        // Limit preview window to avoid rendering thousands of formatted rows.
+        range: 'A1:P25',
       },
     });
   }

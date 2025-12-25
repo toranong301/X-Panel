@@ -61,8 +61,23 @@ export class ExcelPreviewService {
     const ws = workbook.getWorksheet(resolvedSheetName);
     if (!ws) throw new Error(`Sheet '${resolvedSheetName}' not found in template`);
 
-    const range = params.range ?? this.buildRangeFromWorksheet(ws);
-    const { startRow, endRow, startCol, endCol } = this.parseRange(range);
+    // NOTE: Many v-sheet templates have formatting extended to hundreds/thousands of rows/cols.
+    // Rendering the whole used range in the browser will appear to "hang".
+    // So when caller doesn't specify a range, we cap the preview size to a reasonable window.
+    const baseRange = params.range ?? this.buildRangeFromWorksheet(ws);
+    const cap = { maxRows: 60, maxCols: 26 };
+    const parsed = this.parseRange(baseRange);
+
+    const startRow = parsed.startRow;
+    const startCol = parsed.startCol;
+    const endRow = params.range
+      ? parsed.endRow
+      : Math.min(parsed.endRow, startRow + cap.maxRows - 1);
+    const endCol = params.range
+      ? parsed.endCol
+      : Math.min(parsed.endCol, startCol + cap.maxCols - 1);
+
+    const range = `${this.colToLetter(startCol)}${startRow}:${this.colToLetter(endCol)}${endRow}`;
 
     const columns: string[] = [];
     for (let c = startCol; c <= endCol; c++) {
