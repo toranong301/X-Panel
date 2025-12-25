@@ -4,9 +4,11 @@ import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
 import { InventoryItemRow, Scope3SignificanceRow } from '../../models/refs.model';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
+import { Fr01Data } from '../../models/fr01.model';
 
 import { VSheetDataDoc } from '../vsheet/vsheet.schema';
 import { DataEntryService } from './data-entry.service';
+import { Fr01Service } from './fr01.service';
 import { Fr032Service } from './fr03-2.service';
 import { Scope3SummaryService } from './scope3-summary.service';
 
@@ -19,6 +21,7 @@ export interface CanonicalCycleData {
   fr03_2: Fr032CanonicalRow[];
   vsheet: VSheetDataDoc;
   evidence?: Record<string, EvidenceModel>;
+  fr01?: Fr01Data | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -27,6 +30,7 @@ export class CanonicalGhgService {
     private scope3Svc: Scope3SummaryService,
     private fr032Svc: Fr032Service,
     private entrySvc: DataEntryService,
+    private fr01Svc: Fr01Service,
   ) {}
 
   /**
@@ -85,7 +89,8 @@ export class CanonicalGhgService {
       });
     }
 
-    return { inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {} };
+    const fr01 = this.fr01Svc.load(cycleId);
+    return { inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {}, fr01 };
   }
 
   public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {

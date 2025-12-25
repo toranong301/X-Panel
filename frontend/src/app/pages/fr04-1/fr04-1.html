@@ -28,6 +28,32 @@
 </div>
 
 <mat-card class="card">
+  <div class="form-header">
+    <div class="form-title">
+      <div class="form-code">FR-04.1</div>
+      <div class="form-name">บัญชีรายการก๊าซเรือนกระจก (V-Sheet CFO)</div>
+      <div class="form-sub">สำหรับปีที่เก็บข้อมูล: {{ reportYearLabel }}</div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="label">องค์กร</div>
+        <div class="value">{{ fr01Meta?.orgName || '-' }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">ช่วงเวลาที่เก็บข้อมูล</div>
+        <div class="value">{{ dataPeriodLabel }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">ผู้จัดทำ</div>
+        <div class="value">{{ fr01Meta?.preparedBy || '-' }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">วันที่จัดทำ</div>
+        <div class="value">{{ formatDate(fr01Meta?.preparedDate) }}</div>
+      </div>
+    </div>
+  </div>
+
   <div class="grid">
     <mat-form-field appearance="outline" class="w-320">
       <mat-label>Export template</mat-label>
@@ -47,51 +73,95 @@
 
   <mat-divider></mat-divider>
 
-  <div class="table-title">ตาราง FR-04.1</div>
-
-  <div class="table-meta">
-    <div>จำนวนแถว Scope 1: <b>{{ scope1RowCount }}</b></div>
-    <div class="muted">อ้างอิงข้อมูลจาก localStorage ผ่าน DataEntryService</div>
-  </div>
+  <div class="table-title">ตาราง FR-04.1 (โครงฟอร์มหลัก)</div>
 
   <div class="empty-state" *ngIf="!hasScope1Data">
     ยังไม่มีข้อมูล กรุณากรอก Data-entry ก่อน
   </div>
 
-  <div class="table-wrap">
-    <table class="fr041-table">
-      <thead>
-        <tr>
-          <th rowspan="2">ขอบเขต</th>
-          <th rowspan="2">รายการ</th>
-          <th rowspan="2">หน่วย</th>
-          <th colspan="1">ข้อมูลกิจกรรม</th>
-          <th colspan="2">การคำนวณ GHG</th>
-        </tr>
-        <tr>
-          <th class="num">ปริมาณรวมรายปี</th>
-          <th class="num">EF (kgCO2e/หน่วย)</th>
-          <th class="num">Total GHG (tCO2e)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of fr041Rows" [ngClass]="row.type">
-          <ng-container [ngSwitch]="row.type">
-            <td *ngSwitchCase="'section'" colspan="6">{{ row.label }}</td>
-            <td *ngSwitchCase="'group'" colspan="6">{{ row.label }}</td>
-            <td *ngSwitchCase="'empty'" colspan="6">{{ row.label }}</td>
-            <ng-container *ngSwitchCase="'data'">
-              <td>{{ row.scopeLabel }}</td>
-              <td>{{ row.itemLabel }}</td>
-              <td>{{ row.unit }}</td>
-              <td class="num">{{ row.quantity !== null ? fmt(row.quantity, 2) : '-' }}</td>
-              <td class="num">{{ row.ef !== null ? fmt(row.ef, 4) : '-' }}</td>
-              <td class="num">{{ row.total !== null ? fmt(row.total, 2) : '-' }}</td>
+  <div class="table-layout">
+    <div class="table-wrap">
+      <table class="fr041-table">
+        <thead>
+          <tr>
+            <th rowspan="2">ลำดับ</th>
+            <th rowspan="2">ขอบเขต</th>
+            <th rowspan="2">รายการ/กิจกรรม</th>
+            <th rowspan="2">หลักฐานข้อมูลกิจกรรม</th>
+            <th rowspan="2">หน่วย</th>
+            <th rowspan="2" class="num">ปริมาณรวมรายปี</th>
+            <th colspan="4">ค่า EF (kg GHG/หน่วย)</th>
+            <th colspan="3">ผลคูณ (Ton GHG)</th>
+            <th rowspan="2" class="num">ผลคูณ (TonCO2e)</th>
+            <th rowspan="2" class="num">สัดส่วน (%)</th>
+            <th rowspan="2">หมายเหตุ</th>
+          </tr>
+          <tr>
+            <th class="num">CO2</th>
+            <th class="num">CH4</th>
+            <th class="num">N2O</th>
+            <th class="num">รวม</th>
+            <th class="num">CO2</th>
+            <th class="num">CH4</th>
+            <th class="num">N2O</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of fr041Rows" [ngClass]="row.type">
+            <ng-container [ngSwitch]="row.type">
+              <td *ngSwitchCase="'section'" colspan="16">{{ row.label }}</td>
+              <td *ngSwitchCase="'group'" colspan="16">{{ row.label }}</td>
+              <td *ngSwitchCase="'empty'" colspan="16">{{ row.label }}</td>
+              <ng-container *ngSwitchCase="'data'">
+                <td class="num">{{ row.no }}</td>
+                <td>{{ row.scopeLabel }}</td>
+                <td>{{ row.itemLabel }}</td>
+                <td>{{ row.evidence || '-' }}</td>
+                <td>{{ row.unit }}</td>
+                <td class="num">{{ row.quantity !== null ? fmt(row.quantity, 2) : '-' }}</td>
+                <td class="num">{{ row.efCo2 !== null ? fmt(row.efCo2, 4) : '-' }}</td>
+                <td class="num">{{ row.efCh4 !== null ? fmt(row.efCh4, 4) : '-' }}</td>
+                <td class="num">{{ row.efN2o !== null ? fmt(row.efN2o, 4) : '-' }}</td>
+                <td class="num">{{ row.efTotal !== null ? fmt(row.efTotal, 4) : '-' }}</td>
+                <td class="num">{{ row.totalCo2 !== null ? fmt(row.totalCo2, 2) : '-' }}</td>
+                <td class="num">{{ row.totalCh4 !== null ? fmt(row.totalCh4, 2) : '-' }}</td>
+                <td class="num">{{ row.totalN2o !== null ? fmt(row.totalN2o, 2) : '-' }}</td>
+                <td class="num">{{ row.totalCo2e !== null ? fmt(row.totalCo2e, 2) : '-' }}</td>
+                <td class="num">{{ row.sharePct !== null ? fmt(row.sharePct, 2) : '-' }}</td>
+                <td>{{ row.remark || '-' }}</td>
+              </ng-container>
             </ng-container>
-          </ng-container>
-        </tr>
-      </tbody>
-    </table>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="gwp-table">
+      <div class="gwp-title">GWP100 (IPCC)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ก๊าซ</th>
+            <th class="num">ค่า GWP100</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>CO2</td>
+            <td class="num">1</td>
+          </tr>
+          <tr>
+            <td>CH4</td>
+            <td class="num">28</td>
+          </tr>
+          <tr>
+            <td>N2O</td>
+            <td class="num">265</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="gwp-note">แสดงเพื่ออ้างอิงตามฟอร์ม FR-04.1</div>
+    </div>
   </div>
 </mat-card>
 

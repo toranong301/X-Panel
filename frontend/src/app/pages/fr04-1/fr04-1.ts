@@ -17,17 +17,29 @@ import { ExcelExportEngine, ExportReport } from '../../core/export/engine/excel-
 import { resolveTemplate } from '../../core/export/registry/template-registry';
 import { CanonicalCycleData, CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
+import { Fr01Service } from '../../core/services/fr01.service';
 import { InventoryItemRow } from '../../models/refs.model';
+import { Fr01Data } from '../../models/fr01.model';
 
 type Fr041Row = {
   type: 'section' | 'group' | 'empty' | 'data';
+  no?: number;
   label?: string;
   scopeLabel?: string;
   itemLabel?: string;
+  evidence?: string;
   unit?: string;
   quantity?: number | null;
-  ef?: number | null;
-  total?: number | null;
+  efCo2?: number | null;
+  efCh4?: number | null;
+  efN2o?: number | null;
+  efTotal?: number | null;
+  totalCo2?: number | null;
+  totalCh4?: number | null;
+  totalN2o?: number | null;
+  totalCo2e?: number | null;
+  sharePct?: number | null;
+  remark?: string;
 };
 
 @Component({
@@ -55,6 +67,7 @@ export class Fr041Component implements OnInit {
   private router = inject(Router);
   private canonicalSvc = inject(CanonicalGhgService);
   private dataEntrySvc = inject(DataEntryService);
+  private fr01Svc = inject(Fr01Service);
   private exportEngine = inject(ExcelExportEngine);
   private snackBar = inject(MatSnackBar);
 
@@ -74,6 +87,9 @@ export class Fr041Component implements OnInit {
   scope1RowCount = 0;
   hasScope1Data = false;
   selectedScope3: any[] = [];
+  fr01Meta: Fr01Data | null = null;
+  reportYearLabel = '-';
+  dataPeriodLabel = '-';
 
   // report
   report: ExportReport | null = null;
@@ -87,6 +103,9 @@ export class Fr041Component implements OnInit {
   reloadPreview() {
     this.dataEntrySvc.load(this.cycleId);
     const canonical = this.canonicalSvc.build(this.cycleId);
+    this.fr01Meta = canonical.fr01 ?? this.fr01Svc.load(this.cycleId);
+    this.reportYearLabel = this.getReportYearLabel(this.fr01Meta);
+    this.dataPeriodLabel = this.getDataPeriodLabel(this.fr01Meta);
     this.fr041Rows = this.buildFr041Rows(canonical);
     this.scope1RowCount = this.fr041Rows.filter(row => row.type === 'data').length;
     this.hasScope1Data = this.scope1RowCount > 0;
@@ -146,17 +165,25 @@ export class Fr041Component implements OnInit {
     const inventory = (canonical.inventory ?? []) as InventoryItemRow[];
 
     const scope1 = inventory.filter(item =>
-      Number(item.scope) === 1 &&
-      (String(item.subScope) === '1.1' || String(item.subScope) === '1.2'),
+      Number(item.scope) === 1,
     );
+    const scope2 = inventory.filter(item => Number(item.scope) === 2);
+    const scope3 = inventory.filter(item => Number(item.scope) === 3);
 
     rows.push({ type: 'section', label: 'ขอบเขต 1' });
-    this.pushScope1Groups(rows, scope1);
+    this.pushScopeGroups(rows, scope1, 'ขอบเขต 1');
 
+    rows.push({ type: 'section', label: 'ขอบเขต 2' });
+    this.pushScopeGroups(rows, scope2, 'ขอบเขต 2');
+
+    rows.push({ type: 'section', label: 'ขอบเขต 3' });
+    this.pushScopeGroups(rows, scope3, 'ขอบเขต 3');
+
+    this.applySharePct(rows);
     return rows;
   }
 
-  private pushScope1Groups(rows: Fr041Row[], items: InventoryItemRow[]) {
+  private pushScopeGroups(rows: Fr041Row[], items: InventoryItemRow[], scopeLabel: string) {
     if (!items.length) {
       rows.push({ type: 'empty', label: 'ยังไม่มีข้อมูล กรุณากรอก Data-entry ก่อน' });
       return;
@@ -178,11 +205,11 @@ export class Fr041Component implements OnInit {
 
     for (const [label, groupItems] of grouped.entries()) {
       rows.push({ type: 'group', label });
-      this.pushItemRows(rows, groupItems, 'ยังไม่มีข้อมูล');
+      this.pushItemRows(rows, groupItems, 'ยังไม่มีข้อมูล', scopeLabel);
     }
   }
 
-  private pushItemRows(rows: Fr041Row[], items: InventoryItemRow[], emptyLabel: string) {
+  private pushItemRows(rows: Fr041Row[], items: InventoryItemRow[], emptyLabel: string, scopeLabel: string) {
     if (!items.length) {
       rows.push({ type: 'empty', label: emptyLabel });
       return;
@@ -196,21 +223,40 @@ export class Fr041Component implements OnInit {
 
     for (const item of sorted) {
       const quantity = this.getQuantity(item);
-      const ef = Number.isFinite(Number(item.ef)) ? Number(item.ef) : null;
-      const total = Number.isFinite(Number(item.totalTco2e))
+      const efGas = item.efGas ?? {};
+      const efCo2 = Number.isFinite(Number(efGas.CO2?.ef)) ? Number(efGas.CO2?.ef) : null;
+      const efCh4 = Number.isFinite(Number(efGas.CH4?.ef)) ? Number(efGas.CH4?.ef) : null;
+      const efN2o = Number.isFinite(Number(efGas.N2O?.ef)) ? Number(efGas.N2O?.ef) : null;
+
+      const explicitEf = Number.isFinite(Number(item.ef)) ? Number(item.ef) : null;
+      const efTotal = explicitEf ?? this.sumEf([efCo2, efCh4, efN2o]);
+
+      const totalCo2 = quantity !== null && efCo2 !== null ? (quantity * efCo2) / 1000 : null;
+      const totalCh4 = quantity !== null && efCh4 !== null ? (quantity * efCh4) / 1000 : null;
+      const totalN2o = quantity !== null && efN2o !== null ? (quantity * efN2o) / 1000 : null;
+      const totalCo2e = Number.isFinite(Number(item.totalTco2e))
         ? Number(item.totalTco2e)
-        : ef !== null && quantity !== null
-          ? (quantity * ef) / 1000
+        : efTotal !== null && quantity !== null
+          ? (quantity * efTotal) / 1000
           : null;
 
       rows.push({
         type: 'data',
-        scopeLabel: 'ขอบเขต 1',
+        scopeLabel,
         itemLabel: String(item.itemLabel || ''),
+        evidence: String(item.dataEvidence || ''),
         unit: String(item.unit || ''),
         quantity,
-        ef,
-        total,
+        efCo2,
+        efCh4,
+        efN2o,
+        efTotal,
+        totalCo2,
+        totalCh4,
+        totalN2o,
+        totalCo2e,
+        remark: String(item.remark || ''),
+        sharePct: null,
       });
     }
   }
@@ -221,5 +267,43 @@ export class Fr041Component implements OnInit {
       return item.quantityMonthly.reduce((sum, v) => sum + Number(v || 0), 0);
     }
     return null;
+  }
+
+  private sumEf(values: Array<number | null>): number | null {
+    const filtered = values.filter(v => Number.isFinite(Number(v))) as number[];
+    if (!filtered.length) return null;
+    return filtered.reduce((sum, v) => sum + Number(v), 0);
+  }
+
+  private applySharePct(rows: Fr041Row[]) {
+    const dataRows = rows.filter(r => r.type === 'data');
+    const total = dataRows.reduce((sum, row) => sum + Number(row.totalCo2e || 0), 0);
+    let counter = 1;
+    for (const row of dataRows) {
+      row.no = counter++;
+      row.sharePct = total > 0 && row.totalCo2e !== null ? (Number(row.totalCo2e) / total) * 100 : null;
+    }
+  }
+
+  private getReportYearLabel(meta: Fr01Data | null): string {
+    const date = meta?.dataPeriod?.end || meta?.dataPeriod?.start || meta?.preparedDate;
+    if (!date) return '-';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return String(parsed.getFullYear());
+  }
+
+  private getDataPeriodLabel(meta: Fr01Data | null): string {
+    if (!meta?.dataPeriod?.start && !meta?.dataPeriod?.end) return '-';
+    const start = meta?.dataPeriod?.start ? this.formatDate(meta.dataPeriod.start) : '-';
+    const end = meta?.dataPeriod?.end ? this.formatDate(meta.dataPeriod.end) : '-';
+    return `${start} ถึง ${end}`;
+  }
+
+  formatDate(value?: string): string {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('th-TH');
   }
 }
