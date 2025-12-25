@@ -42,8 +42,6 @@ export class Scope11StationaryComponent {
   readonly acetyleneMaint2Code = 'ACETYLENE_TANK5_MAINT_2';
   readonly acetyleneMaint3Code = 'ACETYLENE_TANK5_MAINT_3';
 
-  evidenceOptions = ['Self collect', 'Supplier', 'TH LCI DB', 'TGO EF', 'Thai Res', 'Int DB'];
-
   exporting = false;
   readonly templateKey = 'MBAX_TGO_11102567::demo';
   readonly sheetName = '1.1 Stationary ';
