@@ -701,8 +701,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
     const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
     const selectionList =
       (ctx.canonical as any)?.fr041Selection ??
-      ctx.selections?.fr041Selection ??
-      ctx.selections?.fr041Selections ??
+      ctx.selections?.['fr041Selection'] ??
+      ctx.selections?.['fr041Selections'] ??
       [];
     const normalizedSelections = Array.isArray(selectionList) ? selectionList : [];
 

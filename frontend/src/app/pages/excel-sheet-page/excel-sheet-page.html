@@ -1,0 +1,27 @@
+<div class="page-header">
+  <div>
+    <h2>{{ title }}</h2>
+    <div class="sub">Cycle ID: {{ cycleId }}</div>
+  </div>
+
+  <div class="header-actions">
+    <button mat-raised-button color="primary" (click)="exportSheet()" [disabled]="exporting">
+      <mat-icon *ngIf="!exporting">download</mat-icon>
+      <mat-progress-spinner *ngIf="exporting" diameter="18" mode="indeterminate"></mat-progress-spinner>
+      <span>{{ exporting ? 'กำลัง Export...' : 'Export (this sheet)' }}</span>
+    </button>
+  </div>
+</div>
+
+<mat-card class="card">
+  <app-excel-sheet-preview
+    [cycleId]="cycleId"
+    [templateKey]="templateKey"
+    [sheetName]="sheetName"
+    [range]="range"
+  ></app-excel-sheet-preview>
+</mat-card>
+
+<mat-card class="card" *ngIf="exportError">
+  <div class="error">{{ exportError }}</div>
+</mat-card>

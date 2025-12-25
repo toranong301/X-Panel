@@ -1,0 +1,33 @@
+<div class="sheet-preview">
+  <div class="loading" *ngIf="loading">
+    <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
+    <span>กำลังโหลดตัวอย่างฟอร์ม...</span>
+  </div>
+
+  <div class="error" *ngIf="!loading && error">
+    {{ error }}
+  </div>
+
+  <div class="sheet-scroll" *ngIf="!loading && preview">
+    <table class="excel-table">
+      <thead>
+        <tr>
+          <th class="corner"></th>
+          <th *ngFor="let col of columns">{{ col }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows; trackBy: trackRow">
+          <th class="row-number">{{ row.rowNumber }}</th>
+          <td
+            *ngFor="let cell of row.cells; let i = index; trackBy: trackCell"
+            [class.num]="cell.type === 'number'"
+            [class.formula]="cell.type === 'formula'"
+          >
+            {{ cell.display }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

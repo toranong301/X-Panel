@@ -9,6 +9,7 @@ import { Fr032Component } from './pages/fr03-2/fr03-2';
 import { Fr041Component } from './pages/fr04-1/fr04-1';
 import { Scope3ScreenComponent } from './pages/scope3-screen/scope3-screen';
 import { VSheetEditorComponent } from './pages/vsheet-editor/vsheet-editor';
+import { ExcelSheetPageComponent } from './pages/excel-sheet-page/excel-sheet-page';
 
 export const routes: Routes = [
   {
@@ -26,6 +27,46 @@ export const routes: Routes = [
       { path: 'cycles/:cycleId/fr03-2', component: Fr032Component },
 
       { path: 'cycles/:cycleId/fr04-1', component: Fr041Component },
+      {
+        path: 'cycles/:cycleId/fr04-2',
+        component: ExcelSheetPageComponent,
+        data: {
+          title: 'FR-04.2 (Read-only)',
+          sheetName: 'Fr-04.2',
+        },
+      },
+      {
+        path: 'cycles/:cycleId/fr05',
+        component: ExcelSheetPageComponent,
+        data: {
+          title: 'FR-05 (Read-only)',
+          sheetName: 'Fr-05',
+        },
+      },
+      {
+        path: 'cycles/:cycleId/ef-tgo-ar5',
+        component: ExcelSheetPageComponent,
+        data: {
+          title: 'EF TGO AR5 (Read-only)',
+          sheetName: 'EF TGO AR5',
+        },
+      },
+      {
+        path: 'cycles/:cycleId/ef-1',
+        component: ExcelSheetPageComponent,
+        data: {
+          title: 'EF (1) (Read-only)',
+          sheetName: 'EF (1)',
+        },
+      },
+      {
+        path: 'cycles/:cycleId/revision-log',
+        component: ExcelSheetPageComponent,
+        data: {
+          title: 'Revision Log (Read-only)',
+          sheetName: 'บันทึกการปรับปรุง',
+        },
+      },
       { path: 'cycles/:cycleId/vsheet-editor', component: VSheetEditorComponent },
 
 

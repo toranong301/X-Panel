@@ -2,18 +2,31 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { createEmptyMonths } from '../../../models/entry-row.helpers';
-import { EntryRow } from '../../../models/entry-row.model';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-const DIESEL_CODE = 'DIESEL_B7_STATIONARY';
-const GASOHOL_CODE = 'GASOHOL_9195_STATIONARY';
-const ACETYLENE_MAINT2_CODE = 'ACETYLENE_TANK5_MAINT_2';
-const ACETYLENE_MAINT3_CODE = 'ACETYLENE_TANK5_MAINT_3';
+import { ExcelExportEngine } from '../../../core/export/engine/excel-export.engine';
+import { resolveTemplate } from '../../../core/export/registry/template-registry';
+import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
+import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
+import { EntryRow } from '../../../models/entry-row.model';
+import { createEmptyMonths } from '../../../models/entry-row.helpers';
 
 @Component({
   selector: 'app-scope11-stationary',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+  ],
   templateUrl: './scope11-stationary.component.html',
   styleUrls: ['./scope11-stationary.component.scss'],
 })
@@ -23,31 +36,65 @@ export class Scope11StationaryComponent {
   @Output() rowsChange = new EventEmitter<EntryRow[]>();
 
   readonly months = Array.from({ length: 12 }, (_, i) => i + 1);
-  readonly evidenceOptions = ['ใบกำกับภาษี', 'บิลเงินสด/ใบกำกับภาษี', 'ใบสั่งซื้อ'];
 
-  readonly dieselCode = DIESEL_CODE;
-  readonly gasoholCode = GASOHOL_CODE;
-  readonly acetyleneMaint2Code = ACETYLENE_MAINT2_CODE;
-  readonly acetyleneMaint3Code = ACETYLENE_MAINT3_CODE;
+  readonly dieselCode = 'DIESEL_B7_STATIONARY';
+  readonly gasoholCode = 'GASOHOL_9195_STATIONARY';
+  readonly acetyleneMaint2Code = 'ACETYLENE_TANK5_MAINT_2';
+  readonly acetyleneMaint3Code = 'ACETYLENE_TANK5_MAINT_3';
 
-  get dieselRow(): EntryRow | undefined {
-    return this.getRow(DIESEL_CODE);
+  evidenceOptions = ['Self collect', 'Supplier', 'TH LCI DB', 'TGO EF', 'Thai Res', 'Int DB'];
+
+  exporting = false;
+  readonly templateKey = 'MBAX_TGO_11102567::demo';
+  readonly sheetName = '1.1 Stationary ';
+
+  constructor(
+    private dialog: MatDialog,
+    private exportEngine: ExcelExportEngine,
+    private canonicalSvc: CanonicalGhgService,
+    private snackBar: MatSnackBar,
+  ) {}
+
+  openReview() {
+    this.dialog.open(ExcelSheetReviewDialogComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      data: {
+        title: 'Review: 1.1 Stationary',
+        sheetName: this.sheetName,
+        templateKey: this.templateKey,
+        cycleId: this.cycleId,
+      },
+    });
   }
 
-  get gasoholRow(): EntryRow | undefined {
-    return this.getRow(GASOHOL_CODE);
+  async exportSheet() {
+    this.exporting = true;
+    try {
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      const bundle = resolveTemplate(this.templateKey);
+      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+
+      await this.exportEngine.exportFromUrl({
+        templateUrl: bundle.templateUrl,
+        templateSpec: bundle.spec,
+        adapter: bundle.adapter,
+        canonical,
+        outputName,
+      });
+
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+    } catch (error: any) {
+      console.error('Export sheet failed', error);
+      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+      this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
+    } finally {
+      this.exporting = false;
+    }
   }
 
-  get acetyleneMaint2Row(): EntryRow | undefined {
-    return this.getRow(ACETYLENE_MAINT2_CODE);
-  }
-
-  get acetyleneMaint3Row(): EntryRow | undefined {
-    return this.getRow(ACETYLENE_MAINT3_CODE);
-  }
-
-  get acetyleneSummaryEvidence(): string {
-    return this.getEvidence(ACETYLENE_MAINT2_CODE) || this.getEvidence(ACETYLENE_MAINT3_CODE) || '';
+  getEvidence(code: string): string {
+    return this.getRow(code)?.referenceText ?? '';
   }
 
   updateEvidence(code: string, value: string) {
@@ -57,10 +104,6 @@ export class Scope11StationaryComponent {
     this.rowsChange.emit(this.rows);
   }
 
-  getEvidence(code: string): string {
-    return this.getRow(code)?.referenceText ?? '';
-  }
-
   getMonthQty(code: string, month: number): number {
     const row = this.getRow(code);
     if (!row) return 0;
@@ -68,14 +111,16 @@ export class Scope11StationaryComponent {
     return m ? m.qty : 0;
   }
 
-  updateMonthQty(code: string, month: number, value: number | string) {
+  updateMonthQty(code: string, month: number, value: number) {
     const row = this.ensureRow(code);
     if (!row) return;
+
     let m = row.months.find(x => x.month === month);
     if (!m) {
       m = { month, qty: 0 };
       row.months.push(m);
     }
+
     m.qty = Number(value) || 0;
     this.rowsChange.emit(this.rows);
   }
@@ -84,23 +129,18 @@ export class Scope11StationaryComponent {
     return this.monthlyForCode(code).reduce((sum, v) => sum + v, 0);
   }
 
-  monthlyForCode(code: string): number[] {
-    const row = this.getRow(code);
-    return this.toMonthlyArray(row);
+  acetyleneTotalKgMonths(): number[] {
+    return this.monthlyForCode(this.acetyleneMaint2Code).map((v, idx) =>
+      v * 5 + this.monthlyForCode(this.acetyleneMaint3Code)[idx] * 5
+    );
   }
 
   acetyleneMaint2KgMonths(): number[] {
-    return this.monthlyForCode(ACETYLENE_MAINT2_CODE).map(v => v * 5);
+    return this.monthlyForCode(this.acetyleneMaint2Code).map(v => v * 5);
   }
 
   acetyleneMaint3KgMonths(): number[] {
-    return this.monthlyForCode(ACETYLENE_MAINT3_CODE).map(v => v * 5);
-  }
-
-  acetyleneTotalKgMonths(): number[] {
-    const maint2 = this.acetyleneMaint2KgMonths();
-    const maint3 = this.acetyleneMaint3KgMonths();
-    return maint2.map((v, i) => v + (maint3[i] ?? 0));
+    return this.monthlyForCode(this.acetyleneMaint3Code).map(v => v * 5);
   }
 
   totalFromMonths(months: number[]): number {
@@ -115,6 +155,14 @@ export class Scope11StationaryComponent {
     });
   }
 
+  get acetyleneSummaryEvidence(): string {
+    const list = [
+      this.getEvidence(this.acetyleneMaint2Code),
+      this.getEvidence(this.acetyleneMaint3Code),
+    ].filter(Boolean);
+    return list.join(', ');
+  }
+
   private getRow(code: string): EntryRow | undefined {
     return this.rows.find(r => r.subCategoryCode === code);
   }
@@ -123,23 +171,13 @@ export class Scope11StationaryComponent {
     let row = this.getRow(code);
     if (row) return row;
 
-    const defaults: Record<string, { itemName: string; unit: string }> = {
-      [DIESEL_CODE]: { itemName: 'น้ำมัน Diesel B7 (Fire Pump)', unit: 'L' },
-      [GASOHOL_CODE]: { itemName: 'น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)', unit: 'L' },
-      [ACETYLENE_MAINT2_CODE]: { itemName: 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2', unit: 'ถัง' },
-      [ACETYLENE_MAINT3_CODE]: { itemName: 'Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3', unit: 'ถัง' },
-    };
-
-    const def = defaults[code];
-    if (!def) return undefined;
-
     row = {
       cycleId: String(this.cycleId),
       scope: 'S1',
       categoryCode: '1.1',
       subCategoryCode: code,
-      itemName: def.itemName,
-      unit: def.unit,
+      itemName: '',
+      unit: 'L',
       months: createEmptyMonths(),
       dataSourceType: 'ORG',
     };
@@ -149,7 +187,8 @@ export class Scope11StationaryComponent {
     return row;
   }
 
-  private toMonthlyArray(row?: EntryRow): number[] {
+  private monthlyForCode(code: string): number[] {
+    const row = this.getRow(code);
     const out = Array.from({ length: 12 }, () => 0);
     for (const m of row?.months ?? []) {
       const idx = Number(m.month) - 1;

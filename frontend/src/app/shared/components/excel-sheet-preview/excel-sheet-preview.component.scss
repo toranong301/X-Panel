@@ -1,0 +1,67 @@
+.sheet-preview {
+  width: 100%;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.error {
+  color: #b00020;
+  padding: 12px 16px;
+}
+
+.sheet-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.excel-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+}
+
+.excel-table th,
+.excel-table td {
+  border: 1px solid #e0e0e0;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.excel-table thead th {
+  background: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #f5f5f5;
+}
+
+.row-number {
+  position: sticky;
+  left: 0;
+  background: #fafafa;
+  z-index: 1;
+  text-align: right;
+}
+
+.num {
+  text-align: right;
+}
+
+.formula {
+  color: #6a1b9a;
+  font-style: italic;
+}

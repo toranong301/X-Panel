@@ -2,13 +2,31 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { ExcelExportEngine } from '../../../core/export/engine/excel-export.engine';
+import { resolveTemplate } from '../../../core/export/registry/template-registry';
+import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
+import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
 
 @Component({
   selector: 'app-scope14-fugitive',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+  ],
   templateUrl: './scope14-fugitive.component.html',
   styleUrls: ['./scope14-fugitive.component.scss'],
 })
@@ -18,6 +36,55 @@ export class Scope14FugitiveComponent {
   @Output() rowsChange = new EventEmitter<EntryRow[]>();
 
   readonly months = Array.from({ length: 12 }, (_, i) => i + 1);
+
+  exporting = false;
+  readonly templateKey = 'MBAX_TGO_11102567::demo';
+  readonly sheetName = '1.4 Fugitive Emission';
+
+  constructor(
+    private dialog: MatDialog,
+    private exportEngine: ExcelExportEngine,
+    private canonicalSvc: CanonicalGhgService,
+    private snackBar: MatSnackBar,
+  ) {}
+
+  openReview() {
+    this.dialog.open(ExcelSheetReviewDialogComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      data: {
+        title: 'Review: 1.4 Fugitive Emission',
+        sheetName: this.sheetName,
+        templateKey: this.templateKey,
+        cycleId: this.cycleId,
+      },
+    });
+  }
+
+  async exportSheet() {
+    this.exporting = true;
+    try {
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      const bundle = resolveTemplate(this.templateKey);
+      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+
+      await this.exportEngine.exportFromUrl({
+        templateUrl: bundle.templateUrl,
+        templateSpec: bundle.spec,
+        adapter: bundle.adapter,
+        canonical,
+        outputName,
+      });
+
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+    } catch (error: any) {
+      console.error('Export sheet failed', error);
+      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+      this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
+    } finally {
+      this.exporting = false;
+    }
+  }
 
   getRow(code: string): EntryRow | undefined {
     return this.rows.find(r => r.subCategoryCode === code);

@@ -1,134 +1,126 @@
-<h3>1.2 Mobile combustion</h3>
-
-<p class="hint">
-  ✅ UI ไม่ฟิกจำนวนแถว: กด <b>Add row</b> เพื่อเพิ่มรายการ (จำกัดตาม slot ที่ template รองรับ)
-</p>
-
-<!-- Groups (on-road + gasohol) -->
-<ng-container *ngFor="let key of groups">
-  <div class="group-header">
-    <h4>{{ labelFor(key) }}</h4>
-    <button type="button" class="btn" (click)="addRow(key)" [disabled]="!canAdd(key)">
-      + Add row
-    </button>
+<section class="scope12-mobile">
+  <div class="section-header">
+    <div>
+      <h3>1.2 Mobile combustion</h3>
+      <p>กรอกข้อมูลรถใช้น้ำมันแต่ละประเภท (ตาม slot ใน Excel)</p>
+    </div>
+    <div class="header-actions">
+      <button mat-stroked-button (click)="openReview()">
+        <mat-icon>preview</mat-icon>
+        Review
+      </button>
+      <button mat-raised-button color="primary" (click)="exportSheet()" [disabled]="exporting">
+        <mat-icon *ngIf="!exporting">download</mat-icon>
+        <mat-progress-spinner *ngIf="exporting" diameter="18" mode="indeterminate"></mat-progress-spinner>
+        <span>{{ exporting ? 'กำลัง Export...' : 'Export (this sheet)' }}</span>
+      </button>
+    </div>
   </div>
 
-  <table class="grid">
-    <thead>
-      <tr>
-        <th style="width: 60px">Slot</th>
-        <th>รายการ</th>
-        <th style="width: 140px">หลักฐาน</th>
-        <th style="width: 90px">หน่วย</th>
-        <th style="width: 110px">รวม</th>
-        <th *ngFor="let m of months">{{ m }}</th>
-        <th style="width: 80px"></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let r of groupRows(key)">
-        <td>{{ slotLabel(r) }}</td>
-        <td>
-          <input
-            class="text"
-            [ngModel]="r.itemName"
-            (ngModelChange)="updateField(r, 'itemName', $event)"
-            placeholder="ชื่อรายการ/ยานพาหนะ"
-          />
-          <div class="sub">
-            <input
-              class="text"
-              [ngModel]="r.location"
-              (ngModelChange)="updateField(r, 'location', $event)"
-              placeholder="สถานที่ (optional)"
-            />
-          </div>
-        </td>
-        <td>
-          <input
-            class="text"
-            [ngModel]="r.referenceText"
-            (ngModelChange)="updateField(r, 'referenceText', $event)"
-            placeholder="บิล/ใบกำกับภาษี"
-          />
-        </td>
-        <td class="center">{{ r.unit || 'L' }}</td>
-        <td class="right">{{ formatNumber(total(r), false, 2) }}</td>
-        <td class="month" *ngFor="let m of months">
-          <input
-            type="number"
-            class="num"
-            [ngModel]="getMonthQty(r, m)"
-            (ngModelChange)="updateMonthQty(r, m, $event)"
-            placeholder="0"
-          />
-        </td>
-        <td class="center">
-          <button type="button" class="btn-danger" (click)="removeRow(r)">Remove</button>
-        </td>
-      </tr>
+  <div class="group" *ngFor="let key of groups">
+    <div class="group-header">
+      <h4>{{ labelFor(key) }}</h4>
+      <button mat-stroked-button color="primary" (click)="addRow(key)" [disabled]="!canAdd(key)">
+        <mat-icon>add</mat-icon>
+        เพิ่มรายการ
+      </button>
+    </div>
 
-      <tr *ngIf="groupRows(key).length === 0">
-        <td colspan="20" class="empty">ยังไม่มีรายการ — กด Add row เพื่อเพิ่ม</td>
-      </tr>
-    </tbody>
-  </table>
+    <div class="table-wrapper">
+      <table class="monthly-table">
+        <thead>
+          <tr>
+            <th rowspan="2">รายการ</th>
+            <th rowspan="2">หลักฐาน</th>
+            <th rowspan="2">หน่วย</th>
+            <th rowspan="2">รวม</th>
+            <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+            <th rowspan="2">ลบ</th>
+          </tr>
+          <tr>
+            <th *ngFor="let m of months">{{ m }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of groupRows(key)">
+            <td>
+              <input type="text" [ngModel]="row.itemName" (ngModelChange)="updateItemName(row, $event)" />
+            </td>
+            <td>
+              <input type="text" [ngModel]="row.referenceText" (ngModelChange)="updateEvidence(row, $event)" />
+            </td>
+            <td>{{ row.unit || 'L' }}</td>
+            <td class="num">{{ total(row) | number: '1.0-2' }}</td>
+            <td *ngFor="let m of months">
+              <input
+                type="number"
+                [ngModel]="getMonthQty(row, m)"
+                (ngModelChange)="updateMonthQty(row, m, $event)"
+              />
+            </td>
+            <td>
+              <button mat-icon-button color="warn" (click)="removeRow(row)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </tr>
+          <tr class="summary">
+            <td colspan="3">รวม ({{ labelFor(key) }})</td>
+            <td class="num">{{ totalAll(key) | number: '1.0-2' }}</td>
+            <td [attr.colspan]="months.length + 1"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-  <hr class="divider" />
-</ng-container>
+  <div class="group">
+    <div class="group-header">
+      <h4>{{ labelFor('DIESEL_B7_OFFROAD') }}</h4>
+    </div>
 
-<!-- Forklift row (single slot in template) -->
-<h4 style="margin-top: 18px">{{ labelFor('DIESEL_B7_OFFROAD') }}</h4>
-
-<table class="grid">
-  <thead>
-    <tr>
-      <th>รายการ</th>
-      <th style="width: 140px">หลักฐาน</th>
-      <th style="width: 90px">หน่วย</th>
-      <th style="width: 110px">รวม</th>
-      <th *ngFor="let m of months">{{ m }}</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <ng-container *ngIf="getForkliftRow() as r">
-        <td>
-          <input
-            class="text"
-            [ngModel]="r.itemName"
-            (ngModelChange)="updateField(r, 'itemName', $event)"
-            placeholder="Forklift / Off-road"
-          />
-          <div class="sub">
-            <input
-              class="text"
-              [ngModel]="r.location"
-              (ngModelChange)="updateField(r, 'location', $event)"
-              placeholder="สถานที่ (optional)"
-            />
-          </div>
-        </td>
-        <td>
-          <input
-            class="text"
-            [ngModel]="r.referenceText"
-            (ngModelChange)="updateField(r, 'referenceText', $event)"
-            placeholder="บิล/ใบกำกับภาษี"
-          />
-        </td>
-        <td class="center">{{ r.unit || 'L' }}</td>
-        <td class="right">{{ formatNumber(total(r), false, 2) }}</td>
-        <td class="month" *ngFor="let m of months">
-          <input
-            type="number"
-            class="num"
-            [ngModel]="getMonthQty(r, m)"
-            (ngModelChange)="updateMonthQty(r, m, $event)"
-            placeholder="0"
-          />
-        </td>
-      </ng-container>
-    </tr>
-  </tbody>
-</table>
+    <div class="table-wrapper">
+      <table class="monthly-table">
+        <thead>
+          <tr>
+            <th rowspan="2">รายการ</th>
+            <th rowspan="2">หลักฐาน</th>
+            <th rowspan="2">หน่วย</th>
+            <th rowspan="2">รวม</th>
+            <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+          </tr>
+          <tr>
+            <th *ngFor="let m of months">{{ m }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <input
+                type="text"
+                [ngModel]="ensureOffroadRow().itemName"
+                (ngModelChange)="updateItemName(ensureOffroadRow(), $event)"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                [ngModel]="ensureOffroadRow().referenceText"
+                (ngModelChange)="updateEvidence(ensureOffroadRow(), $event)"
+              />
+            </td>
+            <td>{{ ensureOffroadRow().unit || 'L' }}</td>
+            <td class="num">{{ total(ensureOffroadRow()) | number: '1.0-2' }}</td>
+            <td *ngFor="let m of months">
+              <input
+                type="number"
+                [ngModel]="getMonthQty(ensureOffroadRow(), m)"
+                (ngModelChange)="updateMonthQty(ensureOffroadRow(), m, $event)"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
