@@ -1,8 +1,18 @@
 <nav class="sidebar">
-  <a
-    routerLink="/"
-    routerLinkActive="active"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-  </a>
+  <div class="brand">X-Panel</div>
+
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
+  <a routerLink="/cycles" routerLinkActive="active">Cycles</a>
+
+  <div class="section" *ngIf="currentCycleId() as cid; else pickCycle">
+    <div class="section-title">Cycle {{ cid }}</div>
+
+    <a *ngFor="let l of cycleLinks()" [routerLink]="l.path" routerLinkActive="active">
+      {{ l.label }}
+    </a>
+  </div>
+
+  <ng-template #pickCycle>
+    <div class="hint">เลือก Cycle จากหน้า Cycles เพื่อแสดงเมนูแบบฟอร์ม</div>
+  </ng-template>
 </nav>

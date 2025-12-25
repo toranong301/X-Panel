@@ -12,9 +12,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 
+import { Fr031Service } from '../../core/services/fr03-1.service';
+
 type Fr031Draft = {
   orgStructureImage: string; // base64
-  completedDate?: string;    // YYYY-MM-DD
+  completedDate?: string; // YYYY-MM-DD
   note?: string;
 };
 
@@ -40,6 +42,7 @@ export class Fr031Component {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private fr031Svc = inject(Fr031Service);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
 
@@ -49,22 +52,14 @@ export class Fr031Component {
     note: [''],
   });
 
-  private storageKey() {
-    return `xpanel_fr03_1_${this.cycleId}`;
-  }
-
   constructor() {
-    const raw = localStorage.getItem(this.storageKey());
-    if (raw) {
-      try {
-        const saved = JSON.parse(raw) as Fr031Draft;
-        this.form.patchValue({
-          orgStructureImage: saved.orgStructureImage || '',
-          completedDate: saved.completedDate ? new Date(saved.completedDate) : new Date(),
-          note: saved.note || '',
-        });
-      } catch {}
-    }
+    const saved = this.fr031Svc.load(this.cycleId);
+    if (!saved) return;
+    this.form.patchValue({
+      orgStructureImage: saved.orgStructureImage || '',
+      completedDate: saved.completedDate ? new Date(saved.completedDate) : new Date(),
+      note: saved.note || '',
+    });
   }
 
   pickImage(input: HTMLInputElement) {
@@ -110,8 +105,8 @@ export class Fr031Component {
       note: String(v.note || ''),
     };
 
-    localStorage.setItem(this.storageKey(), JSON.stringify(payload));
-    alert('Saved FR-03.1 draft (local)');
+    this.fr031Svc.save(this.cycleId, payload);
+    alert('Saved FR-03.1 draft');
   }
 
   backFr02() {

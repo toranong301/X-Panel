@@ -10,6 +10,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 
+import { Fr02Service } from '../../core/services/fr02.service';
+
 @Component({
   selector: 'app-fr02',
   standalone: true,
@@ -30,6 +32,7 @@ export class Fr02Component {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private fr02Svc = inject(Fr02Service);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
 
@@ -38,19 +41,9 @@ export class Fr02Component {
     note: [''],
   });
 
-  // mock local store (ภายหลังเปลี่ยนเป็น service ได้)
-  private key() {
-    return `xpanel_fr02_${this.cycleId}`;
-  }
-
   constructor() {
-    const raw = localStorage.getItem(this.key());
-    if (raw) {
-      try {
-        const saved = JSON.parse(raw);
-        this.form.patchValue(saved);
-      } catch {}
-    }
+    const saved = this.fr02Svc.load(this.cycleId);
+    if (saved) this.form.patchValue(saved);
   }
 
   pickImage(input: HTMLInputElement) {
@@ -82,8 +75,8 @@ export class Fr02Component {
       this.form.markAllAsTouched();
       return;
     }
-    localStorage.setItem(this.key(), JSON.stringify(this.form.value));
-    alert('Saved FR-02 draft (local)');
+    this.fr02Svc.save(this.cycleId, this.form.value as any);
+    alert('Saved FR-02 draft');
   }
 
   backFr01() {

@@ -26,6 +26,11 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
   }
 
   async apply(ctx: ExportContext): Promise<void> {
+    // ✅ Forms (Fr-01/Fr-02/Fr-03.1)
+    this.writeFr01(ctx);
+    this.writeFr02(ctx);
+    this.writeFr031(ctx);
+
     const vsheet = ctx.canonical.vsheet;
     this.writeFixedBlocks(ctx, getFixedBlocks(), vsheet);
     this.writeDynamicBlocks(ctx, getDynamicBlocks(), vsheet);
@@ -49,6 +54,159 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
 
     // 4) Populate FR-04.1 Scope 1 qty linking to subsheet totals
     this.linkFr041Scope1QtyFromSubsheets(ctx, { ...scope11Totals, ...scope12Totals });
+  }
+
+
+  /**
+   * Fr-01: Organization info
+   * - Fill key input cells from canonical.fr01
+   * - Keep formulas/links intact.
+   */
+  private writeFr01(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('Fr-01');
+    if (!ws) return;
+
+    const fr01 = (ctx.canonical as any).fr01 as any;
+    if (!fr01) return;
+
+    this.setCellValueSafely(ws, 'B6', fr01.organizationName ?? null);
+    this.setCellValueSafely(ws, 'G4', fr01.preparerName ?? null);
+    this.setCellValueSafely(ws, 'J4', this.toBuddhistExcelDate(fr01.preparedDate));
+
+    const periodText = this.toThaiBuddhistRange(fr01.periodStart, fr01.periodEnd);
+    if (periodText) this.setCellValueSafely(ws, 'H36', periodText);
+
+    const baseText = this.toThaiBuddhistRange(fr01.baseYearStart, fr01.baseYearEnd);
+    if (baseText) this.setCellValueSafely(ws, 'H38', baseText);
+
+    this.setCellValueSafely(ws, 'H37', fr01.production?.value ?? null);
+    this.setCellValueSafely(ws, 'J37', fr01.production?.unit ?? null);
+    this.setCellValueSafely(ws, 'H39', fr01.baseYearProduction?.value ?? null);
+
+    const products: string[] = Array.isArray(fr01.products) ? fr01.products : [];
+    for (let i = 0; i < 5; i++) {
+      const v = String(products[i] ?? '').trim();
+      this.setCellValueSafely(ws, `G${41 + i}`, v || null);
+    }
+
+    this.setCellValueSafely(ws, 'I46', fr01.address ?? null);
+    this.setCellValueSafely(ws, 'I47', this.toBuddhistExcelDate(fr01.registrationDate));
+  }
+
+  /**
+   * Fr-02: Organization chart image
+   */
+  private writeFr02(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('Fr-02');
+    if (!ws) return;
+
+    const fr02 = (ctx.canonical as any).fr02 as any;
+    if (!fr02) return;
+
+    const dataUrl: string = fr02.orgChartImage ?? '';
+    if (dataUrl) {
+      this.addImageToRange(ctx, ws, dataUrl, 'A6:M119');
+    }
+  }
+
+  /**
+   * Fr-03.1: Organization structure image + completion date
+   */
+  private writeFr031(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('Fr-03.1');
+    if (!ws) return;
+
+    const fr031 = (ctx.canonical as any).fr031 as any;
+    if (!fr031) return;
+
+    const dataUrl: string = fr031.orgStructureImage ?? '';
+    if (dataUrl) {
+      this.addImageToRange(ctx, ws, dataUrl, 'A7:M34');
+    }
+
+    this.setCellValueSafely(ws, 'K35', this.toBuddhistExcelDate(fr031.completedDate));
+  }
+
+  private addImageToRange(ctx: ExportContext, ws: any, dataUrl: string, range: string): void {
+    try {
+      const img = this.extractBase64Image(dataUrl);
+      if (!img.base64) return;
+      const imageId = ctx.workbook.addImage({ base64: img.base64, extension: img.extension });
+      ws.addImage(imageId, range);
+    } catch (err) {
+      console.warn('addImageToRange failed', err);
+    }
+  }
+
+  private extractBase64Image(dataUrl: string): { base64: string; extension: 'png' | 'jpeg' } {
+    const raw = String(dataUrl || '').trim();
+    const m = raw.match(/^data:image\/(png|jpeg|jpg);base64,(.*)$/i);
+    if (!m) return { base64: '', extension: 'png' };
+    const ext = m[1].toLowerCase() === 'png' ? 'png' : 'jpeg';
+    return { base64: m[2], extension: ext };
+  }
+
+  /**
+   * Convert input date (Gregorian) to a Date object with Buddhist year (+543) to match template style.
+   * - If input already looks like Buddhist year (>= 2400), keep as-is.
+   */
+  private toBuddhistExcelDate(value?: any): Date | null {
+    const d = this.parseDate(value);
+    if (!d) return null;
+
+    const y = d.getFullYear();
+    if (y >= 2400) return d;
+
+    const out = new Date(d);
+    out.setFullYear(y + 543);
+    return out;
+  }
+
+  private toThaiBuddhistRange(start?: any, end?: any): string {
+    const a = this.parseDate(start);
+    const b = this.parseDate(end);
+    if (!a || !b) return '';
+
+    const pa = this.formatThaiBuddhistParts(a);
+    const pb = this.formatThaiBuddhistParts(b);
+
+    if (pa.year === pb.year) {
+      return `${pa.day} ${pa.month} - ${pb.day} ${pb.month} ${pb.year}`;
+    }
+    return `${pa.day} ${pa.month} ${pa.year} - ${pb.day} ${pb.month} ${pb.year}`;
+  }
+
+  private formatThaiBuddhistParts(d: Date): { day: string; month: string; year: string } {
+    try {
+      const fmt = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const parts = (fmt as any).formatToParts ? (fmt as any).formatToParts(d) : [];
+      if (parts?.length) {
+        const day = parts.find((p: any) => p.type === 'day')?.value ?? '';
+        const month = parts.find((p: any) => p.type === 'month')?.value ?? '';
+        const year = parts.find((p: any) => p.type === 'year')?.value ?? '';
+        return { day, month, year };
+      }
+      // fallback
+      const s = fmt.format(d); // e.g. "1 มกราคม 2566"
+      const seg = String(s).trim().split(/\s+/);
+      return { day: seg[0] ?? '', month: seg[1] ?? '', year: seg[2] ?? '' };
+    } catch {
+      const y = d.getFullYear();
+      return { day: String(d.getDate()), month: String(d.getMonth() + 1), year: String(y) };
+    }
+  }
+
+  private parseDate(value?: any): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d;
   }
 
   /**
