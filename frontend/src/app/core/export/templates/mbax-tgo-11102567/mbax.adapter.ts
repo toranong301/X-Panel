@@ -699,9 +699,62 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
     }
 
     const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
-    const scope1Items = (ctx.canonical.inventory ?? []).filter((x: any) =>
-      Number((x as any).scope) === 1 && (String(x?.subScope ?? '') === '1.1' || String(x?.subScope ?? '') === '1.2'),
-    );
+    const selectionList =
+      (ctx.canonical as any)?.fr041Selection ??
+      ctx.selections?.fr041Selection ??
+      ctx.selections?.fr041Selections ??
+      [];
+    const normalizedSelections = Array.isArray(selectionList) ? selectionList : [];
+
+    const normalizeKey = (value: string) =>
+      String(value || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const isSelected = (item: any) => {
+      if (!normalizedSelections.length) return true;
+      const itemId = normalizeKey(item?.id);
+      const itemLabel = normalizeKey(item?.itemLabel);
+      const itemSubScope = normalizeKey(item?.subScope);
+      const itemUnit = normalizeKey(item?.unit);
+      const itemFuelKey = normalizeKey(item?.fuelKey);
+      const itemSlotNo = Number.isFinite(Number(item?.slotNo)) ? Number(item.slotNo) : null;
+      const itemComposite = `${itemSubScope}|${itemLabel}|${itemUnit}`;
+
+      return normalizedSelections.some((sel: any) => {
+        if (typeof sel === 'string') {
+          const selKey = normalizeKey(sel);
+          return (
+            selKey === itemId ||
+            selKey === itemLabel ||
+            selKey === `${itemSubScope}|${itemLabel}` ||
+            selKey === itemComposite
+          );
+        }
+        const selId = normalizeKey(sel?.id);
+        if (selId && selId === itemId) return true;
+        const selFuelKey = normalizeKey(sel?.fuelKey ?? sel?.meta?.fuelKey);
+        const selSlotNo = Number.isFinite(Number(sel?.slotNo)) ? Number(sel.slotNo) : null;
+        if (selFuelKey && selFuelKey === itemFuelKey) {
+          return selSlotNo === null || selSlotNo === itemSlotNo;
+        }
+        const selLabel = normalizeKey(sel?.itemLabel ?? sel?.label ?? sel?.name);
+        const selSubScope = normalizeKey(sel?.subScope ?? sel?.categoryCode);
+        const selUnit = normalizeKey(sel?.unit);
+        if (selLabel && selSubScope) {
+          const selComposite = `${selSubScope}|${selLabel}|${selUnit}`;
+          return selComposite === itemComposite || `${selSubScope}|${selLabel}` === `${itemSubScope}|${itemLabel}`;
+        }
+        return selLabel ? selLabel === itemLabel : false;
+      });
+    };
+
+    const scope1Items = (ctx.canonical.inventory ?? [])
+      .filter((x: any) =>
+        Number((x as any).scope) === 1 && (String(x?.subScope ?? '') === '1.1' || String(x?.subScope ?? '') === '1.2'),
+      )
+      .filter(isSelected);
 
     const fuelKeyLabelMap: Record<string, string[]> = {
       DIESEL_B7_STATIONARY: ['น้ำมัน Diesel B7', 'Diesel B7'],
