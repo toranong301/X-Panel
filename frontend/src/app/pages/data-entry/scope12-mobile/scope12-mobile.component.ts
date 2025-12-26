@@ -94,8 +94,9 @@ export class Scope12MobileComponent {
     this.exporting = true;
     try {
       const canonical = this.canonicalSvc.build(this.cycleId);
-      await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      const exportResult = await this.cycleApi.exportCycle(this.cycleId);
+      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.cycleId = updateResult.cycleId;
+      const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (exportResult.status === 'completed' && exportResult.download_url) {
         window.open(exportResult.download_url, '_blank');

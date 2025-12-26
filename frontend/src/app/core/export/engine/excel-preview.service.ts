@@ -40,8 +40,11 @@ export class ExcelPreviewService {
     range?: string;
     signal?: AbortSignal;
   }): Promise<SheetPreview> {
-    const canonical = this.canonicalSvc.build(params.cycleId);
-    await this.cycleApi.updateCycleData(params.cycleId, canonical);
+    const resolvedCycleId = params.cycleId > 0
+      ? params.cycleId
+      : await this.cycleApi.ensureSelectedCycleId();
+    const canonical = this.canonicalSvc.build(resolvedCycleId);
+    const updateResult = await this.cycleApi.updateCycleData(resolvedCycleId, canonical);
 
     const bundle = resolveTemplate(params.templateKey);
     const resolvedSheetName = bundle.spec.sheets[params.sheetName]?.name ?? params.sheetName;
@@ -51,7 +54,7 @@ export class ExcelPreviewService {
     };
     if (params.range) paramsMap['range'] = params.range;
 
-    const request$ = this.api.get<SheetPreview>(`cycles/${params.cycleId}/preview`, {
+    const request$ = this.api.get<SheetPreview>(`cycles/${updateResult.cycleId}/preview`, {
       params: paramsMap,
       signal: params.signal,
     }).pipe(

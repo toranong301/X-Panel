@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,7 +19,7 @@ import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-d
   templateUrl: './cycles.html',
   styleUrls: ['./cycles.scss'],
 })
-export class CyclesComponent {
+export class CyclesComponent implements OnInit {
   displayedColumns = ['name', 'baseYear', 'status', 'actions'];
 
   cycles = [
@@ -36,6 +36,10 @@ export class CyclesComponent {
     private cycleApi: CycleApiService,
     private snackBar: MatSnackBar,
   ) {}
+
+  ngOnInit(): void {
+    this.bootstrapCycle();
+  }
 
   createCycle() {
     const ref = this.dialog.open(CreateCycleDialogComponent, {
@@ -59,6 +63,7 @@ export class CyclesComponent {
         };
 
         this.cycles = [...this.cycles, newCycle];
+        this.cycleApi.setSelectedCycleId(created.id);
 
         // 🎯 Auto-Navigate
         this.router.navigate(['/cycles', created.id, 'data-entry']);
@@ -70,6 +75,7 @@ export class CyclesComponent {
   }
 
   openCycle(cycle: { id: number }) {
+    this.cycleApi.setSelectedCycleId(cycle.id);
     this.router.navigate(['/cycles', cycle.id, 'data-entry']);
   }
 
@@ -77,8 +83,8 @@ export class CyclesComponent {
     this.exportingId = cycle.id;
     try {
       const canonical = this.canonicalSvc.build(cycle.id);
-      await this.cycleApi.updateCycleData(cycle.id, canonical);
-      const exportResult = await this.cycleApi.exportCycle(cycle.id);
+      const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
+      const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (exportResult.status === 'completed' && exportResult.download_url) {
         window.open(exportResult.download_url, '_blank');
@@ -94,6 +100,22 @@ export class CyclesComponent {
       this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
     } finally {
       this.exportingId = null;
+    }
+  }
+
+  private async bootstrapCycle() {
+    try {
+      const selectedId = await this.cycleApi.ensureSelectedCycleId();
+      if (!this.cycles.some(c => c.id === selectedId)) {
+        const year = new Date().getFullYear();
+        this.cycles = [
+          ...this.cycles,
+          { id: selectedId, name: 'Demo Cycle', baseYear: year - 1, status: 'Draft' },
+        ];
+      }
+    } catch (error: any) {
+      console.error('Bootstrap cycle failed', error);
+      this.snackBar.open(error?.message || 'โหลด Cycle ไม่สำเร็จ', 'ปิด', { duration: 6000 });
     }
   }
 

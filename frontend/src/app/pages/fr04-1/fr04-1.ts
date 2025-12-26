@@ -90,8 +90,9 @@ export class Fr041Component implements OnInit {
 
     try {
       const canonical = await this.canonicalSvc.build(this.cycleId);
-      await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.report = await this.cycleApi.exportCycle(this.cycleId);
+      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.cycleId = updateResult.cycleId;
+      this.report = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (this.report.status === 'completed' && this.report.download_url) {
         window.open(this.report.download_url, '_blank');

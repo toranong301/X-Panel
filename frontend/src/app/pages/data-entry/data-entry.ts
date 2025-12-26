@@ -68,8 +68,24 @@ export class DataEntryComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.cycleId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
+    void this.initCycle();
+  }
 
+  private async initCycle(): Promise<void> {
+    const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
+    if (routeId > 0) {
+      this.cycleId = routeId;
+      this.cycleApi.setSelectedCycleId(routeId);
+    } else {
+      const createdId = await this.cycleApi.ensureSelectedCycleId();
+      this.cycleId = createdId;
+      this.router.navigate(['/cycles', createdId, 'data-entry'], { replaceUrl: true });
+    }
+
+    this.loadFromStorage();
+  }
+
+  private loadFromStorage(): void {
     const saved = this.entrySvc.load(this.cycleId);
     if (saved) {
       const scope1Rows = saved.scope1 ?? [];
@@ -135,7 +151,8 @@ export class DataEntryComponent implements OnInit {
     this.entrySvc.save(this.cycleId, payload);
     try {
       const canonical = this.canonicalSvc.build(this.cycleId);
-      await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.cycleId = updateResult.cycleId;
       alert('Saved ✅ (synced to backend)');
     } catch (error: any) {
       console.error('Save sync failed', error);
