@@ -102,10 +102,12 @@ class MbaxTemplateService
         $this->setCellValueSafely($ws, 'G4', $fr01['preparedBy'] ?? null, $range);
         $this->setCellValueSafely($ws, 'J4', $this->toBuddhistExcelDate($fr01['preparedDate'] ?? null), $range, true);
 
-        $periodText = $this->toThaiBuddhistRange($fr01['dataPeriod']['start'] ?? null, $fr01['dataPeriod']['end'] ?? null);
+        $dataPeriod = $fr01['dataPeriod'] ?? [];
+        $periodText = $this->toThaiBuddhistRange($dataPeriod['start'] ?? null, $dataPeriod['end'] ?? null);
         if ($periodText) $this->setCellValueSafely($ws, 'H36', $periodText, $range);
 
-        $baseText = $this->toThaiBuddhistRange($fr01['baseYearPeriod']['start'] ?? null, $fr01['baseYearPeriod']['end'] ?? null);
+        $basePeriod = $fr01['baseYearPeriod'] ?? [];
+        $baseText = $this->toThaiBuddhistRange($basePeriod['start'] ?? null, $basePeriod['end'] ?? null);
         if ($baseText) $this->setCellValueSafely($ws, 'H38', $baseText, $range);
 
         $this->setCellValueSafely($ws, 'H37', $fr01['production']['value'] ?? null, $range);

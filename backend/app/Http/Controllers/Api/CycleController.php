@@ -9,6 +9,11 @@ use Illuminate\Http\Request;
 
 class CycleController extends Controller
 {
+    public function index()
+    {
+        return response()->json(Cycle::query()->orderByDesc('id')->get());
+    }
+
     public function store(Request $request)
     {
         $payload = $request->validate([

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('api-key')->group(function () {
+    Route::get('/cycles', [CycleController::class, 'index']);
     Route::post('/cycles', [CycleController::class, 'store']);
     Route::get('/cycles/{cycle}', [CycleController::class, 'show']);
     Route::put('/cycles/{cycle}/data', [CycleController::class, 'updateData']);
