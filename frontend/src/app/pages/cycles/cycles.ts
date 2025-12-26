@@ -9,24 +9,29 @@ import { MatTableModule } from '@angular/material/table';
 import { Router } from '@angular/router';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
-import { CycleApiService } from '../../core/services/cycle-api.service';
+import { Cycle, CycleApiService } from '../../core/services/cycle-api.service';
 import { CycleStateService } from '../../core/services/cycle-state.service';
 import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-dialog';
 
 @Component({
   selector: 'app-cycles',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule],
+  imports: [
+    CommonModule,
+    MatTableModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+  ],
   templateUrl: './cycles.html',
   styleUrls: ['./cycles.scss'],
 })
 export class CyclesComponent implements OnInit {
   displayedColumns = ['name', 'baseYear', 'status', 'actions'];
 
-  cycles = [
-    { id: 1, name: 'GHG Inventory 2024', baseYear: 2023, status: 'Draft' },
-    { id: 2, name: 'GHG Inventory 2025', baseYear: 2024, status: 'Locked' },
-  ];
+  /** ✅ เริ่มต้นว่างเท่านั้น */
+  cycles: Cycle[] = [];
 
   exportingId: number | null = null;
 
@@ -40,8 +45,46 @@ export class CyclesComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.bootstrapCycle();
+    // ✅ เลื่อน async logic ออกไปหลัง Angular check รอบแรก
+    queueMicrotask(() => {
+      this.bootstrap();
+    });
   }
+
+  /* =========================
+   * Bootstrap
+   * ========================= */
+
+  private async bootstrap() {
+    try {
+      // 1) ensure มี cycle ที่ใช้งานได้
+      const selectedId = await this.cycleState.getSelectedCycleId();
+
+      // 2) โหลด cycles จาก backend
+      const list = await this.cycleApi.listCycles();
+      this.cycles = list;
+
+      // 3) fallback กัน edge case
+      if (!this.cycles.some(c => c.id === selectedId)) {
+        const year = new Date().getFullYear();
+        this.cycles = [
+          ...this.cycles,
+          { id: selectedId, name: 'Demo Cycle', year },
+        ];
+      }
+    } catch (error: any) {
+      console.error('Bootstrap cycle failed', error);
+      this.snackBar.open(
+        error?.message || 'โหลด Cycle ไม่สำเร็จ',
+        'ปิด',
+        { duration: 6000 }
+      );
+    }
+  }
+
+  /* =========================
+   * Actions
+   * ========================= */
 
   createCycle() {
     const ref = this.dialog.open(CreateCycleDialogComponent, {
@@ -57,36 +100,33 @@ export class CyclesComponent implements OnInit {
           year: Number(result.baseYear!),
         });
 
-        const newCycle = {
-          id: created.id,
-          name: result.name!,
-          baseYear: result.baseYear!,
-          status: 'Draft' as const,
-        };
-
-        this.cycles = [...this.cycles, newCycle];
+        this.cycles = [...this.cycles, created];
         this.cycleState.setSelectedCycleId(created.id);
 
-        // 🎯 Auto-Navigate
         this.router.navigate(['/cycles', created.id, 'data-entry']);
       } catch (error: any) {
         console.error('Create cycle failed', error);
-        this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการสร้าง Cycle', 'ปิด', { duration: 6000 });
+        this.snackBar.open(
+          error?.message || 'เกิดข้อผิดพลาดในการสร้าง Cycle',
+          'ปิด',
+          { duration: 6000 }
+        );
       }
     });
   }
 
-  openCycle(cycle: { id: number }) {
+  openCycle(cycle: Cycle) {
     this.cycleState.setSelectedCycleId(cycle.id);
     this.router.navigate(['/cycles', cycle.id, 'data-entry']);
   }
 
-  async exportAll(cycle: { id: number }) {
+  async exportAll(cycle: Cycle) {
     this.exportingId = cycle.id;
     try {
       const canonical = this.canonicalSvc.build(cycle.id);
       const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
+
       const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (exportResult.status === 'completed' && exportResult.download_url) {
@@ -99,50 +139,24 @@ export class CyclesComponent implements OnInit {
       }
     } catch (error: any) {
       console.error('Export all failed', error);
-      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
-      this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
+      this.snackBar.open(
+        error?.message || 'เกิดข้อผิดพลาดในการ Export',
+        'ปิด',
+        { duration: 6000 }
+      );
     } finally {
       this.exportingId = null;
     }
   }
 
-  private async bootstrapCycle() {
-    try {
-      const selectedId = await this.cycleState.getSelectedCycleId();
-      if (!this.cycles.some(c => c.id === selectedId)) {
-        const year = new Date().getFullYear();
-        this.cycles = [
-          ...this.cycles,
-          { id: selectedId, name: 'Demo Cycle', baseYear: year - 1, status: 'Draft' },
-        ];
-      }
-    } catch (error: any) {
-      console.error('Bootstrap cycle failed', error);
-      this.snackBar.open(error?.message || 'โหลด Cycle ไม่สำเร็จ', 'ปิด', { duration: 6000 });
-    }
-  }
+  /* =========================
+   * Navigation
+   * ========================= */
 
-  goFr01(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'fr01']);
-  }
-
-  goFr02(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'fr02']);
-  }
-
-  goFr031(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'fr03-1']);
-  }
-
-  goFr032(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'fr03-2']);
-  }
-
-  goScreenScope3(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'scope3-screen']);
-  }
-
-  goFr041(c: { id: number }) {
-    this.router.navigate(['/cycles', c.id, 'fr04-1']);
-  }
+  goFr01(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr01']); }
+  goFr02(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr02']); }
+  goFr031(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr03-1']); }
+  goFr032(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr03-2']); }
+  goScreenScope3(c: Cycle) { this.router.navigate(['/cycles', c.id, 'scope3-screen']); }
+  goFr041(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr04-1']); }
 }
