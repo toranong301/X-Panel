@@ -287,7 +287,7 @@ export class CanonicalGhgService {
   private mapEntryRowToCfoItem(row: EntryRow, scope: 1 | 2 | 3): CfoGhgItem {
     const quantity = this.sumEntryRowMonths(row);
     const remark = String(row.remark ?? row.location ?? '').trim();
-    const evidence = String(row.referenceText ?? row.dataEvidence ?? '').trim();
+    const evidence = String(row.referenceText ?? '').trim();
 
     return {
       scope,
