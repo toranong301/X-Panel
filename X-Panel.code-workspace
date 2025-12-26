@@ -1,0 +1,14 @@
+﻿{
+  "folders": [
+    { "path": "." },
+    { "path": "frontend" },
+    { "path": "backend" }
+  ],
+  "settings": {
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/dist": true
+    }
+  }
+}

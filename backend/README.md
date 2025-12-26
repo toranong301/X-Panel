@@ -1,0 +1,1 @@
+backend will be Laravel + MySQL
