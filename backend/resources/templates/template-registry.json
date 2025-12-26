@@ -1,0 +1,48 @@
+{
+  "templates": {
+    "MBAX_TGO_11102567": {
+      "label": "MBAX-TGO-11102567 Demo",
+      "path": {
+        "env": "MBAX_TEMPLATE_PATH",
+        "fallback": "frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx"
+      },
+      "mappings": {
+        "scope11": {
+          "sheet": "1.1 Stationary ",
+          "startRow": 9,
+          "monthColumns": ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"],
+          "rows": [
+            { "fuelKey": "DIESEL_B7_STATIONARY", "row": 9 },
+            { "fuelKey": "GASOHOL_9195_STATIONARY", "row": 10 },
+            { "fuelKey": "ACETYLENE_TANK5_MAINT_2", "row": 12 },
+            { "fuelKey": "ACETYLENE_TANK5_MAINT_3", "row": 14 }
+          ]
+        },
+        "scope12": {
+          "sheet": "1.2 Mobile",
+          "startRow": 15,
+          "monthColumns": ["G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"],
+          "slots": {
+            "DIESEL_B7_ONROAD": { "rows": [15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41] },
+            "DIESEL_B10_ONROAD": { "rows": [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42] },
+            "GASOHOL_9195": { "rows": [45, 47, 49, 51, 53, 55] },
+            "GASOHOL_E20": { "rows": [46, 48, 50, 52, 54, 56] }
+          },
+          "single": {
+            "DIESEL_B7_OFFROAD": 58
+          }
+        }
+      }
+    },
+    "VSHEET_CFO": {
+      "label": "V-Sheet CFO",
+      "path": {
+        "env": "CFO_TEMPLATE_PATH",
+        "fallback": ""
+      },
+      "mappings": {
+        "cfoSheets": []
+      }
+    }
+  }
+}

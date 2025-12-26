@@ -1,0 +1,61 @@
+.card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sub {
+  color: #6b7280;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.scope-block {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.scope-title {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.scope-total {
+  color: #374151;
+}
+
+.subscope-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.subscope-title {
+  font-weight: 600;
+}
+
+.subscope-total {
+  color: #4b5563;
+}
+
+table {
+  width: 100%;
+}

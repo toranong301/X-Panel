@@ -12,6 +12,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class MbaxTemplateService
 {
+    private const TEMPLATE_ID = 'MBAX_TGO_11102567';
+
+    public function __construct(private TemplateRegistry $registry)
+    {
+    }
+
     public function loadTemplate(?string $sheetName = null, ?string $range = null): Spreadsheet
     {
         $path = $this->resolveTemplatePath();
@@ -76,12 +82,16 @@ class MbaxTemplateService
 
     public function resolveTemplatePath(): string
     {
-        $envPath = env('MBAX_TEMPLATE_PATH');
+        $mapping = $this->registry->getTemplate(self::TEMPLATE_ID);
+        $envKey = $mapping['path']['env'] ?? 'MBAX_TEMPLATE_PATH';
+        $fallbackRel = $mapping['path']['fallback'] ?? 'frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx';
+
+        $envPath = env($envKey);
         if ($envPath && file_exists($envPath)) {
             return $envPath;
         }
 
-        $fallback = base_path('frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx');
+        $fallback = base_path($fallbackRel);
         if (!file_exists($fallback)) {
             throw new \RuntimeException('MBAX template not found. Set MBAX_TEMPLATE_PATH.');
         }
@@ -166,21 +176,32 @@ class MbaxTemplateService
 
     private function writeScope11Stationary(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void
     {
-        $targetSheet = '1.1 Stationary ';
+        $mapping = $this->registry->getMapping(self::TEMPLATE_ID, 'scope11');
+        $targetSheet = $mapping['sheet'] ?? '1.1 Stationary ';
         if ($sheetName && $sheetName !== $targetSheet) return;
 
         $ws = $spreadsheet->getSheetByName($targetSheet);
         if (!$ws) return;
 
-        $monthCols = ['E','F','G','H','I','J','K','L','M','N','O','P'];
+        $monthCols = $mapping['monthColumns'] ?? ['E','F','G','H','I','J','K','L','M','N','O','P'];
         $rowsByFuel = $this->buildFuelMap($data, '1.1');
 
-        $map = [
-            'DIESEL_B7_STATIONARY' => 9,
-            'GASOHOL_9195_STATIONARY' => 10,
-            'ACETYLENE_TANK5_MAINT_2' => 12,
-            'ACETYLENE_TANK5_MAINT_3' => 14,
-        ];
+        $map = [];
+        foreach (($mapping['rows'] ?? []) as $rowDef) {
+            $fuelKey = $rowDef['fuelKey'] ?? null;
+            $row = $rowDef['row'] ?? null;
+            if ($fuelKey && $row) {
+                $map[$fuelKey] = (int) $row;
+            }
+        }
+        if (!$map) {
+            $map = [
+                'DIESEL_B7_STATIONARY' => 9,
+                'GASOHOL_9195_STATIONARY' => 10,
+                'ACETYLENE_TANK5_MAINT_2' => 12,
+                'ACETYLENE_TANK5_MAINT_3' => 14,
+            ];
+        }
 
         foreach ($map as $fuelKey => $excelRow) {
             $months = $rowsByFuel[$fuelKey]['months'] ?? null;
@@ -190,13 +211,14 @@ class MbaxTemplateService
 
     private function writeScope12Mobile(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void
     {
-        $targetSheet = '1.2 Mobile';
+        $mapping = $this->registry->getMapping(self::TEMPLATE_ID, 'scope12');
+        $targetSheet = $mapping['sheet'] ?? '1.2 Mobile';
         if ($sheetName && $sheetName !== $targetSheet) return;
 
         $ws = $spreadsheet->getSheetByName($targetSheet);
         if (!$ws) return;
 
-        $monthCols = ['G','H','I','J','K','L','M','N','O','P','Q','R'];
+        $monthCols = $mapping['monthColumns'] ?? ['G','H','I','J','K','L','M','N','O','P','Q','R'];
 
         $rows = $this->buildFuelList($data, '1.2');
         $rowsByFuel = [];
@@ -204,11 +226,12 @@ class MbaxTemplateService
             $rowsByFuel[$row['fuelKey']][] = $row;
         }
 
-        $dieselB7Rows = range(15, 41, 2);
-        $dieselB10Rows = range(16, 42, 2);
-        $gasohol9195Rows = range(45, 55, 2);
-        $gasoholE20Rows = range(46, 56, 2);
-        $offroadForkliftRow = 58;
+        $slots = $mapping['slots'] ?? [];
+        $dieselB7Rows = $slots['DIESEL_B7_ONROAD']['rows'] ?? range(15, 41, 2);
+        $dieselB10Rows = $slots['DIESEL_B10_ONROAD']['rows'] ?? range(16, 42, 2);
+        $gasohol9195Rows = $slots['GASOHOL_9195']['rows'] ?? range(45, 55, 2);
+        $gasoholE20Rows = $slots['GASOHOL_E20']['rows'] ?? range(46, 56, 2);
+        $offroadForkliftRow = $mapping['single']['DIESEL_B7_OFFROAD'] ?? 58;
 
         $this->fillMobileSlots($ws, $monthCols, $dieselB7Rows, $rowsByFuel['DIESEL_B7_ONROAD'] ?? [], $range);
         $this->fillMobileSlots($ws, $monthCols, $dieselB10Rows, $rowsByFuel['DIESEL_B10_ONROAD'] ?? [], $range);

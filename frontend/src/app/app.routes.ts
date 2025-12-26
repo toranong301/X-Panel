@@ -14,6 +14,7 @@ import { CfoScope1StationaryComponent } from './pages/cfo-entry/scope1-stationar
 import { CfoScope1MobileComponent } from './pages/cfo-entry/scope1-mobile/cfo-scope1-mobile.component';
 import { CfoScope2ElectricityComponent } from './pages/cfo-entry/scope2-electricity/cfo-scope2-electricity.component';
 import { CfoScope3Component } from './pages/cfo-entry/scope3/cfo-scope3.component';
+import { CfoReviewComponent } from './pages/cfo-review/cfo-review.component';
 
 export const routes: Routes = [
   {
@@ -76,6 +77,7 @@ export const routes: Routes = [
       { path: 'cycles/:cycleId/cfo/scope1-mobile', component: CfoScope1MobileComponent },
       { path: 'cycles/:cycleId/cfo/scope2-electricity', component: CfoScope2ElectricityComponent },
       { path: 'cycles/:cycleId/cfo/scope3', component: CfoScope3Component },
+      { path: 'cycles/:cycleId/cfo/review', component: CfoReviewComponent },
 
 
 
