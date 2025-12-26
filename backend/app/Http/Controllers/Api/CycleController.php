@@ -56,12 +56,50 @@ class CycleController extends Controller
             'range' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $sheet = $payload['sheet'];
-        $range = $payload['range'] ?? 'A1:Z60';
+        $sheet = trim((string) ($payload['sheet'] ?? ''));
+        $range = trim((string) ($payload['range'] ?? ''));
+        if ($sheet === '') {
+            return response()->json(['message' => 'Sheet is required.'], 422);
+        }
 
-        $spreadsheet = $mbax->loadTemplate($sheet, $range);
-        $mbax->applyData($spreadsheet, $cycle->data_json ?? [], $cycle->attachments()->get()->all(), $sheet, $range);
+        if ($range === '') {
+            $range = 'A1:Z60';
+        }
 
-        return response()->json($mbax->buildPreview($spreadsheet, $sheet, $range));
+        // Root cause seen in logs: missing MBAX template path triggered a 500.
+        try {
+            $spreadsheet = $mbax->loadTemplate($sheet, $range);
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'MBAX template not found')) {
+                return response()->json(['message' => 'Template missing'], 422);
+            }
+            throw $e;
+        }
+
+        try {
+            $mbax->applyData($spreadsheet, $cycle->data_json ?? [], $cycle->attachments()->get()->all(), $sheet, $range);
+            return response()->json($mbax->buildPreview($spreadsheet, $sheet, $range));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'Sheet')) {
+                return response()->json(['message' => $e->getMessage()], 404);
+            }
+            \Log::error('Preview failed', [
+                'cycleId' => $cycle->id,
+                'sheet' => $sheet,
+                'range' => $range,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Preview failed.'], 500);
+        } catch (\Throwable $e) {
+            \Log::error('Preview failed', [
+                'cycleId' => $cycle->id,
+                'sheet' => $sheet,
+                'range' => $range,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Preview failed.'], 500);
+        }
     }
 }
