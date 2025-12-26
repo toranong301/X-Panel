@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { CycleApiService } from './cycle-api.service';
+import { Cycle, CycleApiService } from './cycle-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class CycleStateService {
@@ -8,8 +8,16 @@ export class CycleStateService {
 
   constructor(private cycleApi: CycleApiService) {}
 
+  /**
+   * resolve cycleId จากลำดับ:
+   * 1) preferredId (ถ้ามีและยังอยู่จริง)
+   * 2) localStorage
+   * 3) create demo cycle ใหม่
+   */
   async resolveCycleId(preferredId?: number): Promise<number> {
-    const cycles = await this.cycleApi.listCycles();
+    const cycles: Cycle[] = await this.cycleApi.listCycles();
+
+    // 1) preferredId
     if (Number.isFinite(preferredId) && (preferredId as number) > 0) {
       const match = cycles.find(c => c.id === preferredId);
       if (match) {
@@ -18,21 +26,25 @@ export class CycleStateService {
       }
     }
 
+    // 2) localStorage
     const stored = this.readSelectedCycleId();
     if (stored) {
       const match = cycles.find(c => c.id === stored);
       if (match) return stored;
     }
 
-    const created = await this.createDemoCycle();
-    return created;
+    // 3) create demo
+    return await this.createDemoCycle();
   }
 
+  /**
+   * ใช้ทั่วไปในหน้า UI
+   * ได้ cycleId ที่ "มีจริงเสมอ"
+   */
   async getSelectedCycleId(): Promise<number> {
     const cached = this.readSelectedCycleId();
     if (cached) return cached;
-    const created = await this.createDemoCycle();
-    return created;
+    return await this.createDemoCycle();
   }
 
   setSelectedCycleId(id: number): void {
@@ -51,7 +63,10 @@ export class CycleStateService {
 
   private async createDemoCycle(): Promise<number> {
     const year = new Date().getFullYear();
-    const created = await this.cycleApi.createCycle({ year, name: 'Demo Cycle' });
+    const created = await this.cycleApi.createCycle({
+      year,
+      name: 'Demo Cycle',
+    });
     this.setSelectedCycleId(created.id);
     return created.id;
   }
