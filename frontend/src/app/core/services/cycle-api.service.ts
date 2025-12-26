@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiClient } from './api-client.service';
-import { CanonicalCycleData } from './canonical-ghg.service';
+import { CanonicalCycleData } from '../../models/canonical-cycle.model';
 
 /* =======================
  * Types

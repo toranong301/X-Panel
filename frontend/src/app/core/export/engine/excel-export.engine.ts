@@ -6,7 +6,7 @@ import { VSheetTemplateSpec, ExcelFeatures } from '../models/template-spec.model
 import { runSelections } from './selection';
 import { buildFormula } from './formula-builder';
 import { runValidations, ValidationResult } from './validators';
-import { CanonicalCycleData } from '../../services/canonical-ghg.service';
+import { CanonicalCycleData } from '../../../models/canonical-cycle.model';
 
 export interface ExportReport {
   templateId: string;

@@ -1,40 +1,16 @@
 import { Injectable } from '@angular/core';
 
-import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
-import { InventoryItemRow, Scope3SignificanceRow } from '../../models/refs.model';
+import { InventoryItemRow } from '../../models/refs.model';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
-import { Fr01Data } from '../../models/fr01.model';
-import { Fr02Data } from '../../models/fr02.model';
-import { Fr031Data } from '../../models/fr03-1.model';
 
-import { VSheetDataDoc } from '../vsheet/vsheet.schema';
+import { CanonicalCycleData, Fr032CanonicalRow } from '../../models/canonical-cycle.model';
 import { DataEntryService } from './data-entry.service';
 import { Fr01Service } from './fr01.service';
 import { Fr02Service } from './fr02.service';
 import { Fr031Service } from './fr03-1.service';
 import { Fr032Service } from './fr03-2.service';
 import { Scope3SummaryService } from './scope3-summary.service';
-
-export interface Fr032CanonicalRow extends Scope3SignificanceRow {
-  isoNo: string;
-}
-
-export interface CanonicalCycleData {
-  cycleId: number;
-
-  inventory: InventoryItemRow[];
-  fr03_2: Fr032CanonicalRow[];
-  vsheet: VSheetDataDoc;
-  evidence?: Record<string, EvidenceModel>;
-
-  fr01?: Fr01Data | null;
-  fr02?: Fr02Data | null;
-  fr031?: Fr031Data | null;
-
-  fr041Selection?: any[];
-}
-
 
 @Injectable({ providedIn: 'root' })
 export class CanonicalGhgService {
@@ -110,7 +86,22 @@ export class CanonicalGhgService {
       (entryDoc as any)?.fr041Selection ??
       (entryDoc as any)?.fr041Selections ??
       undefined;
-    return { cycleId, inventory, fr03_2, vsheet, evidence: entryDoc?.evidence ?? {}, fr01, fr02, fr031, fr041Selection };
+    return {
+      cycleId,
+      inventory,
+      fr03_2,
+      vsheet,
+      evidence: entryDoc?.evidence ?? {},
+      fr01,
+      fr02,
+      fr031,
+      fr041Selection,
+      cfoGhg: {
+        scope1: [],
+        scope2: [],
+        scope3: [],
+      },
+    };
   }
 
   public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {
