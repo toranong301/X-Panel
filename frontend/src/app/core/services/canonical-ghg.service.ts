@@ -1,11 +1,12 @@
 import { Injectable } from '@angular/core';
 
 import { EntryRow } from '../../models/entry-row.model';
+import { Fr01Data } from '../../models/fr01.model';
 import { InventoryItemRow } from '../../models/refs.model';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
 
-import { CanonicalCycleData, Fr032CanonicalRow } from '../../models/canonical-cycle.model';
-import { DataEntryService } from './data-entry.service';
+import { CanonicalCycleData, CfoGhgBundle, CfoGhgItem, Fr032CanonicalRow } from '../../models/canonical-cycle.model';
+import { DataEntryDoc, DataEntryService } from './data-entry.service';
 import { Fr01Service } from './fr01.service';
 import { Fr02Service } from './fr02.service';
 import { Fr031Service } from './fr03-1.service';
@@ -86,6 +87,8 @@ export class CanonicalGhgService {
       (entryDoc as any)?.fr041Selection ??
       (entryDoc as any)?.fr041Selections ??
       undefined;
+    const cfoGhg = this.buildCfoGhg(entryDoc, scope3Items);
+
     return {
       cycleId,
       inventory,
@@ -96,11 +99,7 @@ export class CanonicalGhgService {
       fr02,
       fr031,
       fr041Selection,
-      cfoGhg: {
-        scope1: [],
-        scope2: [],
-        scope3: [],
-      },
+      cfoGhg,
     };
   }
 
@@ -272,6 +271,55 @@ export class CanonicalGhgService {
   private parseIsoNo(scopeIso: string): string {
     const m = String(scopeIso || '').match(/(\d+(?:\.\d+)?)/);
     return m ? m[1] : '';
+  }
+
+  private buildCfoGhg(entryDoc: DataEntryDoc | null, scope3Items: Scope3ItemRow[]): CfoGhgBundle {
+    const scope1Rows: EntryRow[] = entryDoc?.scope1 ?? [];
+    const scope2Rows: EntryRow[] = entryDoc?.scope2 ?? [];
+
+    return {
+      scope1: scope1Rows.map(row => this.mapEntryRowToCfoItem(row, 1)),
+      scope2: scope2Rows.map(row => this.mapEntryRowToCfoItem(row, 2)),
+      scope3: scope3Items.map(item => this.mapScope3ToCfoItem(item)),
+    };
+  }
+
+  private mapEntryRowToCfoItem(row: EntryRow, scope: 1 | 2 | 3): CfoGhgItem {
+    const quantity = this.sumEntryRowMonths(row);
+    const remark = String(row.remark ?? row.location ?? '').trim();
+    const evidence = String(row.referenceText ?? row.dataEvidence ?? '').trim();
+
+    return {
+      scope,
+      subScope: String(row.categoryCode ?? '').trim(),
+      activity: String(row.itemName ?? '').trim(),
+      quantity,
+      unit: String(row.unit ?? '').trim(),
+      evidence: evidence || undefined,
+      remark: remark || undefined,
+    };
+  }
+
+  private mapScope3ToCfoItem(item: Scope3ItemRow): CfoGhgItem {
+    const activity = String(item.itemName ?? item.itemLabel ?? '').trim();
+    const subScope = this.parseSubScope(item.tgoNo);
+    const evidence = String(item.dataEvidence ?? '').trim();
+    const remark = String(item.remark ?? '').trim();
+
+    return {
+      scope: 3,
+      subScope,
+      activity,
+      quantity: Number(item.quantityPerYear ?? 0) || 0,
+      unit: String(item.unit ?? '').trim(),
+      evidence: evidence || undefined,
+      remark: remark || undefined,
+    };
+  }
+
+  private sumEntryRowMonths(row: EntryRow): number {
+    const months = Array.isArray(row.months) ? row.months : [];
+    return months.reduce((sum, m) => sum + Number(m?.qty ?? 0), 0);
   }
 
   private normalizeFr01(input: Fr01Data | null): Fr01Data | null {
