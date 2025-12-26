@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { firstValueFrom, timeout, catchError, throwError } from 'rxjs';
+import { catchError, firstValueFrom, throwError, timeout } from 'rxjs';
 
 import { ApiClient } from '../../services/api-client.service';
 import { CanonicalGhgService } from '../../services/canonical-ghg.service';
