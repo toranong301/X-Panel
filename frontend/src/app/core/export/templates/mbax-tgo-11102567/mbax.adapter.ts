@@ -69,27 +69,27 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     const fr01 = (ctx.canonical as any).fr01 as any;
     if (!fr01) return;
 
-    this.setCellValueSafely(ws, 'B6', fr01.organizationName ?? null);
-    this.setCellValueSafely(ws, 'G4', fr01.preparerName ?? null);
+    this.setCellValueSafely(ws, 'B6', fr01.orgName ?? null);
+    this.setCellValueSafely(ws, 'G4', fr01.preparedBy ?? null);
     this.setCellValueSafely(ws, 'J4', this.toBuddhistExcelDate(fr01.preparedDate));
 
-    const periodText = this.toThaiBuddhistRange(fr01.periodStart, fr01.periodEnd);
+    const periodText = this.toThaiBuddhistRange(fr01.dataPeriod?.start, fr01.dataPeriod?.end);
     if (periodText) this.setCellValueSafely(ws, 'H36', periodText);
 
-    const baseText = this.toThaiBuddhistRange(fr01.baseYearStart, fr01.baseYearEnd);
+    const baseText = this.toThaiBuddhistRange(fr01.baseYearPeriod?.start, fr01.baseYearPeriod?.end);
     if (baseText) this.setCellValueSafely(ws, 'H38', baseText);
 
     this.setCellValueSafely(ws, 'H37', fr01.production?.value ?? null);
     this.setCellValueSafely(ws, 'J37', fr01.production?.unit ?? null);
     this.setCellValueSafely(ws, 'H39', fr01.baseYearProduction?.value ?? null);
 
-    const products: string[] = Array.isArray(fr01.products) ? fr01.products : [];
+    const products: string[] = Array.isArray(fr01.orgInfoLines) ? fr01.orgInfoLines : [];
     for (let i = 0; i < 5; i++) {
       const v = String(products[i] ?? '').trim();
       this.setCellValueSafely(ws, `G${41 + i}`, v || null);
     }
 
-    this.setCellValueSafely(ws, 'I46', fr01.address ?? null);
+    this.setCellValueSafely(ws, 'I46', fr01.contactAddress ?? null);
     this.setCellValueSafely(ws, 'I47', this.toBuddhistExcelDate(fr01.registrationDate));
   }
 

@@ -8,9 +8,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Router } from '@angular/router';
 
-import { ExcelExportEngine } from '../../core/export/engine/excel-export.engine';
-import { resolveTemplate } from '../../core/export/registry/template-registry';
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { CycleApiService } from '../../core/services/cycle-api.service';
 import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-dialog';
 
 @Component({
@@ -33,8 +32,8 @@ export class CyclesComponent {
   constructor(
     private dialog: MatDialog,
     private router: Router,
-    private exportEngine: ExcelExportEngine,
     private canonicalSvc: CanonicalGhgService,
+    private cycleApi: CycleApiService,
     private snackBar: MatSnackBar,
   ) {}
 
@@ -43,25 +42,30 @@ export class CyclesComponent {
       width: '400px',
     });
 
-    ref.afterClosed().subscribe(result => {
+    ref.afterClosed().subscribe(async result => {
       if (!result) return;
 
-      const newId =
-        this.cycles.length > 0
-          ? Math.max(...this.cycles.map(c => c.id)) + 1
-          : 1;
+      try {
+        const created = await this.cycleApi.createCycle({
+          name: result.name!,
+          year: Number(result.baseYear!),
+        });
 
-      const newCycle = {
-        id: newId,
-        name: result.name!,
-        baseYear: result.baseYear!,
-        status: 'Draft' as const,
-      };
+        const newCycle = {
+          id: created.id,
+          name: result.name!,
+          baseYear: result.baseYear!,
+          status: 'Draft' as const,
+        };
 
-      this.cycles = [...this.cycles, newCycle];
+        this.cycles = [...this.cycles, newCycle];
 
-      // 🎯 Auto-Navigate
-      this.router.navigate(['/cycles', newId, 'data-entry']);
+        // 🎯 Auto-Navigate
+        this.router.navigate(['/cycles', created.id, 'data-entry']);
+      } catch (error: any) {
+        console.error('Create cycle failed', error);
+        this.snackBar.open(error?.message || 'เกิดข้อผิดพลาดในการสร้าง Cycle', 'ปิด', { duration: 6000 });
+      }
     });
   }
 
@@ -73,18 +77,17 @@ export class CyclesComponent {
     this.exportingId = cycle.id;
     try {
       const canonical = this.canonicalSvc.build(cycle.id);
-      const bundle = resolveTemplate('MBAX_TGO_11102567::demo');
-      const outputName = `V-Sheet_${bundle.spec.templateId}_cycle-${cycle.id}.xlsx`;
+      await this.cycleApi.updateCycleData(cycle.id, canonical);
+      const exportResult = await this.cycleApi.exportCycle(cycle.id);
 
-      await this.exportEngine.exportFromUrl({
-        templateUrl: bundle.templateUrl,
-        templateSpec: bundle.spec,
-        adapter: bundle.adapter,
-        canonical,
-        outputName,
-      });
-
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      if (exportResult.status === 'completed' && exportResult.download_url) {
+        window.open(exportResult.download_url, '_blank');
+        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      } else if (exportResult.status === 'failed') {
+        throw new Error(exportResult.error_message || 'Export failed');
+      } else {
+        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
+      }
     } catch (error: any) {
       console.error('Export all failed', error);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');

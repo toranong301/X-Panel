@@ -13,9 +13,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { ExcelExportEngine, ExportReport } from '../../core/export/engine/excel-export.engine';
-import { resolveTemplate } from '../../core/export/registry/template-registry';
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { CycleApiService, ExportDto } from '../../core/services/cycle-api.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
 import { Fr01Data } from '../../models/fr01.model';
@@ -48,7 +47,7 @@ export class Fr041Component implements OnInit {
   private canonicalSvc = inject(CanonicalGhgService);
   private dataEntrySvc = inject(DataEntryService);
   private fr01Svc = inject(Fr01Service);
-  private exportEngine = inject(ExcelExportEngine);
+  private cycleApi = inject(CycleApiService);
   private snackBar = inject(MatSnackBar);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
@@ -68,7 +67,7 @@ export class Fr041Component implements OnInit {
   dataPeriodLabel = '-';
 
   // report
-  report: ExportReport | null = null;
+  report: ExportDto | null = null;
   exporting = false;
   exportError: string | null = null;
 
@@ -91,26 +90,17 @@ export class Fr041Component implements OnInit {
 
     try {
       const canonical = await this.canonicalSvc.build(this.cycleId);
-      const bundle = resolveTemplate(this.templateKey);
-      const selections = { significantScope3Top6: this.selectedScope3 };
+      await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.report = await this.cycleApi.exportCycle(this.cycleId);
 
-      const outputName = `V-Sheet_${bundle.spec.templateId}_cycle-${this.cycleId}.xlsx`;
-      console.log(bundle.templateUrl, outputName);
-
-      this.report = await this.exportEngine.exportFromUrl({
-        templateUrl: bundle.templateUrl,
-        templateSpec: bundle.spec,
-        adapter: bundle.adapter,
-        canonical,
-        selections,
-        outputName,
-        excelFeaturesOverride: {
-          dynamicArray: this.useModernExcel,
-          xlookup: this.useModernExcel,
-        },
-      });
-
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      if (this.report.status === 'completed' && this.report.download_url) {
+        window.open(this.report.download_url, '_blank');
+        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      } else if (this.report.status === 'failed') {
+        throw new Error(this.report.error_message || 'Export failed');
+      } else {
+        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
+      }
     } catch (e: any) {
       console.error('Export FR-04.1 failed', e);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');

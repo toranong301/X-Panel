@@ -2,6 +2,7 @@
   <div class="loading" *ngIf="loading">
     <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
     <span>กำลังโหลดตัวอย่างฟอร์ม...</span>
+    <button mat-stroked-button type="button" (click)="cancelLoad()">ยกเลิก</button>
   </div>
 
   <div class="error" *ngIf="!loading && error">

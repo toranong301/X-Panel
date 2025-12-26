@@ -8,9 +8,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { ExcelExportEngine, ExportReport } from '../../core/export/engine/excel-export.engine';
-import { resolveTemplate } from '../../core/export/registry/template-registry';
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { CycleApiService, ExportDto } from '../../core/services/cycle-api.service';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 
 @Component({
@@ -31,7 +30,7 @@ import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-
 export class ExcelSheetPageComponent {
   private route = inject(ActivatedRoute);
   private canonicalSvc = inject(CanonicalGhgService);
-  private exportEngine = inject(ExcelExportEngine);
+  private cycleApi = inject(CycleApiService);
   private snackBar = inject(MatSnackBar);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
@@ -42,7 +41,7 @@ export class ExcelSheetPageComponent {
 
   exporting = false;
   exportError: string | null = null;
-  report: ExportReport | null = null;
+  report: ExportDto | null = null;
 
   async exportSheet() {
     this.exporting = true;
@@ -51,18 +50,17 @@ export class ExcelSheetPageComponent {
 
     try {
       const canonical = this.canonicalSvc.build(this.cycleId);
-      const bundle = resolveTemplate(this.templateKey);
-      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+      await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.report = await this.cycleApi.exportCycle(this.cycleId);
 
-      this.report = await this.exportEngine.exportFromUrl({
-        templateUrl: bundle.templateUrl,
-        templateSpec: bundle.spec,
-        adapter: bundle.adapter,
-        canonical,
-        outputName,
-      });
-
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      if (this.report.status === 'completed' && this.report.download_url) {
+        window.open(this.report.download_url, '_blank');
+        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      } else if (this.report.status === 'failed') {
+        throw new Error(this.report.error_message || 'Export failed');
+      } else {
+        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
+      }
     } catch (e: any) {
       console.error('Export sheet failed', e);
       this.exportError = e?.message || String(e);

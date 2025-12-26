@@ -8,9 +8,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { ExcelExportEngine } from '../../../core/export/engine/excel-export.engine';
-import { resolveTemplate } from '../../../core/export/registry/template-registry';
 import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
+import { CycleApiService } from '../../../core/services/cycle-api.service';
 import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
@@ -72,8 +71,8 @@ export class Scope12MobileComponent {
 
   constructor(
     private dialog: MatDialog,
-    private exportEngine: ExcelExportEngine,
     private canonicalSvc: CanonicalGhgService,
+    private cycleApi: CycleApiService,
     private snackBar: MatSnackBar,
   ) {}
 
@@ -95,18 +94,17 @@ export class Scope12MobileComponent {
     this.exporting = true;
     try {
       const canonical = this.canonicalSvc.build(this.cycleId);
-      const bundle = resolveTemplate(this.templateKey);
-      const outputName = `V-Sheet_${bundle.spec.templateId}_${this.sheetName}_cycle-${this.cycleId}.xlsx`;
+      await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      const exportResult = await this.cycleApi.exportCycle(this.cycleId);
 
-      await this.exportEngine.exportFromUrl({
-        templateUrl: bundle.templateUrl,
-        templateSpec: bundle.spec,
-        adapter: bundle.adapter,
-        canonical,
-        outputName,
-      });
-
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      if (exportResult.status === 'completed' && exportResult.download_url) {
+        window.open(exportResult.download_url, '_blank');
+        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      } else if (exportResult.status === 'failed') {
+        throw new Error(exportResult.error_message || 'Export failed');
+      } else {
+        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
+      }
     } catch (error: any) {
       console.error('Export sheet failed', error);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');

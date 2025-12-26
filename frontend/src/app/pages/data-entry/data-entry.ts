@@ -7,6 +7,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule } from '@angular/material/tabs';
 
 import { DataEntryDoc, DataEntryService } from '../../core/services/data-entry.service';
+import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { CycleApiService } from '../../core/services/cycle-api.service';
 import { createEmptyMonths } from '../../models/entry-row.helpers';
 import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
@@ -60,7 +62,9 @@ export class DataEntryComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private entrySvc: DataEntryService
+    private entrySvc: DataEntryService,
+    private canonicalSvc: CanonicalGhgService,
+    private cycleApi: CycleApiService,
   ) {}
 
   ngOnInit(): void {
@@ -104,7 +108,7 @@ export class DataEntryComponent implements OnInit {
     this.scope145Rows = makeScope145Defaults(this.cycleId);
   }
 
-  save(): void {
+  async save(): Promise<void> {
     const existing = this.entrySvc.load(this.cycleId);
     const otherScope1Rows = (existing?.scope1 ?? []).filter(
       row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3', '1.4.4', '1.4.5'].includes(row.categoryCode)
@@ -129,7 +133,14 @@ export class DataEntryComponent implements OnInit {
     };
 
     this.entrySvc.save(this.cycleId, payload);
-    alert('Saved ✅ (stored in localStorage)');
+    try {
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      alert('Saved ✅ (synced to backend)');
+    } catch (error: any) {
+      console.error('Save sync failed', error);
+      alert('Saved locally แต่ sync ไป backend ไม่สำเร็จ');
+    }
   }
 
   goFr041(): void {

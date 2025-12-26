@@ -87,15 +87,13 @@
 </mat-card>
 
 <mat-card class="card" *ngIf="report">
-  <div class="title">Validation report</div>
-  <div class="sub">Template: {{ report.templateId }} v{{ report.version }}</div>
+  <div class="title">Export status</div>
+  <div class="sub">Status: {{ report.status }}</div>
   <mat-divider></mat-divider>
   <div class="report">
-    <div class="r" *ngFor="let v of report.validations">
-      <div class="id">{{ v.id }}</div>
-      <div class="lvl">{{ v.level }}</div>
-      <div class="ok" [class.bad]="!v.ok">{{ v.ok ? 'OK' : 'FAIL' }}</div>
-      <div class="msg" *ngIf="v.message">{{ v.message }}</div>
+    <div *ngIf="report.download_url">
+      <a [href]="report.download_url" target="_blank" rel="noopener">ดาวน์โหลดไฟล์ Export</a>
     </div>
+    <div class="error" *ngIf="report.error_message">{{ report.error_message }}</div>
   </div>
 </mat-card>

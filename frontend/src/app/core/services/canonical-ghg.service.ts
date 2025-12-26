@@ -103,7 +103,7 @@ export class CanonicalGhgService {
       });
     }
 
-    const fr01 = this.fr01Svc.load(cycleId);
+    const fr01 = this.normalizeFr01(this.fr01Svc.load(cycleId));
     const fr02 = this.fr02Svc.load(cycleId);
     const fr031 = this.fr031Svc.load(cycleId);
     const fr041Selection =
@@ -281,6 +281,28 @@ export class CanonicalGhgService {
   private parseIsoNo(scopeIso: string): string {
     const m = String(scopeIso || '').match(/(\d+(?:\.\d+)?)/);
     return m ? m[1] : '';
+  }
+
+  private normalizeFr01(input: Fr01Data | null): Fr01Data | null {
+    if (!input) return null;
+    const dataPeriod = input.dataPeriod ?? {
+      start: (input as any).periodStart,
+      end: (input as any).periodEnd,
+    };
+    const baseYearPeriod = input.baseYearPeriod ?? {
+      start: (input as any).baseYearStart,
+      end: (input as any).baseYearEnd,
+    };
+
+    return {
+      ...input,
+      orgName: input.orgName ?? (input as any).organizationName ?? '',
+      preparedBy: input.preparedBy ?? (input as any).preparerName ?? '',
+      dataPeriod,
+      baseYearPeriod,
+      orgInfoLines: input.orgInfoLines ?? (input as any).products ?? [],
+      contactAddress: input.contactAddress ?? (input as any).address ?? '',
+    };
   }
 }
 
