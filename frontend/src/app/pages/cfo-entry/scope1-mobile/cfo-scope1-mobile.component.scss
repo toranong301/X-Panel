@@ -1,0 +1,30 @@
+.card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sub {
+  color: #6b7280;
+}
+
+.empty {
+  color: #6b7280;
+  text-align: center;
+  padding: 12px 0;
+}
+
+table {
+  width: 100%;
+}
+
+mat-form-field {
+  width: 100%;
+}

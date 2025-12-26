@@ -10,6 +10,10 @@ import { Fr041Component } from './pages/fr04-1/fr04-1';
 import { Scope3ScreenComponent } from './pages/scope3-screen/scope3-screen';
 import { VSheetEditorComponent } from './pages/vsheet-editor/vsheet-editor';
 import { ExcelSheetPageComponent } from './pages/excel-sheet-page/excel-sheet-page';
+import { CfoScope1StationaryComponent } from './pages/cfo-entry/scope1-stationary/cfo-scope1-stationary.component';
+import { CfoScope1MobileComponent } from './pages/cfo-entry/scope1-mobile/cfo-scope1-mobile.component';
+import { CfoScope2ElectricityComponent } from './pages/cfo-entry/scope2-electricity/cfo-scope2-electricity.component';
+import { CfoScope3Component } from './pages/cfo-entry/scope3/cfo-scope3.component';
 
 export const routes: Routes = [
   {
@@ -68,6 +72,10 @@ export const routes: Routes = [
         },
       },
       { path: 'cycles/:cycleId/vsheet-editor', component: VSheetEditorComponent },
+      { path: 'cycles/:cycleId/cfo/scope1-stationary', component: CfoScope1StationaryComponent },
+      { path: 'cycles/:cycleId/cfo/scope1-mobile', component: CfoScope1MobileComponent },
+      { path: 'cycles/:cycleId/cfo/scope2-electricity', component: CfoScope2ElectricityComponent },
+      { path: 'cycles/:cycleId/cfo/scope3', component: CfoScope3Component },
 
 
 
