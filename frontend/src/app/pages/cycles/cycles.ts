@@ -10,6 +10,7 @@ import { Router } from '@angular/router';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../core/services/cycle-api.service';
+import { CycleStateService } from '../../core/services/cycle-state.service';
 import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-dialog';
 
 @Component({
@@ -34,6 +35,7 @@ export class CyclesComponent implements OnInit {
     private router: Router,
     private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
+    private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
   ) {}
 
@@ -63,7 +65,7 @@ export class CyclesComponent implements OnInit {
         };
 
         this.cycles = [...this.cycles, newCycle];
-        this.cycleApi.setSelectedCycleId(created.id);
+        this.cycleState.setSelectedCycleId(created.id);
 
         // 🎯 Auto-Navigate
         this.router.navigate(['/cycles', created.id, 'data-entry']);
@@ -75,7 +77,7 @@ export class CyclesComponent implements OnInit {
   }
 
   openCycle(cycle: { id: number }) {
-    this.cycleApi.setSelectedCycleId(cycle.id);
+    this.cycleState.setSelectedCycleId(cycle.id);
     this.router.navigate(['/cycles', cycle.id, 'data-entry']);
   }
 
@@ -84,6 +86,7 @@ export class CyclesComponent implements OnInit {
     try {
       const canonical = this.canonicalSvc.build(cycle.id);
       const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
       const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (exportResult.status === 'completed' && exportResult.download_url) {
@@ -105,7 +108,7 @@ export class CyclesComponent implements OnInit {
 
   private async bootstrapCycle() {
     try {
-      const selectedId = await this.cycleApi.ensureSelectedCycleId();
+      const selectedId = await this.cycleState.getSelectedCycleId();
       if (!this.cycles.some(c => c.id === selectedId)) {
         const year = new Date().getFullYear();
         this.cycles = [

@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../../core/services/cycle-api.service';
+import { CycleStateService } from '../../../core/services/cycle-state.service';
 import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { EntryRow } from '../../../models/entry-row.model';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
@@ -49,6 +50,7 @@ export class Scope11StationaryComponent {
     private dialog: MatDialog,
     private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
+    private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
   ) {}
 
@@ -73,6 +75,7 @@ export class Scope11StationaryComponent {
       const canonical = this.canonicalSvc.buildScope11StationaryExport(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
       const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (exportResult.status === 'completed' && exportResult.download_url) {

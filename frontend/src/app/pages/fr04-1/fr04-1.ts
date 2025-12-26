@@ -15,6 +15,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import { CycleApiService, ExportDto } from '../../core/services/cycle-api.service';
+import { CycleStateService } from '../../core/services/cycle-state.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
 import { Fr01Data } from '../../models/fr01.model';
@@ -48,9 +49,10 @@ export class Fr041Component implements OnInit {
   private dataEntrySvc = inject(DataEntryService);
   private fr01Svc = inject(Fr01Service);
   private cycleApi = inject(CycleApiService);
+  private cycleState = inject(CycleStateService);
   private snackBar = inject(MatSnackBar);
 
-  cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
+  cycleId = 0;
 
   // templates (add more by registering in resolveTemplate)
   templateOptions = [
@@ -72,6 +74,12 @@ export class Fr041Component implements OnInit {
   exportError: string | null = null;
 
   ngOnInit(): void {
+    void this.resolveCycleId();
+  }
+
+  private async resolveCycleId() {
+    const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
+    this.cycleId = await this.cycleState.resolveCycleId(routeId);
     this.reloadPreview();
   }
 
@@ -92,6 +100,7 @@ export class Fr041Component implements OnInit {
       const canonical = await this.canonicalSvc.build(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
       this.report = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (this.report.status === 'completed' && this.report.download_url) {

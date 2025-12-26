@@ -9,6 +9,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { DataEntryDoc, DataEntryService } from '../../core/services/data-entry.service';
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../core/services/cycle-api.service';
+import { CycleStateService } from '../../core/services/cycle-state.service';
 import { createEmptyMonths } from '../../models/entry-row.helpers';
 import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
@@ -65,6 +66,7 @@ export class DataEntryComponent implements OnInit {
     private entrySvc: DataEntryService,
     private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
+    private cycleState: CycleStateService,
   ) {}
 
   ngOnInit(): void {
@@ -73,13 +75,10 @@ export class DataEntryComponent implements OnInit {
 
   private async initCycle(): Promise<void> {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
-    if (routeId > 0) {
-      this.cycleId = routeId;
-      this.cycleApi.setSelectedCycleId(routeId);
-    } else {
-      const createdId = await this.cycleApi.ensureSelectedCycleId();
-      this.cycleId = createdId;
-      this.router.navigate(['/cycles', createdId, 'data-entry'], { replaceUrl: true });
+    const resolvedId = await this.cycleState.resolveCycleId(routeId);
+    this.cycleId = resolvedId;
+    if (routeId !== resolvedId) {
+      this.router.navigate(['/cycles', resolvedId, 'data-entry'], { replaceUrl: true });
     }
 
     this.loadFromStorage();
@@ -153,6 +152,7 @@ export class DataEntryComponent implements OnInit {
       const canonical = this.canonicalSvc.build(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
       alert('Saved ✅ (synced to backend)');
     } catch (error: any) {
       console.error('Save sync failed', error);

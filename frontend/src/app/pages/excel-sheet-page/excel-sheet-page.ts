@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import { CycleApiService, ExportDto } from '../../core/services/cycle-api.service';
+import { CycleStateService } from '../../core/services/cycle-state.service';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 
 @Component({
@@ -27,13 +28,14 @@ import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-
   templateUrl: './excel-sheet-page.html',
   styleUrls: ['./excel-sheet-page.scss'],
 })
-export class ExcelSheetPageComponent {
+export class ExcelSheetPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private canonicalSvc = inject(CanonicalGhgService);
   private cycleApi = inject(CycleApiService);
+  private cycleState = inject(CycleStateService);
   private snackBar = inject(MatSnackBar);
 
-  cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
+  cycleId = 0;
   templateKey = 'MBAX_TGO_11102567::demo';
   sheetName = this.route.snapshot.data['sheetName'] ?? '';
   title = this.route.snapshot.data['title'] ?? this.sheetName;
@@ -42,6 +44,15 @@ export class ExcelSheetPageComponent {
   exporting = false;
   exportError: string | null = null;
   report: ExportDto | null = null;
+
+  ngOnInit(): void {
+    void this.resolveCycleId();
+  }
+
+  private async resolveCycleId() {
+    const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
+    this.cycleId = await this.cycleState.resolveCycleId(routeId);
+  }
 
   async exportSheet() {
     this.exporting = true;
@@ -52,6 +63,7 @@ export class ExcelSheetPageComponent {
       const canonical = this.canonicalSvc.build(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
       this.report = await this.cycleApi.exportCycle(updateResult.cycleId);
 
       if (this.report.status === 'completed' && this.report.download_url) {

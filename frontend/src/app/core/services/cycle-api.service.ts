@@ -28,10 +28,13 @@ export type CycleUpdateResult = {
 
 @Injectable({ providedIn: 'root' })
 export class CycleApiService {
-  private readonly selectedKey = 'xpanel:selected-cycle-id';
   private readonly missingIdMap = new Map<number, number>();
 
   constructor(private api: ApiClient) {}
+
+  listCycles() {
+    return firstValueFrom(this.api.get<CycleDto[]>('cycles'));
+  }
 
   createCycle(payload: { year: number; name: string }) {
     return firstValueFrom(this.api.post<CycleDto>('cycles', payload));
@@ -74,40 +77,18 @@ export class CycleApiService {
     return firstValueFrom(this.api.get<ExportDto>(`exports/${id}`));
   }
 
-  getSelectedCycleId(): number | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(this.selectedKey);
-    const id = raw ? Number(raw) : NaN;
-    return Number.isFinite(id) && id > 0 ? id : null;
-  }
-
-  setSelectedCycleId(id: number): void {
-    if (typeof localStorage === 'undefined') return;
-    if (Number.isFinite(id) && id > 0) {
-      localStorage.setItem(this.selectedKey, String(id));
-    }
-  }
-
-  async ensureSelectedCycleId(): Promise<number> {
-    const existing = this.getSelectedCycleId();
-    if (existing) return existing;
-    const created = await this.createDemoCycle();
-    return created.id;
-  }
-
   private async resolveCycleId(id: number): Promise<number> {
     if (Number.isFinite(id) && id > 0) {
       const mapped = this.missingIdMap.get(id);
       return mapped ?? id;
     }
-    return this.ensureSelectedCycleId();
+    const created = await this.createDemoCycle();
+    return created.id;
   }
 
   private async createDemoCycle(): Promise<CycleDto> {
     const year = new Date().getFullYear();
-    const created = await this.createCycle({ year, name: 'Demo Cycle' });
-    this.setSelectedCycleId(created.id);
-    return created;
+    return this.createCycle({ year, name: 'Demo Cycle' });
   }
 
   private isNotFound(error: any): boolean {
