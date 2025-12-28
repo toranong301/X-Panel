@@ -37,7 +37,7 @@ export const routes: Routes = [
         component: ExcelSheetPageComponent,
         data: {
           title: 'FR-04.2 (Read-only)',
-          sheetName: 'Fr-04.2',
+          sheetId: 'fr042',
         },
       },
       {
@@ -45,7 +45,7 @@ export const routes: Routes = [
         component: ExcelSheetPageComponent,
         data: {
           title: 'FR-05 (Read-only)',
-          sheetName: 'Fr-05',
+          sheetId: 'fr05',
         },
       },
       {
@@ -53,7 +53,7 @@ export const routes: Routes = [
         component: ExcelSheetPageComponent,
         data: {
           title: 'EF TGO AR5 (Read-only)',
-          sheetName: 'EF TGO AR5',
+          sheetId: 'ef_tgo_ar5',
         },
       },
       {
@@ -61,7 +61,7 @@ export const routes: Routes = [
         component: ExcelSheetPageComponent,
         data: {
           title: 'EF (1) (Read-only)',
-          sheetName: 'EF (1)',
+          sheetId: 'ef_1',
         },
       },
       {
@@ -69,7 +69,7 @@ export const routes: Routes = [
         component: ExcelSheetPageComponent,
         data: {
           title: 'Revision Log (Read-only)',
-          sheetName: 'บันทึกการปรับปรุง',
+          sheetId: 'revision_log',
         },
       },
       { path: 'cycles/:cycleId/vsheet-editor', component: VSheetEditorComponent },

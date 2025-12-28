@@ -21,6 +21,11 @@ export type CycleDto = {
   data_json?: any;
 };
 
+export type ExportDownload = {
+  blob: Blob;
+  filename: string;
+};
+
 export type ExportDto = {
   id: number;
   cycle_id: number;
@@ -86,23 +91,6 @@ export class CycleApiService {
       return { updated: true, cycleId: resolvedId };
 
     } catch (error: any) {
-      if (this.isNotFound(error)) {
-        const created = await this.createDemoCycle();
-
-        if (Number.isFinite(id) && id > 0) {
-          this.missingIdMap.set(id, created.id);
-        }
-
-        await firstValueFrom(
-          this.api.put<{ updated: boolean }>(
-            `cycles/${created.id}/data`,
-            { data }
-          )
-        );
-
-        return { updated: true, cycleId: created.id, created: true };
-      }
-
       throw error;
     }
   }
@@ -124,10 +112,13 @@ export class CycleApiService {
 
   /* ---------- export ---------- */
 
-  exportCycle(id: number): Promise<ExportDto> {
-    return firstValueFrom(
-      this.api.post<ExportDto>(`cycles/${id}/export`, {})
+  async exportCycle(id: number): Promise<ExportDownload> {
+    const resp = await firstValueFrom(
+      this.api.postBlob(`cycles/${id}/export`, {})
     );
+    const disposition = resp.headers?.get('content-disposition') ?? '';
+    const filename = this.extractFilename(disposition) ?? `export_${id}.xlsx`;
+    return { blob: resp.body ?? new Blob(), filename };
   }
 
   getExport(id: number): Promise<ExportDto> {
@@ -146,8 +137,7 @@ export class CycleApiService {
       return mapped ?? id;
     }
 
-    const created = await this.createDemoCycle();
-    return created.id;
+    throw new Error('Missing cycleId');
   }
 
   private async createDemoCycle(): Promise<CycleDto> {
@@ -157,5 +147,18 @@ export class CycleApiService {
 
   private isNotFound(error: any): boolean {
     return Number(error?.status) === 404;
+  }
+
+  private extractFilename(disposition: string): string | null {
+    if (!disposition) return null;
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1].replace(/["']/g, ''));
+    }
+    const match = disposition.match(/filename=([^;]+)/i);
+    if (match?.[1]) {
+      return match[1].replace(/["']/g, '').trim();
+    }
+    return null;
   }
 }

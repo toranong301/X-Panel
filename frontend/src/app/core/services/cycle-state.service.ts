@@ -15,26 +15,17 @@ export class CycleStateService {
    * 3) create demo cycle ใหม่
    */
   async resolveCycleId(preferredId?: number): Promise<number> {
-    const cycles: Cycle[] = await this.cycleApi.listCycles();
-
-    // 1) preferredId
+    // 1) preferredId (trust route/state, do not auto-create)
     if (Number.isFinite(preferredId) && (preferredId as number) > 0) {
-      const match = cycles.find(c => c.id === preferredId);
-      if (match) {
-        this.setSelectedCycleId(match.id);
-        return match.id;
-      }
+      this.setSelectedCycleId(preferredId as number);
+      return preferredId as number;
     }
 
-    // 2) localStorage
+    // 2) localStorage (use last known id even if API is down)
     const stored = this.readSelectedCycleId();
-    if (stored) {
-      const match = cycles.find(c => c.id === stored);
-      if (match) return stored;
-    }
+    if (stored) return stored;
 
-    // 3) create demo
-    return await this.createDemoCycle();
+    return 0;
   }
 
   /**
@@ -44,7 +35,7 @@ export class CycleStateService {
   async getSelectedCycleId(): Promise<number> {
     const cached = this.readSelectedCycleId();
     if (cached) return cached;
-    return await this.createDemoCycle();
+    return 0;
   }
 
   setSelectedCycleId(id: number): void {
@@ -69,5 +60,14 @@ export class CycleStateService {
     });
     this.setSelectedCycleId(created.id);
     return created.id;
+  }
+
+  private async safeListCycles(): Promise<Cycle[]> {
+    try {
+      return await this.cycleApi.listCycles();
+    } catch (error) {
+      console.warn('Failed to load cycles list', error);
+      return [];
+    }
   }
 }

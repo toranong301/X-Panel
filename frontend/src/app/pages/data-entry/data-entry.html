@@ -3,7 +3,11 @@
   <span class="cycle">Cycle ID: {{ cycleId }}</span>
 </div>
 
-<mat-tab-group>
+<div *ngIf="!ready" class="loading">
+  กำลังโหลดข้อมูล...
+</div>
+
+<mat-tab-group *ngIf="ready">
 
   <mat-tab label="Scope 1">
 
@@ -146,7 +150,7 @@
 
 </mat-tab-group>
 
-<div class="actions" style="margin-top:16px;">
+<div class="actions" style="margin-top:16px;" *ngIf="ready">
   <button mat-stroked-button color="primary" (click)="resetDefaults()">
     Reset defaults
   </button>

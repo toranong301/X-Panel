@@ -582,7 +582,10 @@ const screenRow =
   private writeScope11Stationary(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string }> {
   const totals: Record<string, { sheetName: string; totalCell: string }> = {};
   // ชื่อชีทตาม template จริง: มีเว้นวรรคท้ายด้วย
-  const sheetName = '1.1 Stationary ';
+  const sheetName = ctx.spec.sheets['scope11']?.name;
+  if (!sheetName) {
+    throw new Error('Missing sheet mapping: scope11');
+  }
   const ws = ctx.workbook.getWorksheet(sheetName);
   if (!ws) {
     throw new Error(`Missing worksheet: ${sheetName}`);
@@ -652,7 +655,11 @@ const screenRow =
 
 private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string; slotNo?: number }> {
   const totals: Record<string, { sheetName: string; totalCell: string; slotNo?: number }> = {};
-  const ws = ctx.workbook.getWorksheet('1.2 Mobile');
+  const sheetName = ctx.spec.sheets['scope12']?.name;
+  if (!sheetName) {
+    throw new Error('Missing sheet mapping: scope12');
+  }
+  const ws = ctx.workbook.getWorksheet(sheetName);
   if (!ws) return totals;
 
   const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12

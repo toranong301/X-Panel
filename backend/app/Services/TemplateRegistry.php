@@ -24,6 +24,27 @@ class TemplateRegistry
         return $this->registry['templates'][$templateId] ?? [];
     }
 
+    public function getSheet(string $templateId, string $sheetId): array
+    {
+        $template = $this->getTemplate($templateId);
+        $sheets = $template['sheets'] ?? [];
+        $key = $this->normalizeSheetId($sheetId);
+        return $sheets[$key] ?? [];
+    }
+
+    public function listSheetIds(string $templateId): array
+    {
+        $template = $this->getTemplate($templateId);
+        return array_keys($template['sheets'] ?? []);
+    }
+
+    public function normalizeSheetId(string $sheetId): string
+    {
+        $upper = strtoupper(trim($sheetId));
+        $upper = preg_replace('/[^A-Z0-9]+/', '_', $upper) ?? '';
+        return trim($upper, '_');
+    }
+
     public function getMapping(string $templateId, string $key): array
     {
         $template = $this->getTemplate($templateId);

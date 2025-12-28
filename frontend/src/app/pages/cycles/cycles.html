@@ -7,6 +7,7 @@
 </button>
 </div>
 
+<ng-container *ngIf="cycles$ | async as cycles">
 <table mat-table [dataSource]="cycles" class="mat-elevation-z1">
 
   <!-- Name -->
@@ -54,6 +55,6 @@
   <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
   <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 </table>
-
+</ng-container>
 
 

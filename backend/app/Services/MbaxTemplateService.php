@@ -12,15 +12,22 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class MbaxTemplateService
 {
-    private const TEMPLATE_ID = 'MBAX_TGO_11102567';
+    public const DEFAULT_TEMPLATE_ID = 'MBAX_TGO_11102567';
 
     public function __construct(private TemplateRegistry $registry)
     {
     }
 
-    public function loadTemplate(?string $sheetName = null, ?string $range = null): Spreadsheet
+    public function loadTemplate(
+        ?string $sheetName = null,
+        ?string $range = null,
+        ?string $templateId = null
+    ): Spreadsheet
     {
-        $path = $this->resolveTemplatePath();
+        if (!class_exists(IOFactory::class)) {
+            throw new \RuntimeException('PhpSpreadsheet not installed.');
+        }
+        $path = $this->resolveTemplatePath($templateId ?: self::DEFAULT_TEMPLATE_ID);
 
         if ($sheetName && $range) {
             $reader = IOFactory::createReader('Xlsx');
@@ -37,13 +44,14 @@ class MbaxTemplateService
         array $data,
         array $attachments = [],
         ?string $sheetName = null,
-        ?string $range = null
+        ?string $range = null,
+        ?string $templateId = null
     ): void {
         $this->writeFr01($spreadsheet, $data, $sheetName, $range);
         $this->writeFr02($spreadsheet, $data, $attachments, $sheetName, $range);
         $this->writeFr031($spreadsheet, $data, $attachments, $sheetName, $range);
-        $this->writeScope11Stationary($spreadsheet, $data, $sheetName, $range);
-        $this->writeScope12Mobile($spreadsheet, $data, $sheetName, $range);
+        $this->writeScope11Stationary($spreadsheet, $data, $sheetName, $range, $templateId);
+        $this->writeScope12Mobile($spreadsheet, $data, $sheetName, $range, $templateId);
     }
 
     public function buildPreview(Spreadsheet $spreadsheet, string $sheetName, string $range): array
@@ -80,11 +88,11 @@ class MbaxTemplateService
         ];
     }
 
-    public function resolveTemplatePath(): string
+    public function resolveTemplatePath(string $templateId): string
     {
-        $mapping = $this->registry->getTemplate(self::TEMPLATE_ID);
+        $mapping = $this->registry->getTemplate($templateId);
         $envKey = $mapping['path']['env'] ?? 'MBAX_TEMPLATE_PATH';
-        $fallbackRel = $mapping['path']['fallback'] ?? 'frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx';
+        $fallbackRel = $mapping['path']['fallback'] ?? '../frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx';
 
         $envPath = env($envKey);
         if ($envPath && file_exists($envPath)) {
@@ -174,9 +182,15 @@ class MbaxTemplateService
         }
     }
 
-    private function writeScope11Stationary(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void
+    private function writeScope11Stationary(
+        Spreadsheet $spreadsheet,
+        array $data,
+        ?string $sheetName,
+        ?string $range,
+        ?string $templateId
+    ): void
     {
-        $mapping = $this->registry->getMapping(self::TEMPLATE_ID, 'scope11');
+        $mapping = $this->registry->getMapping($templateId ?: self::DEFAULT_TEMPLATE_ID, 'scope11');
         $targetSheet = $mapping['sheet'] ?? '1.1 Stationary ';
         if ($sheetName && $sheetName !== $targetSheet) return;
 
@@ -209,9 +223,15 @@ class MbaxTemplateService
         }
     }
 
-    private function writeScope12Mobile(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void
+    private function writeScope12Mobile(
+        Spreadsheet $spreadsheet,
+        array $data,
+        ?string $sheetName,
+        ?string $range,
+        ?string $templateId
+    ): void
     {
-        $mapping = $this->registry->getMapping(self::TEMPLATE_ID, 'scope12');
+        $mapping = $this->registry->getMapping($templateId ?: self::DEFAULT_TEMPLATE_ID, 'scope12');
         $targetSheet = $mapping['sheet'] ?? '1.2 Mobile';
         if ($sheetName && $sheetName !== $targetSheet) return;
 

@@ -1,5 +1,6 @@
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { Inject, Injectable } from '@angular/core';
+import { API_BASE_URL } from './api-base-url.token';
 import { environment } from '../../../environments/environment';
 
 export type Query = Record<string, string | number | boolean | null | undefined>;
@@ -15,13 +16,10 @@ export type ApiGetOptions = {
 
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
-  /**
-   * DEV: '/api' (ผ่าน proxy)
-   * PROD: 'https://api.test-demo-platform-cfo.ecoxpanel.com/api'
-   */
-  private readonly baseUrl = (environment.apiBaseUrl || '/api').replace(/\/+$/, '');
-
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    @Inject(API_BASE_URL) private baseUrl: string
+  ) {}
 
   private buildHeaders(extra?: Record<string, string>) {
     let headers = new HttpHeaders(extra ?? {});
@@ -42,8 +40,9 @@ export class ApiClient {
   }
 
   private makeUrl(path: string) {
+    const base = String(this.baseUrl || '/api').replace(/\/+$/, '');
     const p = String(path || '').replace(/^\/+/, '');
-    return `${this.baseUrl}/${p}`;
+    return `${base}/${p}`;
   }
 
   // -------- GET (รองรับ 2 รูปแบบ) --------
@@ -83,6 +82,15 @@ export class ApiClient {
   post<T>(path: string, body: any, extraHeaders?: Record<string, string>) {
     const url = this.makeUrl(path);
     return this.http.post<T>(url, body, { headers: this.buildHeaders(extraHeaders) });
+  }
+
+  postBlob(path: string, body: any, extraHeaders?: Record<string, string>) {
+    const url = this.makeUrl(path);
+    return this.http.post(url, body, {
+      headers: this.buildHeaders(extraHeaders),
+      observe: 'response',
+      responseType: 'blob',
+    });
   }
 
   put<T>(path: string, body: any, extraHeaders?: Record<string, string>) {

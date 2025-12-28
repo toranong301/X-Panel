@@ -18,6 +18,14 @@ export const MBAX_SPEC: VSheetTemplateSpec = {
     fr041: { name: 'Fr-04.1' },
     fr032: { name: 'Fr-03.2' },
     screenScope3: { name: 'Screen scope 3' },
+    scope11: { name: '1.1 Stationary ' },
+    scope12: { name: '1.2 Mobile' },
+    scope14_fugitive: { name: '1.4 Fugitive Emission' },
+    fr042: { name: 'Fr-04.2' },
+    fr05: { name: 'Fr-05' },
+    ef_tgo_ar5: { name: 'EF TGO AR5' },
+    ef_1: { name: 'EF (1)' },
+    revision_log: { name: 'บันทึกการปรับปรุง' },
   },
 
   selectionRules: {

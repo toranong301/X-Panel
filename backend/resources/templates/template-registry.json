@@ -4,7 +4,45 @@
       "label": "MBAX-TGO-11102567 Demo",
       "path": {
         "env": "MBAX_TEMPLATE_PATH",
-        "fallback": "frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx"
+        "fallback": "../frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx"
+      },
+      "sheets": {
+        "SCOPE11_STATIONARY": {
+          "name": "1.1 Stationary ",
+          "previewRange": "A1:P60"
+        },
+        "SCOPE12_MOBILE": {
+          "name": "1.2 Mobile",
+          "previewRange": "A1:AA70"
+        },
+        "SCOPE14_FUGITIVE": {
+          "name": "1.4 Fugitive Emission",
+          "previewRange": "A1:Q80"
+        },
+        "FR041": {
+          "name": "Fr-04.1",
+          "previewRange": "A1:AO70"
+        },
+        "FR042": {
+          "name": "Fr-04.2",
+          "previewRange": "A1:Z60"
+        },
+        "FR05": {
+          "name": "Fr-05",
+          "previewRange": "A1:Z60"
+        },
+        "EF_TGO_AR5": {
+          "name": "EF TGO AR5",
+          "previewRange": "A1:Z60"
+        },
+        "EF_1": {
+          "name": "EF (1)",
+          "previewRange": "A1:Z60"
+        },
+        "REVISION_LOG": {
+          "name": "บันทึกการปรับปรุง",
+          "previewRange": "A1:Z60"
+        }
       },
       "mappings": {
         "scope11": {

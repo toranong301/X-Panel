@@ -14,6 +14,14 @@ This routes `/api` and `/storage` to the Laravel backend (see `proxy.conf.json`)
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## Manual test checklist (dev)
+1) Start backend: `php artisan serve --host=127.0.0.1 --port=8000`
+2) Start frontend: `npm start` (uses `proxy.conf.json`)
+3) Open `/cycles` and confirm no NG0100 errors in console
+4) Click a cycle -> Data Entry loads
+5) Click Review/Preview for Scope 1.1 Stationary (sheetId `scope11_stationary`) and confirm 200 JSON
+6) Export from FR-04.1 and verify `.xlsx` downloads with formulas intact
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:

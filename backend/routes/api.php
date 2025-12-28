@@ -5,6 +5,14 @@ use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\ExportController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'time' => now()->toIso8601String(),
+        'version' => config('app.version') ?? config('app.env'),
+    ], 200);
+});
+
 Route::middleware('api-key')->group(function () {
     Route::get('/cycles', [CycleController::class, 'index']);
     Route::post('/cycles', [CycleController::class, 'store']);

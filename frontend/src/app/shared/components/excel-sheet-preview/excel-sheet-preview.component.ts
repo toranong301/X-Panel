@@ -16,9 +16,7 @@ import { ExcelPreviewService, SheetPreview, SheetPreviewRow } from '../../../cor
 })
 export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   @Input() cycleId = 0;
-  @Input() templateKey = 'MBAX_TGO_11102567::demo';
-  @Input() sheetName = '';
-  @Input() range?: string;
+  @Input() sheetId = '';
 
   loading = false;
   error: string | null = null;
@@ -35,7 +33,7 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   ) {}
 
   ngOnChanges(): void {
-    if (!this.sheetName || !this.cycleId) return;
+    if (!this.sheetId || !this.cycleId) return;
     this.scheduleLoad();
   }
 
@@ -78,9 +76,7 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
 
     const request$ = from(this.previewSvc.loadSheet({
       cycleId: this.cycleId,
-      templateKey: this.templateKey,
-      sheetName: this.sheetName,
-      range: this.range,
+      sheetId: this.sheetId,
       signal: this.abortController.signal,
     })).pipe(
       finalize(() => {

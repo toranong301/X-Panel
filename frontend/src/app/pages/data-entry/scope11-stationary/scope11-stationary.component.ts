@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
+import { SHEET_REGISTRY } from '../../../core/sheet.registry';
 import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { EntryRow } from '../../../models/entry-row.model';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
@@ -43,8 +44,7 @@ export class Scope11StationaryComponent {
   readonly acetyleneMaint3Code = 'ACETYLENE_TANK5_MAINT_3';
 
   exporting = false;
-  readonly templateKey = 'MBAX_TGO_11102567::demo';
-  readonly sheetName = '1.1 Stationary ';
+  readonly sheetId = SHEET_REGISTRY['SCOPE1_STATIONARY'].sheetId;
 
   constructor(
     private dialog: MatDialog,
@@ -60,11 +60,8 @@ export class Scope11StationaryComponent {
       maxWidth: '1200px',
       data: {
         title: 'Review: 1.1 Stationary',
-        sheetName: this.sheetName,
-        templateKey: this.templateKey,
+        sheetId: this.sheetId,
         cycleId: this.cycleId,
-        // Keep the preview lightweight; the full template has formatting down to 1000+ rows.
-        range: 'A1:P60',
       },
     });
   }
@@ -76,16 +73,9 @@ export class Scope11StationaryComponent {
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
-
-      if (exportResult.status === 'completed' && exportResult.download_url) {
-        window.open(exportResult.download_url, '_blank');
-        this.snackBar.open('Export 1.1 Stationary สำเร็จ', 'ปิด', { duration: 4000 });
-      } else if (exportResult.status === 'failed') {
-        throw new Error(exportResult.error_message || 'Export failed');
-      } else {
-        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
-      }
+      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      this.downloadFile(download.blob, download.filename);
+      this.snackBar.open('Export 1.1 Stationary สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {
       console.error('Export sheet failed', error);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
@@ -197,5 +187,15 @@ export class Scope11StationaryComponent {
       if (idx >= 0 && idx < 12) out[idx] = Number(m.qty || 0);
     }
     return out;
+  }
+
+  private downloadFile(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }

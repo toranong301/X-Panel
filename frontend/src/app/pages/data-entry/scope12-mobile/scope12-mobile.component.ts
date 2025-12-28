@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
+import { SHEET_REGISTRY } from '../../../core/sheet.registry';
 import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
@@ -67,8 +68,7 @@ export class Scope12MobileComponent {
   ];
 
   exporting = false;
-  readonly templateKey = 'MBAX_TGO_11102567::demo';
-  readonly sheetName = '1.2 Mobile';
+  readonly sheetId = SHEET_REGISTRY['SCOPE1_MOBILE'].sheetId;
 
   constructor(
     private dialog: MatDialog,
@@ -84,10 +84,8 @@ export class Scope12MobileComponent {
       maxWidth: '1200px',
       data: {
         title: 'Review: 1.2 Mobile',
-        sheetName: this.sheetName,
-        templateKey: this.templateKey,
+        sheetId: this.sheetId,
         cycleId: this.cycleId,
-        range: 'A1:AA70',
       },
     });
   }
@@ -99,16 +97,9 @@ export class Scope12MobileComponent {
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
-
-      if (exportResult.status === 'completed' && exportResult.download_url) {
-        window.open(exportResult.download_url, '_blank');
-        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
-      } else if (exportResult.status === 'failed') {
-        throw new Error(exportResult.error_message || 'Export failed');
-      } else {
-        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
-      }
+      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      this.downloadFile(download.blob, download.filename);
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {
       console.error('Export sheet failed', error);
       alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
@@ -230,5 +221,15 @@ export class Scope12MobileComponent {
     const fuelKey = k as FuelKey;
     const slotNo = n ? Number(n) : undefined;
     return { fuelKey, slotNo: Number.isFinite(slotNo) ? slotNo : undefined };
+  }
+
+  private downloadFile(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }

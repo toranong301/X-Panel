@@ -29,7 +29,7 @@ export class CanonicalGhgService {
    * - Scope 3 comes from Scope3Screen store.
    * - Scope 1.1/1.2 comes from DataEntryService (localStorage).
    */
-  build(cycleId: number): CanonicalCycleData {
+  build(cycleId: number, templateKey?: string): CanonicalCycleData {
     const entryDoc = this.entrySvc.load(cycleId);
     // --- V-Sheet data (fixed + subsheets) ---
     const vsheet = this.entrySvc.loadVSheet(cycleId);
@@ -89,8 +89,11 @@ export class CanonicalGhgService {
       undefined;
     const cfoGhg = this.buildCfoGhg(entryDoc, scope3Items);
 
+    const templateId = this.normalizeTemplateId(templateKey, (entryDoc as any)?.templateId);
+
     return {
       cycleId,
+      templateId,
       inventory,
       fr03_2,
       vsheet,
@@ -103,8 +106,8 @@ export class CanonicalGhgService {
     };
   }
 
-  public buildCanonicalForCycle(cycleId: number): CanonicalCycleData {
-    return this.build(cycleId);
+  public buildCanonicalForCycle(cycleId: number, templateKey?: string): CanonicalCycleData {
+    return this.build(cycleId, templateKey);
   }
 
   public buildScope11StationaryExport(cycleId: number): CanonicalCycleData {
@@ -342,6 +345,12 @@ export class CanonicalGhgService {
       orgInfoLines: input.orgInfoLines ?? (input as any).products ?? [],
       contactAddress: input.contactAddress ?? (input as any).address ?? '',
     };
+  }
+
+  private normalizeTemplateId(templateKey?: string, fallback?: string): string | undefined {
+    const raw = String(templateKey || fallback || '').trim();
+    if (!raw) return 'MBAX_TGO_11102567';
+    return raw.split('::')[0].trim() || 'MBAX_TGO_11102567';
   }
 }
 

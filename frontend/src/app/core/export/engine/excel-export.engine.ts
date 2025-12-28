@@ -139,7 +139,10 @@ export class ExcelExportEngine {
     sheetName?: string;
     excelFeaturesOverride?: Partial<ExcelFeatures>;
   }): Promise<ExportReport> {
-    const sheetName = params.sheetName ?? '1.1 Stationary ';
+    const sheetName = params.sheetName;
+    if (!sheetName) {
+      throw new Error('sheetName is required for exportScope11StationaryFromUrl.');
+    }
     return this.exportFromUrl({
       templateUrl: params.templateUrl,
       templateSpec: params.templateSpec,

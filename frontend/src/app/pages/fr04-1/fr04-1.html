@@ -77,23 +77,10 @@
 
   <app-excel-sheet-preview
     [cycleId]="cycleId"
-    [templateKey]="templateKey"
-    sheetName="fr041"
+    [sheetId]="sheetId"
   ></app-excel-sheet-preview>
 </mat-card>
 
 <mat-card class="card" *ngIf="exportError">
   <div class="error">{{ exportError }}</div>
-</mat-card>
-
-<mat-card class="card" *ngIf="report">
-  <div class="title">Export status</div>
-  <div class="sub">Status: {{ report.status }}</div>
-  <mat-divider></mat-divider>
-  <div class="report">
-    <div *ngIf="report.download_url">
-      <a [href]="report.download_url" target="_blank" rel="noopener">ดาวน์โหลดไฟล์ Export</a>
-    </div>
-    <div class="error" *ngIf="report.error_message">{{ report.error_message }}</div>
-  </div>
 </mat-card>

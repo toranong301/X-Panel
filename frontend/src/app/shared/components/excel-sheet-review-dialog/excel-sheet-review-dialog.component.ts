@@ -7,10 +7,8 @@ import { ExcelSheetPreviewComponent } from '../excel-sheet-preview/excel-sheet-p
 
 export type ExcelSheetReviewData = {
   title: string;
-  sheetName: string;
-  templateKey: string;
+  sheetId: string;
   cycleId: number;
-  range?: string;
 };
 
 @Component({

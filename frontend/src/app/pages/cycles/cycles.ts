@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -26,12 +27,13 @@ import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-d
   ],
   templateUrl: './cycles.html',
   styleUrls: ['./cycles.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CyclesComponent implements OnInit {
   displayedColumns = ['name', 'baseYear', 'status', 'actions'];
 
-  /** ✅ เริ่มต้นว่างเท่านั้น */
-  cycles: Cycle[] = [];
+  private cyclesSubject = new BehaviorSubject<Cycle[]>([]);
+  cycles$ = this.cyclesSubject.asObservable();
 
   exportingId: number | null = null;
 
@@ -57,21 +59,9 @@ export class CyclesComponent implements OnInit {
 
   private async bootstrap() {
     try {
-      // 1) ensure มี cycle ที่ใช้งานได้
-      const selectedId = await this.cycleState.getSelectedCycleId();
-
-      // 2) โหลด cycles จาก backend
+      // 1) โหลด cycles จาก backend
       const list = await this.cycleApi.listCycles();
-      this.cycles = list;
-
-      // 3) fallback กัน edge case
-      if (!this.cycles.some(c => c.id === selectedId)) {
-        const year = new Date().getFullYear();
-        this.cycles = [
-          ...this.cycles,
-          { id: selectedId, name: 'Demo Cycle', year },
-        ];
-      }
+      this.cyclesSubject.next(list);
     } catch (error: any) {
       console.error('Bootstrap cycle failed', error);
       this.snackBar.open(
@@ -79,6 +69,7 @@ export class CyclesComponent implements OnInit {
         'ปิด',
         { duration: 6000 }
       );
+      this.cyclesSubject.next([]);
     }
   }
 
@@ -100,7 +91,7 @@ export class CyclesComponent implements OnInit {
           year: Number(result.baseYear!),
         });
 
-        this.cycles = [...this.cycles, created];
+        this.cyclesSubject.next([...this.cyclesSubject.value, created]);
         this.cycleState.setSelectedCycleId(created.id);
 
         this.router.navigate(['/cycles', created.id, 'data-entry']);
@@ -127,16 +118,9 @@ export class CyclesComponent implements OnInit {
       const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
 
-      const exportResult = await this.cycleApi.exportCycle(updateResult.cycleId);
-
-      if (exportResult.status === 'completed' && exportResult.download_url) {
-        window.open(exportResult.download_url, '_blank');
-        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
-      } else if (exportResult.status === 'failed') {
-        throw new Error(exportResult.error_message || 'Export failed');
-      } else {
-        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
-      }
+      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      this.downloadFile(download.blob, download.filename);
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {
       console.error('Export all failed', error);
       this.snackBar.open(
@@ -159,4 +143,14 @@ export class CyclesComponent implements OnInit {
   goFr032(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr03-2']); }
   goScreenScope3(c: Cycle) { this.router.navigate(['/cycles', c.id, 'scope3-screen']); }
   goFr041(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr04-1']); }
+
+  private downloadFile(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }

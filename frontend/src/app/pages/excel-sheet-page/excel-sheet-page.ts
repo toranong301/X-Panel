@@ -9,8 +9,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
-import { CycleApiService, ExportDto } from '../../core/services/cycle-api.service';
+import { CycleApiService } from '../../core/services/cycle-api.service';
 import { CycleStateService } from '../../core/services/cycle-state.service';
+import { getSheetConfig } from '../../core/sheet.registry';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 
 @Component({
@@ -36,14 +37,11 @@ export class ExcelSheetPageComponent implements OnInit {
   private snackBar = inject(MatSnackBar);
 
   cycleId = 0;
-  templateKey = 'MBAX_TGO_11102567::demo';
-  sheetName = this.route.snapshot.data['sheetName'] ?? '';
-  title = this.route.snapshot.data['title'] ?? this.sheetName;
-  range = this.route.snapshot.data['range'] as string | undefined;
+  sheetId = this.route.snapshot.data['sheetId'] ?? '';
+  title = this.route.snapshot.data['title'] ?? getSheetConfig(this.sheetId)?.label ?? this.sheetId;
 
   exporting = false;
   exportError: string | null = null;
-  report: ExportDto | null = null;
 
   ngOnInit(): void {
     void this.resolveCycleId();
@@ -57,23 +55,15 @@ export class ExcelSheetPageComponent implements OnInit {
   async exportSheet() {
     this.exporting = true;
     this.exportError = null;
-    this.report = null;
 
     try {
       const canonical = this.canonicalSvc.build(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      this.report = await this.cycleApi.exportCycle(updateResult.cycleId);
-
-      if (this.report.status === 'completed' && this.report.download_url) {
-        window.open(this.report.download_url, '_blank');
-        this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
-      } else if (this.report.status === 'failed') {
-        throw new Error(this.report.error_message || 'Export failed');
-      } else {
-        this.snackBar.open('Export กำลังประมวลผล', 'ปิด', { duration: 4000 });
-      }
+      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      this.downloadFile(download.blob, download.filename);
+      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (e: any) {
       console.error('Export sheet failed', e);
       this.exportError = e?.message || String(e);
@@ -82,5 +72,15 @@ export class ExcelSheetPageComponent implements OnInit {
     } finally {
       this.exporting = false;
     }
+  }
+
+  private downloadFile(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }

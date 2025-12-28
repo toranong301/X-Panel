@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
@@ -26,6 +27,7 @@ import { Scope145WwtpComponent } from './scope145-wwtp/scope145-wwtp.component';
   selector: 'app-data-entry',
   standalone: true,
   imports: [
+    CommonModule,
     MatTabsModule,
     MatCardModule,
     MatDividerModule,
@@ -44,6 +46,7 @@ import { Scope145WwtpComponent } from './scope145-wwtp/scope145-wwtp.component';
 })
 export class DataEntryComponent implements OnInit {
   cycleId = 0;
+  ready = false;
 
   // แยก 1.1 / 1.2 เพื่อให้ export mapping ชัด
   scope11Rows: EntryRow[] = [];
@@ -67,6 +70,7 @@ export class DataEntryComponent implements OnInit {
     private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
     private cycleState: CycleStateService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -76,12 +80,22 @@ export class DataEntryComponent implements OnInit {
   private async initCycle(): Promise<void> {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
     const resolvedId = await this.cycleState.resolveCycleId(routeId);
+    if (!resolvedId) {
+      this.cycleId = 0;
+      this.ready = true;
+      this.cdr.markForCheck();
+      return;
+    }
     this.cycleId = resolvedId;
     if (routeId !== resolvedId) {
       this.router.navigate(['/cycles', resolvedId, 'data-entry'], { replaceUrl: true });
     }
 
     this.loadFromStorage();
+    queueMicrotask(() => {
+      this.ready = true;
+      this.cdr.markForCheck();
+    });
   }
 
   private loadFromStorage(): void {

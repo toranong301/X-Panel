@@ -27,6 +27,7 @@ export type CfoGhgBundle = {
 
 export interface CanonicalCycleData {
   cycleId: number;
+  templateId?: string;
 
   inventory: InventoryItemRow[];
   fr03_2: Fr032CanonicalRow[];
