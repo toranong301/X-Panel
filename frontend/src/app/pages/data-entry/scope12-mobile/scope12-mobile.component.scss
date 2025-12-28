@@ -15,4 +15,18 @@
     align-items: center;
     gap: 8px;
   }
+
+  .item-field,
+  .fuelkey-field {
+    width: 100%;
+  }
+
+  td .item-field,
+  td .fuelkey-field {
+    display: block;
+  }
+
+  td .fuelkey-field {
+    margin-top: 6px;
+  }
 }

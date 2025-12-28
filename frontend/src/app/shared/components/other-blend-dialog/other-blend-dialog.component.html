@@ -1,0 +1,63 @@
+<h2 mat-dialog-title>Other Fuel Blend Settings</h2>
+
+<div mat-dialog-content class="dialog-content">
+  <div class="section">
+    <div class="section-title">Blend Percent (%)</div>
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Diesel</mat-label>
+        <input matInput type="number" step="0.01" min="0" max="100" [(ngModel)]="dieselPct" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Biodiesel</mat-label>
+        <input matInput type="number" step="0.01" min="0" max="100" [(ngModel)]="biodieselPct" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Gasoline</mat-label>
+        <input matInput type="number" step="0.01" min="0" max="100" [(ngModel)]="gasolinePct" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Ethanol</mat-label>
+        <input matInput type="number" step="0.01" min="0" max="100" [(ngModel)]="ethanolPct" />
+      </mat-form-field>
+    </div>
+    <div class="hint" [class.error]="!isValid">
+      Sum: {{ pctSum | number: '1.0-2' }}%
+    </div>
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="normalizeTo100()">Normalize to 100</button>
+      <button mat-stroked-button type="button" (click)="applyPreset(100,0,0,0)">100/0/0/0</button>
+      <button mat-stroked-button type="button" (click)="applyPreset(93,7,0,0)">93/7/0/0</button>
+      <button mat-stroked-button type="button" (click)="applyPreset(90,10,0,0)">90/10/0/0</button>
+      <button mat-stroked-button type="button" (click)="applyPreset(0,0,90,10)">0/0/90/10</button>
+      <button mat-stroked-button type="button" (click)="applyPreset(0,0,80,20)">0/0/80/20</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Density (kg/L)</div>
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Biodiesel</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="biodieselKgPerL" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Ethanol</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="ethanolKgPerL" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Diesel (optional)</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="dieselKgPerL" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Gasoline (optional)</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="gasolineKgPerL" />
+      </mat-form-field>
+    </div>
+  </div>
+</div>
+
+<div mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-raised-button color="primary" [disabled]="!isValid" (click)="save()">Save</button>
+</div>

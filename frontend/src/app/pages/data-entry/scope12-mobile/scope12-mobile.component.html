@@ -44,7 +44,33 @@
         <tbody>
           <tr *ngFor="let row of groupRows(key)">
             <td>
-              <input type="text" [ngModel]="row.itemName" (ngModelChange)="updateItemName(row, $event)" />
+              <mat-form-field appearance="outline" class="item-field">
+                <input
+                  matInput
+                  type="text"
+                  [ngModel]="row.itemName"
+                  (ngModelChange)="updateItemName(row, $event)"
+                  [matAutocomplete]="itemAuto"
+                />
+                <mat-autocomplete
+                  #itemAuto="matAutocomplete"
+                  (optionSelected)="selectItemLabel(row, $event.option.value)"
+                >
+                  <mat-option *ngFor="let option of filteredOptions(row)" [value]="option">
+                    {{ option.defaultLabel }}
+                  </mat-option>
+                </mat-autocomplete>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="fuelkey-field">
+                <mat-select
+                  [ngModel]="parseKey(row.subCategoryCode).fuelKey"
+                  (ngModelChange)="updateFuelKey(row, $event)"
+                >
+                  <mat-option *ngFor="let option of itemOptions()" [value]="option.fuelKey">
+                    {{ option.fuelKey }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
             </td>
             <td>
               <input type="text" [ngModel]="row.referenceText" (ngModelChange)="updateEvidence(row, $event)" />
@@ -96,11 +122,33 @@
         <tbody>
           <tr>
             <td>
-              <input
-                type="text"
-                [ngModel]="ensureOffroadRow().itemName"
-                (ngModelChange)="updateItemName(ensureOffroadRow(), $event)"
-              />
+              <mat-form-field appearance="outline" class="item-field">
+                <input
+                  matInput
+                  type="text"
+                  [ngModel]="ensureOffroadRow().itemName"
+                  (ngModelChange)="updateItemName(ensureOffroadRow(), $event)"
+                  [matAutocomplete]="offroadAuto"
+                />
+                <mat-autocomplete
+                  #offroadAuto="matAutocomplete"
+                  (optionSelected)="selectItemLabel(ensureOffroadRow(), $event.option.value)"
+                >
+                  <mat-option *ngFor="let option of filteredOptions(ensureOffroadRow())" [value]="option">
+                    {{ option.defaultLabel }}
+                  </mat-option>
+                </mat-autocomplete>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="fuelkey-field">
+                <mat-select
+                  [ngModel]="parseKey(ensureOffroadRow().subCategoryCode).fuelKey"
+                  (ngModelChange)="updateFuelKey(ensureOffroadRow(), $event)"
+                >
+                  <mat-option *ngFor="let option of itemOptions()" [value]="option.fuelKey">
+                    {{ option.fuelKey }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
             </td>
             <td>
               <input

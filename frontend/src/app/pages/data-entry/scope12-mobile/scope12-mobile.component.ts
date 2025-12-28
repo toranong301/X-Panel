@@ -7,11 +7,17 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 
 import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
+import { DataEntryDoc, DataEntryService } from '../../../core/services/data-entry.service';
 import { SHEET_REGISTRY } from '../../../core/sheet.registry';
+import { getSheetItemOptions, SheetItemOption } from '../../../core/sheets/sheet-item.registry';
 import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 import { EntryRow } from '../../../models/entry-row.model';
@@ -45,10 +51,14 @@ const LABELS: Record<FuelKey, string> = {
     CommonModule,
     FormsModule,
     MatButtonModule,
+    MatAutocompleteModule,
     MatDialogModule,
+    MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatSelectModule,
   ],
   templateUrl: './scope12-mobile.component.html',
   styleUrls: ['./scope12-mobile.component.scss'],
@@ -76,18 +86,34 @@ export class Scope12MobileComponent {
     private cycleApi: CycleApiService,
     private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
+    private dataEntrySvc: DataEntryService,
   ) {}
 
-  openReview() {
-    this.dialog.open(ExcelSheetReviewDialogComponent, {
-      width: '90vw',
-      maxWidth: '1200px',
-      data: {
-        title: 'Review: 1.2 Mobile',
-        sheetId: this.sheetId,
-        cycleId: this.cycleId,
-      },
-    });
+  async openReview() {
+    try {
+      this.persistScopeRows();
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      this.cycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      this.dialog.open(ExcelSheetReviewDialogComponent, {
+        width: '90vw',
+        maxWidth: '1200px',
+        data: {
+          title: 'Review: 1.2 Mobile',
+          sheetId: this.sheetId,
+          cycleId: this.cycleId,
+          cacheKey: Date.now(),
+        },
+      });
+    } catch (error: any) {
+      console.error('Review preview failed', error);
+      this.snackBar.open(
+        error?.message || 'ไม่สามารถโหลดตัวอย่างฟอร์มได้',
+        'ปิด',
+        { duration: 6000 }
+      );
+    }
   }
 
   async exportSheet() {
@@ -111,6 +137,45 @@ export class Scope12MobileComponent {
 
   labelFor(key: FuelKey): string {
     return LABELS[key];
+  }
+
+  itemOptions(): SheetItemOption[] {
+    return getSheetItemOptions(this.sheetId, '1.2');
+  }
+
+  filteredOptions(row: EntryRow): SheetItemOption[] {
+    const options = this.itemOptions();
+    const query = String(row.itemName || '').trim().toLowerCase();
+    if (!query) return options;
+    return options.filter(option =>
+      option.defaultLabel.toLowerCase().includes(query) ||
+      option.fuelKey.toLowerCase().includes(query)
+    );
+  }
+
+  updateFuelKey(row: EntryRow, fuelKey: FuelKey) {
+    const parsed = this.parseKey(row.subCategoryCode);
+    const slotNo = this.resolveSlotNo(fuelKey, parsed.slotNo, row);
+    if (fuelKey === 'DIESEL_B7_OFFROAD') {
+      row.subCategoryCode = fuelKey;
+    } else {
+      row.subCategoryCode = `${fuelKey}#${slotNo}`;
+    }
+    const defaultLabel = LABELS[fuelKey];
+    if (!row.itemName || row.itemName === LABELS[parsed.fuelKey as FuelKey] || row.itemName === '') {
+      row.itemName = defaultLabel;
+    }
+    const option = this.itemOptions().find(item => item.fuelKey === fuelKey);
+    if (option?.unit) {
+      row.unit = option.unit;
+    }
+    this.rowsChange.emit(this.rows);
+  }
+
+  selectItemLabel(row: EntryRow, option?: SheetItemOption) {
+    if (!option) return;
+    row.itemName = option.defaultLabel;
+    this.updateFuelKey(row, option.fuelKey as FuelKey);
   }
 
   /** rows ในแต่ละกลุ่ม (sort ตาม slotNo) */
@@ -214,13 +279,51 @@ export class Scope12MobileComponent {
     return row;
   }
 
-  private parseKey(code?: string): { fuelKey?: FuelKey; slotNo?: number } {
+  private resolveSlotNo(
+    fuelKey: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'> | FuelKey,
+    currentSlot: number | undefined,
+    currentRow: EntryRow
+  ): number {
+    if (fuelKey === 'DIESEL_B7_OFFROAD') return 0;
+    const max = MAX_SLOTS[fuelKey as Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>];
+    const used = new Set(
+      this.rows
+        .filter(r => r !== currentRow && this.parseKey(r.subCategoryCode).fuelKey === fuelKey)
+        .map(r => this.parseKey(r.subCategoryCode).slotNo)
+        .filter(Boolean) as number[]
+    );
+    if (currentSlot && currentSlot >= 1 && currentSlot <= max && !used.has(currentSlot)) {
+      return currentSlot;
+    }
+    for (let i = 1; i <= max; i++) {
+      if (!used.has(i)) return i;
+    }
+    return 1;
+  }
+
+  parseKey(code?: string): { fuelKey?: FuelKey; slotNo?: number } {
     const raw = String(code || '').trim();
     if (!raw) return {};
     const [k, n] = raw.split('#');
     const fuelKey = k as FuelKey;
     const slotNo = n ? Number(n) : undefined;
     return { fuelKey, slotNo: Number.isFinite(slotNo) ? slotNo : undefined };
+  }
+
+  private persistScopeRows(): void {
+    const existing: DataEntryDoc = this.dataEntrySvc.load(this.cycleId) ?? {
+      cycleId: this.cycleId,
+      scope1: [],
+      scope2: [],
+      scope3: [],
+    };
+    const otherScope1 = (existing.scope1 ?? []).filter(r => r.categoryCode !== '1.2');
+    const scope12Rows = this.rows.filter(r => r.categoryCode === '1.2');
+    this.dataEntrySvc.save(this.cycleId, {
+      ...existing,
+      cycleId: this.cycleId,
+      scope1: [...scope12Rows, ...otherScope1],
+    });
   }
 
   private downloadFile(blob: Blob, filename: string) {

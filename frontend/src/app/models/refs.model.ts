@@ -53,6 +53,43 @@ export interface InventoryItemRow {
 
   /** กรณีมีหลาย slot แถว (เช่น 1.2 on-road มีหลายบรรทัด) */
   slotNo?: number;            // เพื่อ export เป็นสูตรอ้างอิงย้อนกลับได้
+
+  /** optional blend spec for custom fuel split */
+  blendSpec?: {
+    dieselPct?: number;
+    biodieselPct?: number;
+    gasolinePct?: number;
+    ethanolPct?: number;
+    density?: {
+      biodieselKgPerL?: number;
+      ethanolKgPerL?: number;
+      dieselKgPerL?: number;
+      gasolineKgPerL?: number;
+    };
+  };
+
+  unitConversion?: {
+    kgPerUnit?: number;
+  };
+
+  fuelType?: string;
+  blend?: {
+    dieselPct?: number;
+    biodieselPct?: number;
+    gasolinePct?: number;
+    ethanolPct?: number;
+    biodieselDensityKgPerL?: number;
+    ethanolDensityKgPerL?: number;
+  };
+  computed?: {
+    totalL?: number;
+    dieselL?: number;
+    biodieselL?: number;
+    biodieselKg?: number;
+    gasolineL?: number;
+    ethanolL?: number;
+    ethanolKg?: number;
+  };
 }
 
 // evaluation.model.ts (FR-03.2 canonical)

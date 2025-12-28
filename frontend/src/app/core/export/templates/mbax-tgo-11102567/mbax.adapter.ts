@@ -608,8 +608,11 @@ const screenRow =
 
   // เคลียร์ข้อมูลเก่าเฉพาะ input cells
   for (const r of [dieselRow, gasoholRow, acetyl2TankRow, acetyl3TankRow]) {
-  setMonths(r); // จะเขียน null ทั้ง 12 เดือน (ผ่าน setCellValueSafely)
-}
+    for (const col of ['A', 'B', 'C']) {
+      this.setCellValueSafely(ws, `${col}${r}`, null);
+    }
+    setMonths(r); // จะเขียน null ทั้ง 12 เดือน (ผ่าน setCellValueSafely)
+  }
 
 
   // ดึง canonical
@@ -631,10 +634,30 @@ const screenRow =
   const acetyl2 = byFuelKey('ACETYLENE_TANK5_MAINT_2');
   const acetyl3 = byFuelKey('ACETYLENE_TANK5_MAINT_3');
 
-  if (diesel)  setMonths(dieselRow, getMonths(diesel));
-  if (gasohol) setMonths(gasoholRow, getMonths(gasohol));
-  if (acetyl2) setMonths(acetyl2TankRow, getMonths(acetyl2));
-  if (acetyl3) setMonths(acetyl3TankRow, getMonths(acetyl3));
+  if (diesel) {
+    this.setCellValueSafely(ws, `A${dieselRow}`, String((diesel as any).itemLabel ?? ''));
+    this.setCellValueSafely(ws, `B${dieselRow}`, String((diesel as any).dataEvidence ?? ''));
+    this.setCellValueSafely(ws, `C${dieselRow}`, String((diesel as any).unit ?? ''));
+    setMonths(dieselRow, getMonths(diesel));
+  }
+  if (gasohol) {
+    this.setCellValueSafely(ws, `A${gasoholRow}`, String((gasohol as any).itemLabel ?? ''));
+    this.setCellValueSafely(ws, `B${gasoholRow}`, String((gasohol as any).dataEvidence ?? ''));
+    this.setCellValueSafely(ws, `C${gasoholRow}`, String((gasohol as any).unit ?? ''));
+    setMonths(gasoholRow, getMonths(gasohol));
+  }
+  if (acetyl2) {
+    this.setCellValueSafely(ws, `A${acetyl2TankRow}`, String((acetyl2 as any).itemLabel ?? ''));
+    this.setCellValueSafely(ws, `B${acetyl2TankRow}`, String((acetyl2 as any).dataEvidence ?? ''));
+    this.setCellValueSafely(ws, `C${acetyl2TankRow}`, String((acetyl2 as any).unit ?? ''));
+    setMonths(acetyl2TankRow, getMonths(acetyl2));
+  }
+  if (acetyl3) {
+    this.setCellValueSafely(ws, `A${acetyl3TankRow}`, String((acetyl3 as any).itemLabel ?? ''));
+    this.setCellValueSafely(ws, `B${acetyl3TankRow}`, String((acetyl3 as any).dataEvidence ?? ''));
+    this.setCellValueSafely(ws, `C${acetyl3TankRow}`, String((acetyl3 as any).unit ?? ''));
+    setMonths(acetyl3TankRow, getMonths(acetyl3));
+  }
 
   const totalRows: Array<{ key: string; row: number }> = [
     { key: 'DIESEL_B7_STATIONARY', row: dieselRow },
@@ -934,6 +957,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
       GASOHOL_9195: ['Gasohol 91/95'],
       GASOHOL_E20: ['Gasohol E20'],
       DIESEL_B7_OFFROAD: ['Diesel B7 off-road', 'forklift'],
+      BIODIESEL_STATIONARY: ['Biodiesel (Stationary combustion)', 'Biodiesel'],
+      ETHANOL_STATIONARY: ['Biogasoline (Ethanol) (Stationary combustion)', 'Ethanol'],
     };
 
     for (const item of scope1Items) {
@@ -964,6 +989,36 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
       const formula = `='${totalRef.sheetName}'!${totalRef.totalCell}`;
       this.setCellValueSafely(ws, `${qtyColLetter}${targetRow}`, { formula });
 
+      if (unitColLetter && (item as any).unit) {
+        this.setCellValueSafely(ws, `${unitColLetter}${targetRow}`, String((item as any).unit));
+      }
+    }
+
+    // Derived totals (when not linked to sub-sheet totals)
+    const derivedFuelKeys = new Set(['BIODIESEL_STATIONARY', 'ETHANOL_STATIONARY']);
+    for (const item of scope1Items) {
+      const fuelKey = getFuelKey(item);
+      if (!derivedFuelKeys.has(fuelKey)) continue;
+      const qty = Number((item as any).quantityPerYear ?? 0);
+      if (!qty) continue;
+
+      const labelCandidates = [
+        String((item as any).itemLabel ?? ''),
+        ...(fuelKeyLabelMap[fuelKey] ?? []),
+      ]
+        .map(normalizeText)
+        .filter(Boolean);
+
+      if (!labelCandidates.length) continue;
+
+      const matches = rowLabels
+        .filter(r => r.label && labelCandidates.some(label => r.label.includes(label) || label.includes(r.label)))
+        .map(r => r.row)
+        .sort((a, b) => a - b);
+      if (!matches.length) continue;
+
+      const targetRow = matches[0];
+      this.setCellValueSafely(ws, `${qtyColLetter}${targetRow}`, qty);
       if (unitColLetter && (item as any).unit) {
         this.setCellValueSafely(ws, `${unitColLetter}${targetRow}`, String((item as any).unit));
       }

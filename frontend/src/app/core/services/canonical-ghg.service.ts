@@ -12,6 +12,7 @@ import { Fr02Service } from './fr02.service';
 import { Fr031Service } from './fr03-1.service';
 import { Fr032Service } from './fr03-2.service';
 import { Scope3SummaryService } from './scope3-summary.service';
+import { computeBlendFromAnnualL, computeBlendFromSpec, resolveBlendKey } from '../sheets/fuel-blend.registry';
 
 @Injectable({ providedIn: 'root' })
 export class CanonicalGhgService {
@@ -55,6 +56,7 @@ export class CanonicalGhgService {
       ...inventoryScope1,
       ...inventoryScope2,
       ...inventoryScope3,
+      ...this.buildScope11DerivedInventory(entryDoc?.scope1 ?? []),
     ];
 
     // --- FR-03.2 canonical (significance result per Scope3 item) ---
@@ -135,6 +137,56 @@ export class CanonicalGhgService {
     return []; // ยังไม่ทำในงานนี้
   }
 
+  private buildScope11DerivedInventory(scope1Rows: EntryRow[]): InventoryItemRow[] {
+    const rows = scope1Rows.filter(r => r.categoryCode === '1.1');
+    let biodieselKg = 0;
+    let ethanolKg = 0;
+
+    for (const row of rows) {
+      if (String(row.unit || '').toLowerCase() !== 'l') continue;
+      const annualL = this.sumEntryRowMonths(row);
+      if (!annualL) continue;
+      const blendKey = resolveBlendKey(row.subCategoryCode, row.remark);
+      const blend = blendKey === 'OTHER'
+        ? computeBlendFromSpec(annualL, row.blendSpec)
+        : computeBlendFromAnnualL(annualL, blendKey);
+      biodieselKg += blend.biodieselKg;
+      ethanolKg += blend.ethanolKg;
+    }
+
+    const items: InventoryItemRow[] = [];
+    if (biodieselKg > 0) {
+      items.push({
+        id: 'S1:1.1:biodiesel_stationary',
+        scope: 1,
+        subScope: '1.1',
+        tgoNo: 'Scope 1.1',
+        isoScope: '',
+        categoryLabel: 'Stationary combustion',
+        itemLabel: 'Biodiesel (Stationary combustion)',
+        unit: 'kg',
+        quantityPerYear: biodieselKg,
+        fuelKey: 'BIODIESEL_STATIONARY',
+      });
+    }
+    if (ethanolKg > 0) {
+      items.push({
+        id: 'S1:1.1:biogasoline_ethanol_stationary',
+        scope: 1,
+        subScope: '1.1',
+        tgoNo: 'Scope 1.1',
+        isoScope: '',
+        categoryLabel: 'Stationary combustion',
+        itemLabel: 'Biogasoline (Ethanol) (Stationary combustion)',
+        unit: 'kg',
+        quantityPerYear: ethanolKg,
+        fuelKey: 'ETHANOL_STATIONARY',
+      });
+    }
+
+    return items;
+  }
+
   private mapEntryRowToInventory(r: EntryRow, scopeNo: 1 | 2 | 3): InventoryItemRow {
     const monthly = this.toMonthlyArray(r.months || []);
     const qtyYear = monthly.reduce((s, n) => s + Number(n || 0), 0);
@@ -175,6 +227,11 @@ export class CanonicalGhgService {
       fuelKey,
       quantityMonthly: monthly,
       slotNo,
+      blendSpec: r.blendSpec,
+      blend: r.blend,
+      computed: r.computed,
+      unitConversion: r.unitConversion,
+      fuelType: r.fuelType,
     };
   }
 

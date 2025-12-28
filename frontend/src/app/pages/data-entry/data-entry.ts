@@ -81,30 +81,30 @@ export class DataEntryComponent implements OnInit {
     if (saved) {
       const scope1Rows = saved.scope1 ?? [];
       const scope11Rows = normalizeScope11Rows(cycleId, scope1Rows);
-      const scope12RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.2');
-      const scope12Rows = scope12RowsFiltered.length
-        ? scope12RowsFiltered
-        : makeScope12Defaults(cycleId);
-      const scope141RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.1');
-      const scope141Rows = scope141RowsFiltered.length
-        ? scope141RowsFiltered
-        : makeScope141Defaults(cycleId);
-      const scope142RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.2');
-      const scope142Rows = scope142RowsFiltered.length
-        ? scope142RowsFiltered
-        : makeScope142Defaults(cycleId);
-      const scope143RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.3');
-      const scope143Rows = scope143RowsFiltered.length
-        ? scope143RowsFiltered
-        : makeScope143Defaults(cycleId);
-      const scope144RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.4');
-      const scope144Rows = scope144RowsFiltered.length
-        ? scope144RowsFiltered
-        : makeScope144Defaults(cycleId);
-      const scope145RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.5');
-      const scope145Rows = scope145RowsFiltered.length
-        ? scope145RowsFiltered
-        : makeScope145Defaults(cycleId);
+      let scope12Rows = scope1Rows.filter(r => r.categoryCode === '1.2');
+      if (!scope12Rows.length) {
+        scope12Rows = makeScope12Defaults(cycleId);
+      }
+      let scope141Rows = scope1Rows.filter(r => r.categoryCode === '1.4.1');
+      if (!scope141Rows.length) {
+        scope141Rows = makeScope141Defaults(cycleId);
+      }
+      let scope142Rows = scope1Rows.filter(r => r.categoryCode === '1.4.2');
+      if (!scope142Rows.length) {
+        scope142Rows = makeScope142Defaults(cycleId);
+      }
+      let scope143Rows = scope1Rows.filter(r => r.categoryCode === '1.4.3');
+      if (!scope143Rows.length) {
+        scope143Rows = makeScope143Defaults(cycleId);
+      }
+      let scope144Rows = scope1Rows.filter(r => r.categoryCode === '1.4.4');
+      if (!scope144Rows.length) {
+        scope144Rows = makeScope144Defaults(cycleId);
+      }
+      let scope145Rows = scope1Rows.filter(r => r.categoryCode === '1.4.5');
+      if (!scope145Rows.length) {
+        scope145Rows = makeScope145Defaults(cycleId);
+      }
       const scope2Rows = saved.scope2 ?? [];
       const scope3Rows = saved.scope3 ?? [];
       const evidenceMap = this.seedEvidenceKeys(saved.evidence ?? {});
@@ -129,7 +129,7 @@ export class DataEntryComponent implements OnInit {
     return {
       cycleId,
       ready: false,
-      scope11Rows: makeScope11Defaults(cycleId),
+      scope11Rows: [],
       scope12Rows: makeScope12Defaults(cycleId),
       scope141Rows: makeScope141Defaults(cycleId),
       scope142Rows: makeScope142Defaults(cycleId),
@@ -324,6 +324,8 @@ function makeScope11Defaults(cycleId: number): EntryRow[] {
 }
 
 function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow[] {
+  const existingRows = scope1Rows.filter(r => r.categoryCode === '1.1');
+  if (!existingRows.length) return [];
   const defaults = makeScope11Defaults(cycleId);
   const legacyMap: Record<string, string> = {
     'S1_1_1#1': 'DIESEL_B7_STATIONARY',
@@ -333,20 +335,33 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
   };
 
   const existingByCode = new Map<string, EntryRow>();
-  for (const row of scope1Rows.filter(r => r.categoryCode === '1.1')) {
+  for (const row of existingRows) {
     const code = legacyMap[row.subCategoryCode ?? ''] ?? row.subCategoryCode ?? '';
     if (code) existingByCode.set(code, row);
   }
 
-  return defaults.map(def => {
+  const mergedDefaults = defaults.map(def => {
     const existing = existingByCode.get(def.subCategoryCode ?? '');
     if (!existing) return def;
     return {
       ...def,
       months: existing.months?.length ? existing.months : def.months,
       referenceText: existing.referenceText ?? def.referenceText,
+      itemName: existing.itemName?.trim() ? existing.itemName : def.itemName,
+      unit: existing.unit?.trim() ? existing.unit : def.unit,
+      remark: existing.remark ?? def.remark,
     };
   });
+
+  const defaultKeys = new Set(defaults.map(def => def.subCategoryCode).filter(Boolean));
+  const customRows = scope1Rows
+    .filter(r => r.categoryCode === '1.1')
+    .filter(r => {
+      const code = legacyMap[r.subCategoryCode ?? ''] ?? r.subCategoryCode ?? '';
+      return code && !defaultKeys.has(code);
+    });
+
+  return [...mergedDefaults, ...customRows];
 }
 
 // Scope 1.2: seed แบบ “ไม่ฟิกจำนวนแถว”

@@ -40,4 +40,41 @@ export interface EntryRow {
   /** ค่าที่ถูก “freeze” ตอน Lock */
   snapshotEfValue?: number;
   snapshotGwpVersion?: GwpVersion;
+
+  /** optional blend spec for custom fuel split */
+  blendSpec?: {
+    dieselPct?: number;
+    biodieselPct?: number;
+    gasolinePct?: number;
+    ethanolPct?: number;
+    density?: {
+      biodieselKgPerL?: number;
+      ethanolKgPerL?: number;
+      dieselKgPerL?: number;
+      gasolineKgPerL?: number;
+    };
+  };
+
+  unitConversion?: {
+    kgPerUnit?: number;
+  };
+
+  fuelType?: string;
+  blend?: {
+    dieselPct?: number;
+    biodieselPct?: number;
+    gasolinePct?: number;
+    ethanolPct?: number;
+    biodieselDensityKgPerL?: number;
+    ethanolDensityKgPerL?: number;
+  };
+  computed?: {
+    totalL?: number;
+    dieselL?: number;
+    biodieselL?: number;
+    biodieselKg?: number;
+    gasolineL?: number;
+    ethanolL?: number;
+    ethanolKg?: number;
+  };
 }

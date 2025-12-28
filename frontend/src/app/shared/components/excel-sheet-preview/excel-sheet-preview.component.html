@@ -24,8 +24,9 @@
             *ngFor="let cell of row.cells; let i = index; trackBy: trackCell"
             [class.num]="cell.type === 'number'"
             [class.formula]="cell.type === 'formula'"
+            [attr.title]="cell.formula || null"
           >
-            {{ cell.display }}
+            {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
           </td>
         </tr>
       </tbody>

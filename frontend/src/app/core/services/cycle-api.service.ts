@@ -39,6 +39,7 @@ export type CycleUpdateResult = {
   updated: boolean;
   cycleId: number;
   created?: boolean;
+  previewVersion?: string | null;
 };
 
 /* =======================
@@ -82,13 +83,13 @@ export class CycleApiService {
     const resolvedId = await this.resolveCycleId(id);
 
     try {
-      await firstValueFrom(
-        this.api.put<{ updated: boolean }>(
+      const resp = await firstValueFrom(
+        this.api.put<{ updated: boolean; previewVersion?: string | null }>(
           `cycles/${resolvedId}/data`,
           { data }
         )
       );
-      return { updated: true, cycleId: resolvedId };
+      return { updated: true, cycleId: resolvedId, previewVersion: resp?.previewVersion ?? null };
 
     } catch (error: any) {
       throw error;

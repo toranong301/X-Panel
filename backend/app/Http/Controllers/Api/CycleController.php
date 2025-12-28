@@ -48,7 +48,11 @@ class CycleController extends Controller
         $cycle->data_json = $payload['data_json'] ?? $payload['data'] ?? [];
         $cycle->save();
 
-        return response()->json(['id' => $cycle->id, 'updated' => true]);
+        return response()->json([
+            'id' => $cycle->id,
+            'updated' => true,
+            'previewVersion' => optional($cycle->updated_at)->toIso8601String(),
+        ]);
     }
 
     public function preview(
@@ -59,6 +63,7 @@ class CycleController extends Controller
         SheetRegistry $sheetRegistry
     )
     {
+        $cycle->refresh();
         $payload = $request->validate([
             'sheetId' => ['required', 'string', 'max:200'],
         ]);
@@ -106,7 +111,7 @@ class CycleController extends Controller
 
         // Root cause seen in logs: missing MBAX template path triggered a 500.
         try {
-            $spreadsheet = $mbax->loadTemplate($sheet, $range, $templateId);
+            $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'MBAX template not found')) {
                 return response()->json([
@@ -132,7 +137,9 @@ class CycleController extends Controller
                 $range,
                 $templateId
             );
-            return response()->json($mbax->buildPreview($spreadsheet, $sheet, $range));
+            $preview = $mbax->buildPreview($spreadsheet, $sheet, $range);
+            $preview['previewVersion'] = optional($cycle->updated_at)->toIso8601String();
+            return response()->json($preview);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'code' => 'INVALID_RANGE',
