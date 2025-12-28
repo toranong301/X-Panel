@@ -87,7 +87,7 @@
         </tr>
       </thead>
       <tbody>
-        <ng-container *ngFor="let row of rowsView">
+        <ng-container *ngFor="let row of rowsView; trackBy: trackByRow">
           <tr>
             <td>
               <mat-form-field appearance="outline">
@@ -181,9 +181,11 @@
               </mat-form-field>
             </td>
             <td class="num">{{ formatNumber(total(row)) }}</td>
-            <td *ngFor="let m of months">
+            <td *ngFor="let m of months; trackBy: trackByMonth">
               <input
                 type="number"
+                inputmode="decimal"
+                step="0.01"
                 [ngModel]="getMonthQty(row, m)"
                 (ngModelChange)="updateMonthQty(row, m, $event)"
               />
@@ -205,7 +207,7 @@
             <td class="placeholder">-</td>
             <td>kg</td>
             <td class="num">{{ formatNumber(acetyleneKgTotal(row), true) }}</td>
-            <td *ngFor="let m of months" class="num">
+            <td *ngFor="let m of months; trackBy: trackByMonth" class="num">
               {{ formatNumber(getMonthQty(row, m) * 5, true) }}
             </td>
             <td></td>

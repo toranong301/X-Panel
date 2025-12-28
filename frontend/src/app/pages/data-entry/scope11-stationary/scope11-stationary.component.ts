@@ -70,6 +70,8 @@ export class Scope11StationaryComponent {
   exporting = false;
   readonly sheetId = SHEET_REGISTRY['SCOPE1_STATIONARY'].sheetId;
   private _rows: EntryRow[] = [];
+  readonly trackByRow = (_: number, row: EntryRow) => row.id ?? row.subCategoryCode ?? row.itemName ?? _;
+  readonly trackByMonth = (_: number, month: number) => month;
 
   constructor(
     private dialog: MatDialog,
