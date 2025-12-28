@@ -7,7 +7,12 @@ import { CycleApiService } from '../../services/cycle-api.service';
 import { CycleStateService } from '../../services/cycle-state.service';
 
 export type SheetPreviewCell = {
-  display: string;
+  addr: string;
+  raw: string | number | null;
+  formula: string | null;
+  computed: string | number | null;
+  display: string | null;
+  calcError: string | null;
   type: 'text' | 'number' | 'formula';
 };
 
@@ -21,6 +26,7 @@ export type SheetPreview = {
   columns: string[];
   rows: SheetPreviewRow[];
   range: string;
+  previewVersion?: string | null;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +44,8 @@ export class ExcelPreviewService {
     cycleId: number;
     sheetId: string;
     signal?: AbortSignal;
+    cacheKey?: string | number;
+    skipSave?: boolean;
   }): Promise<SheetPreview> {
     const resolvedCycleId = params.cycleId > 0
       ? params.cycleId
@@ -45,15 +53,22 @@ export class ExcelPreviewService {
     if (!resolvedCycleId) {
       throw new Error('No active cycle selected.');
     }
-    const canonical = this.canonicalSvc.build(resolvedCycleId);
-    const updateResult = await this.cycleApi.updateCycleData(resolvedCycleId, canonical);
-    this.cycleState.setSelectedCycleId(updateResult.cycleId);
+    let previewCycleId = resolvedCycleId;
+    if (!params.skipSave) {
+      const canonical = this.canonicalSvc.build(resolvedCycleId);
+      const updateResult = await this.cycleApi.updateCycleData(resolvedCycleId, canonical);
+      previewCycleId = updateResult.cycleId;
+      this.cycleState.setSelectedCycleId(updateResult.cycleId);
+    }
 
     const paramsMap: Record<string, string> = {
       sheetId: params.sheetId,
     };
+    if (params.cacheKey !== undefined && params.cacheKey !== null) {
+      paramsMap['ts'] = String(params.cacheKey);
+    }
 
-    const request$ = this.api.get<SheetPreview>(`cycles/${updateResult.cycleId}/preview`, {
+    const request$ = this.api.get<SheetPreview>(`cycles/${previewCycleId}/preview`, {
       params: paramsMap,
       signal: params.signal,
     }).pipe(

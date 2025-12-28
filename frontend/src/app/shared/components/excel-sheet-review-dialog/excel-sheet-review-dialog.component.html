@@ -4,6 +4,9 @@
   <app-excel-sheet-preview
     [cycleId]="data.cycleId"
     [sheetId]="data.sheetId"
+    [cacheKey]="data.cacheKey"
+    [skipSave]="data.skipSave ?? false"
+    [hideBlankRows]="data.hideBlankRows ?? false"
   ></app-excel-sheet-preview>
 </div>
 

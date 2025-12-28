@@ -15,4 +15,33 @@
     align-items: center;
     gap: 8px;
   }
+
+  mat-form-field {
+    width: 100%;
+  }
+
+  td mat-form-field + mat-form-field {
+    margin-top: 6px;
+  }
+
+  .blend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+  }
+
+  .blend-badge {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #1a202c;
+  }
+
+  .blend-error {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #b91c1c;
+  }
 }

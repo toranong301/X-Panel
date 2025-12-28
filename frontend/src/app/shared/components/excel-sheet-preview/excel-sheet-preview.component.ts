@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { finalize, from, Subscription } from 'rxjs';
 
 import { ExcelPreviewService, SheetPreview, SheetPreviewRow } from '../../../core/export/engine/excel-preview.service';
+import { filterBlankPreviewRows } from '../../../core/export/engine/excel-preview.utils';
 
 @Component({
   selector: 'app-excel-sheet-preview',
@@ -17,6 +18,9 @@ import { ExcelPreviewService, SheetPreview, SheetPreviewRow } from '../../../cor
 export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   @Input() cycleId = 0;
   @Input() sheetId = '';
+  @Input() cacheKey?: string | number;
+  @Input() skipSave = false;
+  @Input() hideBlankRows = false;
 
   loading = false;
   error: string | null = null;
@@ -42,7 +46,8 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   }
 
   get rows(): SheetPreviewRow[] {
-    return this.preview?.rows ?? [];
+    const rows = this.preview?.rows ?? [];
+    return this.hideBlankRows ? filterBlankPreviewRows(rows) : rows;
   }
 
   trackRow(_index: number, row: SheetPreviewRow) {
@@ -77,6 +82,8 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
     const request$ = from(this.previewSvc.loadSheet({
       cycleId: this.cycleId,
       sheetId: this.sheetId,
+      cacheKey: this.cacheKey,
+      skipSave: this.skipSave,
       signal: this.abortController.signal,
     })).pipe(
       finalize(() => {

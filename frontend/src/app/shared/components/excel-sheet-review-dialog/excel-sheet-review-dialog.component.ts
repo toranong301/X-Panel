@@ -9,6 +9,9 @@ export type ExcelSheetReviewData = {
   title: string;
   sheetId: string;
   cycleId: number;
+  cacheKey?: string | number;
+  skipSave?: boolean;
+  hideBlankRows?: boolean;
 };
 
 @Component({

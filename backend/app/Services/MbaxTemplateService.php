@@ -8,6 +8,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class MbaxTemplateService
@@ -71,8 +72,9 @@ class MbaxTemplateService
         for ($r = $rangeInfo['startRow']; $r <= $rangeInfo['endRow']; $r++) {
             $cells = [];
             for ($c = $rangeInfo['startCol']; $c <= $rangeInfo['endCol']; $c++) {
-                $cell = $ws->getCellByColumnAndRow($c, $r);
-                $cells[] = $this->formatPreviewCell($cell);
+                $addr = Coordinate::stringFromColumnIndex($c) . $r;
+                $cell = $ws->getCell($addr);
+                $cells[] = $this->formatPreviewCell($cell, $addr);
             }
             $rows[] = [
                 'rowNumber' => $r,
@@ -198,6 +200,9 @@ class MbaxTemplateService
         if (!$ws) return;
 
         $monthCols = $mapping['monthColumns'] ?? ['E','F','G','H','I','J','K','L','M','N','O','P'];
+        $summaryRows = $mapping['summaryRows'] ?? [5, 6, 7];
+        $summaryCols = $mapping['summaryColumns'] ?? range('A', 'P');
+        $this->clearScope11StationaryInputs($ws, $monthCols, [9, 10, 12, 14], $summaryRows, $summaryCols);
         $rowsByFuel = $this->buildFuelMap($data, '1.1');
 
         $map = [];
@@ -218,9 +223,28 @@ class MbaxTemplateService
         }
 
         foreach ($map as $fuelKey => $excelRow) {
+            $rowData = $this->findInventoryRow($data, $fuelKey, '1.1');
             $months = $rowsByFuel[$fuelKey]['months'] ?? null;
+            if ($rowData) {
+                $this->setCellValueSafely($ws, 'A' . $excelRow, $rowData['itemLabel'] ?? null, $range);
+                $this->setCellValueSafely($ws, 'B' . $excelRow, $rowData['dataEvidence'] ?? null, $range);
+                $this->setCellValueSafely($ws, 'C' . $excelRow, $rowData['unit'] ?? null, $range);
+            }
             $this->writeMonthlyCells($ws, $excelRow, $monthCols, $months, $range);
         }
+    }
+
+    private function findInventoryRow(array $data, string $fuelKey, string $subScope): ?array
+    {
+        $inventory = $data['inventory'] ?? [];
+        if (!is_array($inventory)) return null;
+        foreach ($inventory as $row) {
+            if (!is_array($row)) continue;
+            if ((string) ($row['subScope'] ?? '') !== $subScope) continue;
+            $key = strtoupper(trim((string) ($row['fuelKey'] ?? '')));
+            if ($key === strtoupper($fuelKey)) return $row;
+        }
+        return null;
     }
 
     private function writeScope12Mobile(
@@ -262,6 +286,30 @@ class MbaxTemplateService
         if ($offroad) {
             $this->writeMonthlyCells($ws, $offroadForkliftRow, $monthCols, $offroad['months'] ?? null, $range);
         }
+    }
+
+    private function clearScope11StationaryInputs($ws, array $monthCols, array $rows, array $summaryRows, array $summaryCols): void
+    {
+        foreach ($summaryRows as $row) {
+            foreach ($summaryCols as $col) {
+                $this->clearCellIfEditable($ws, $col . $row);
+            }
+        }
+        foreach ($rows as $row) {
+            foreach (['A', 'B', 'C'] as $col) {
+                $this->clearCellIfEditable($ws, $col . $row);
+            }
+            foreach ($monthCols as $col) {
+                $this->clearCellIfEditable($ws, $col . $row);
+            }
+        }
+    }
+
+    private function clearCellIfEditable($ws, string $cellRef): void
+    {
+        $cell = $ws->getCell($cellRef);
+        if ($cell->isFormula()) return;
+        $cell->setValue(null);
     }
 
     private function fillMobileSlots($ws, array $monthCols, array $slots, array $items, ?string $range): void
@@ -398,26 +446,57 @@ class MbaxTemplateService
         ];
     }
 
-    private function formatPreviewCell($cell): array
+    private function formatPreviewCell($cell, string $addr): array
     {
+        $raw = $cell->getValue();
+        $formula = $cell->isFormula() ? (string) $cell->getValue() : null;
+        $computed = null;
+        $display = null;
+        $calcError = null;
+
         if ($cell->isFormula()) {
-            $formula = ltrim((string) $cell->getValue(), '=');
-            return ['display' => '=' . $formula, 'type' => 'formula'];
+            try {
+                $computed = $cell->getCalculatedValue();
+            } catch (\Throwable $e) {
+                $calcError = $e->getMessage();
+            }
+        } else {
+            $computed = $raw;
         }
 
-        $value = $cell->getValue();
-        if ($value === null || $value === '') {
-            return ['display' => '', 'type' => 'text'];
+        $formatCode = $cell->getStyle()->getNumberFormat()->getFormatCode();
+        $computedValue = $computed instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText
+            ? $computed->getPlainText()
+            : $computed;
+        $rawValue = $raw instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText
+            ? $raw->getPlainText()
+            : $raw;
+
+        if ($computedValue === null || $computedValue === '') {
+            $display = '';
+        } else {
+            $display = NumberFormat::toFormattedString($computedValue, $formatCode);
         }
-        if (is_numeric($value)) {
-            $formatted = number_format((float) $value, 2, '.', ',');
-            $formatted = rtrim(rtrim($formatted, '0'), '.');
-            return ['display' => $formatted, 'type' => 'number'];
+        if ($calcError) {
+            $display = $formula ?? (is_string($rawValue) ? $rawValue : (string) $rawValue);
         }
-        if ($value instanceof \DateTimeInterface) {
-            return ['display' => $value->format('d/m/Y'), 'type' => 'text'];
+
+        $type = 'text';
+        if ($cell->isFormula()) {
+            $type = 'formula';
+        } elseif (is_numeric($computedValue)) {
+            $type = 'number';
         }
-        return ['display' => (string) $value, 'type' => 'text'];
+
+        return [
+            'addr' => $addr,
+            'raw' => $rawValue,
+            'formula' => $formula,
+            'computed' => $computedValue,
+            'display' => $display,
+            'calcError' => $calcError,
+            'type' => $type,
+        ];
     }
 
     private function toBuddhistExcelDate($value): ?float

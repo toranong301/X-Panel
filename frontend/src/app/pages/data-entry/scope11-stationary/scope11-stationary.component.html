@@ -5,11 +5,20 @@
       <p>รูปแบบตาม Excel (ตารางสรุปด้านบน + ตารางรายเดือนด้านล่าง)</p>
     </div>
     <div class="header-actions">
-      <button mat-stroked-button (click)="openReview()">
+      <button mat-stroked-button (click)="openReview()" [disabled]="hasOtherBlendErrors()">
         <mat-icon>preview</mat-icon>
         Review
       </button>
-      <button mat-raised-button color="primary" (click)="exportSheet()" [disabled]="exporting">
+      <button mat-stroked-button color="primary" (click)="addRow()">
+        <mat-icon>add</mat-icon>
+        เพิ่มรายการ
+      </button>
+      <button
+        mat-raised-button
+        color="primary"
+        (click)="exportSheet()"
+        [disabled]="exporting || hasOtherBlendErrors()"
+      >
         <mat-icon *ngIf="!exporting">download</mat-icon>
         <mat-progress-spinner *ngIf="exporting" diameter="18" mode="indeterminate"></mat-progress-spinner>
         <span>{{ exporting ? 'กำลัง Export...' : 'Export 1.1 Stationary (.xlsx)' }}</span>
@@ -35,46 +44,28 @@
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>น้ำมัน Diesel B7 (Fire Pump)</td>
-          <td>B7</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(dieselCode)"
-              (ngModelChange)="updateEvidence(dieselCode, $event)"
-            />
-          </td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.93) }}</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.07) }}</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselCode) * 0.07 * 0.87) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
+        <ng-container *ngIf="blendRows.length > 0">
+          <tr *ngFor="let item of blendRows">
+          <td>{{ item.row.itemName || '-' }}</td>
+          <td>{{ item.rule.label }}</td>
+          <td>{{ item.row.referenceText || '-' }}</td>
+          <td>{{ item.row.unit || 'L' }}</td>
+          <td class="num">{{ formatNumber(item.annualL, true) }}</td>
+          <td class="num">{{ formatNumber(item.dieselL, true) }}</td>
+          <td class="num">{{ formatNumber(item.biodieselL, true) }}</td>
+          <td class="num">{{ formatNumber(item.biodieselKg, true) }}</td>
+          <td class="num">{{ formatNumber(item.gasolineL, true) }}</td>
+          <td class="num">{{ formatNumber(item.ethanolL, true) }}</td>
+          <td class="num">{{ formatNumber(item.ethanolKg, true) }}</td>
         </tr>
-        <tr>
-          <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
-          <td>91/95</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(gasoholCode)"
-              (ngModelChange)="updateEvidence(gasoholCode, $event)"
-            />
-          </td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">-</td>
-          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.9) }}</td>
-          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.1) }}</td>
-          <td class="num">{{ formatNumber(totalForCode(gasoholCode) * 0.1 * 0.79) }}</td>
-        </tr>
+          <tr class="summary">
+            <td colspan="7">รวม Biodiesel/Ethanol (kg)</td>
+            <td class="num">{{ formatNumber(totalBiodieselKg(), true) }}</td>
+            <td></td>
+            <td></td>
+            <td class="num">{{ formatNumber(totalEthanolKg(), true) }}</td>
+          </tr>
+        </ng-container>
       </tbody>
     </table>
   </div>
@@ -84,123 +75,142 @@
       <thead>
         <tr>
           <th rowspan="2">รายการ</th>
+          <th rowspan="2">ชนิด</th>
           <th rowspan="2">หลักฐาน</th>
           <th rowspan="2">หน่วย</th>
           <th rowspan="2">รวม</th>
           <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+          <th rowspan="2">ลบ</th>
         </tr>
         <tr>
           <th *ngFor="let m of months">{{ m }}</th>
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>น้ำมัน Diesel B7 (Fire Pump)</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(dieselCode)"
-              (ngModelChange)="updateEvidence(dieselCode, $event)"
-            />
-          </td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCode(dieselCode)) }}</td>
-          <td *ngFor="let m of months">
-            <input
-              type="number"
-              [ngModel]="getMonthQty(dieselCode, m)"
-              (ngModelChange)="updateMonthQty(dieselCode, m, $event)"
-            />
-          </td>
-        </tr>
-        <tr>
-          <td>น้ำมัน Gasohol 91/95 (เครื่องตัดหญ้า)</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(gasoholCode)"
-              (ngModelChange)="updateEvidence(gasoholCode, $event)"
-            />
-          </td>
-          <td>L</td>
-          <td class="num">{{ formatNumber(totalForCode(gasoholCode)) }}</td>
-          <td *ngFor="let m of months">
-            <input
-              type="number"
-              [ngModel]="getMonthQty(gasoholCode, m)"
-              (ngModelChange)="updateMonthQty(gasoholCode, m, $event)"
-            />
-          </td>
-        </tr>
-        <tr class="display-only">
-          <td>Acetylene Gas (ซ่อมบำรุง)</td>
-          <td class="evidence-text">{{ acetyleneSummaryEvidence || '-' }}</td>
-          <td>kg</td>
-          <td class="num">{{ formatNumber(totalFromMonths(acetyleneTotalKgMonths()), true) }}</td>
-          <td *ngFor="let v of acetyleneTotalKgMonths()" class="num">
-            {{ formatNumber(v, true) }}
-          </td>
-        </tr>
-        <tr>
-          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(acetyleneMaint2Code)"
-              (ngModelChange)="updateEvidence(acetyleneMaint2Code, $event)"
-            />
-          </td>
-          <td>ถัง</td>
-          <td class="num">{{ formatNumber(totalForCode(acetyleneMaint2Code)) }}</td>
-          <td *ngFor="let m of months">
-            <input
-              type="number"
-              [ngModel]="getMonthQty(acetyleneMaint2Code, m)"
-              (ngModelChange)="updateMonthQty(acetyleneMaint2Code, m, $event)"
-            />
-          </td>
-        </tr>
-        <tr class="display-only">
-          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 2 (kg)</td>
-          <td class="placeholder">-</td>
-          <td>kg</td>
-          <td class="num">{{ formatNumber(totalFromMonths(acetyleneMaint2KgMonths()), true) }}</td>
-          <td *ngFor="let v of acetyleneMaint2KgMonths()" class="num">
-            {{ formatNumber(v, true) }}
-          </td>
-        </tr>
-        <tr>
-          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3</td>
-          <td>
-            <input
-              type="text"
-              placeholder="กรอกข้อมูล"
-              [ngModel]="getEvidence(acetyleneMaint3Code)"
-              (ngModelChange)="updateEvidence(acetyleneMaint3Code, $event)"
-            />
-          </td>
-          <td>ถัง</td>
-          <td class="num">{{ formatNumber(totalForCode(acetyleneMaint3Code)) }}</td>
-          <td *ngFor="let m of months">
-            <input
-              type="number"
-              [ngModel]="getMonthQty(acetyleneMaint3Code, m)"
-              (ngModelChange)="updateMonthQty(acetyleneMaint3Code, m, $event)"
-            />
-          </td>
-        </tr>
-        <tr class="display-only">
-          <td>Acetylene gas (5 kg) ในงานการซ่อมบำรุง 3 (kg)</td>
-          <td class="placeholder">-</td>
-          <td>kg</td>
-          <td class="num">{{ formatNumber(totalFromMonths(acetyleneMaint3KgMonths()), true) }}</td>
-          <td *ngFor="let v of acetyleneMaint3KgMonths()" class="num">
-            {{ formatNumber(v, true) }}
-          </td>
-        </tr>
+        <ng-container *ngFor="let row of rowsView">
+          <tr>
+            <td>
+              <mat-form-field appearance="outline">
+                <input
+                  matInput
+                  type="text"
+                  [ngModel]="row.itemName"
+                  (ngModelChange)="updateItemName(row, $event)"
+                />
+              </mat-form-field>
+            </td>
+            <td>
+              <mat-form-field appearance="outline">
+                <mat-select
+                  [ngModel]="getTypeChoice(row)"
+                  (ngModelChange)="updateTypeChoice(row, $event)"
+                  [disabled]="row.unit !== 'L'"
+                >
+                  <mat-option *ngFor="let option of typeOptions" [value]="option.key">
+                    {{ option.label }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+              <div class="blend-row" *ngIf="getTypeChoice(row) === 'OTHER'">
+                <button mat-stroked-button type="button" (click)="openBlendDialog(row)">
+                  Blend
+                </button>
+                <span class="blend-badge" *ngIf="row.blendSpec">
+                  {{ blendBadge(row) }}
+                </span>
+              </div>
+              <div class="blend-error" *ngIf="getOtherBlendError(row)">
+                {{ getOtherBlendError(row) }}
+              </div>
+              <mat-form-field *ngIf="getTypeChoice(row) === 'OTHER'" appearance="outline">
+                <input
+                  matInput
+                  type="text"
+                  placeholder="ระบุชนิด"
+                  [ngModel]="row.remark"
+                  (ngModelChange)="updateTypeText(row, $event)"
+                />
+              </mat-form-field>
+            </td>
+            <td>
+              <mat-form-field appearance="outline">
+                <mat-select
+                  [ngModel]="getEvidenceChoice(row)"
+                  (ngModelChange)="updateEvidenceChoice(row, $event)"
+                >
+                  <mat-option *ngFor="let option of evidenceOptions" [value]="option">
+                    {{ option }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field *ngIf="getEvidenceChoice(row) === 'Other'" appearance="outline">
+                <input
+                  matInput
+                  type="text"
+                  placeholder="ระบุหลักฐาน"
+                  [ngModel]="row.referenceText"
+                  (ngModelChange)="updateEvidenceText(row, $event)"
+                />
+              </mat-form-field>
+            </td>
+            <td>
+              <mat-form-field appearance="outline">
+                <mat-select [ngModel]="getUnitChoice(row)" (ngModelChange)="updateUnit(row, $event)">
+                  <mat-option *ngFor="let option of unitOptions" [value]="option">
+                    {{ option }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field *ngIf="getUnitChoice(row) === 'Other'" appearance="outline">
+                <input
+                  matInput
+                  type="text"
+                  placeholder="ระบุหน่วย"
+                  [ngModel]="row.unit"
+                  (ngModelChange)="updateUnitText(row, $event)"
+                />
+              </mat-form-field>
+              <mat-form-field *ngIf="row.unit === 'ถัง'" appearance="outline">
+                <input
+                  matInput
+                  type="number"
+                  placeholder="kg ต่อหน่วย"
+                  [ngModel]="getKgPerUnit(row)"
+                  (ngModelChange)="updateKgPerUnit(row, $event)"
+                />
+              </mat-form-field>
+            </td>
+            <td class="num">{{ formatNumber(total(row)) }}</td>
+            <td *ngFor="let m of months">
+              <input
+                type="number"
+                [ngModel]="getMonthQty(row, m)"
+                (ngModelChange)="updateMonthQty(row, m, $event)"
+              />
+            </td>
+            <td>
+              <button
+                mat-icon-button
+                color="warn"
+                (click)="removeRow(row)"
+                [disabled]="isDefaultRow(row)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </tr>
+          <tr class="display-only" *ngIf="isAcetyleneRow(row)">
+            <td>{{ row.itemName }} (kg)</td>
+            <td class="placeholder">-</td>
+            <td class="placeholder">-</td>
+            <td>kg</td>
+            <td class="num">{{ formatNumber(acetyleneKgTotal(row), true) }}</td>
+            <td *ngFor="let m of months" class="num">
+              {{ formatNumber(getMonthQty(row, m) * 5, true) }}
+            </td>
+            <td></td>
+          </tr>
+        </ng-container>
       </tbody>
     </table>
   </div>

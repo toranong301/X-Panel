@@ -49,6 +49,8 @@
           "sheet": "1.1 Stationary ",
           "startRow": 9,
           "monthColumns": ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"],
+          "summaryRows": [5, 6, 7],
+          "summaryColumns": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"],
           "rows": [
             { "fuelKey": "DIESEL_B7_STATIONARY", "row": 9 },
             { "fuelKey": "GASOHOL_9195_STATIONARY", "row": 10 },
