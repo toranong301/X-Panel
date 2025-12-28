@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -45,23 +46,8 @@ import { Scope145WwtpComponent } from './scope145-wwtp/scope145-wwtp.component';
   styleUrls: ['./data-entry.scss'],
 })
 export class DataEntryComponent implements OnInit {
-  cycleId = 0;
-  ready = false;
-
-  // แยก 1.1 / 1.2 เพื่อให้ export mapping ชัด
-  scope11Rows: EntryRow[] = [];
-  scope12Rows: EntryRow[] = [];
-  scope141Rows: EntryRow[] = [];
-  scope142Rows: EntryRow[] = [];
-  scope143Rows: EntryRow[] = [];
-  scope144Rows: EntryRow[] = [];
-  scope145Rows: EntryRow[] = [];
-
-  evidenceMap: Record<string, EvidenceModel> = {};
-
-  // เผื่อไว้ (ถ้ายังไม่ทำก็ปล่อยว่างได้)
-  scope2Rows: EntryRow[] = [];
-  scope3Rows: EntryRow[] = [];
+  private vmSubject = new BehaviorSubject<DataEntryVm>(createEmptyVm());
+  vm$ = this.vmSubject.asObservable();
 
   constructor(
     private route: ActivatedRoute,
@@ -70,7 +56,6 @@ export class DataEntryComponent implements OnInit {
     private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
     private cycleState: CycleStateService,
-    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -81,92 +66,128 @@ export class DataEntryComponent implements OnInit {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
     const resolvedId = await this.cycleState.resolveCycleId(routeId);
     if (!resolvedId) {
-      this.cycleId = 0;
-      this.ready = true;
-      this.cdr.markForCheck();
+      this.vmSubject.next({ ...createEmptyVm(), ready: true });
       return;
     }
-    this.cycleId = resolvedId;
     if (routeId !== resolvedId) {
       this.router.navigate(['/cycles', resolvedId, 'data-entry'], { replaceUrl: true });
     }
-
-    this.loadFromStorage();
-    queueMicrotask(() => {
-      this.ready = true;
-      this.cdr.markForCheck();
-    });
+    const vm = this.buildVmFromStorage(resolvedId);
+    this.vmSubject.next({ ...vm, ready: true });
   }
 
-  private loadFromStorage(): void {
-    const saved = this.entrySvc.load(this.cycleId);
+  private buildVmFromStorage(cycleId: number): DataEntryVm {
+    const saved = this.entrySvc.load(cycleId);
     if (saved) {
       const scope1Rows = saved.scope1 ?? [];
-      this.scope11Rows = normalizeScope11Rows(this.cycleId, scope1Rows);
-      const scope12Rows = scope1Rows.filter(r => r.categoryCode === '1.2');
-      this.scope12Rows = scope12Rows.length ? scope12Rows : makeScope12Defaults(this.cycleId);
-      const scope141Rows = scope1Rows.filter(r => r.categoryCode === '1.4.1');
-      this.scope141Rows = scope141Rows.length ? scope141Rows : makeScope141Defaults(this.cycleId);
-      const scope142Rows = scope1Rows.filter(r => r.categoryCode === '1.4.2');
-      this.scope142Rows = scope142Rows.length ? scope142Rows : makeScope142Defaults(this.cycleId);
-      const scope143Rows = scope1Rows.filter(r => r.categoryCode === '1.4.3');
-      this.scope143Rows = scope143Rows.length ? scope143Rows : makeScope143Defaults(this.cycleId);
-      const scope144Rows = scope1Rows.filter(r => r.categoryCode === '1.4.4');
-      this.scope144Rows = scope144Rows.length ? scope144Rows : makeScope144Defaults(this.cycleId);
-      const scope145Rows = scope1Rows.filter(r => r.categoryCode === '1.4.5');
-      this.scope145Rows = scope145Rows.length ? scope145Rows : makeScope145Defaults(this.cycleId);
-      this.scope2Rows = saved.scope2 ?? [];
-      this.scope3Rows = saved.scope3 ?? [];
-      this.evidenceMap = saved.evidence ?? {};
-      this.seedEvidenceKeys();
-      return;
+      const scope11Rows = normalizeScope11Rows(cycleId, scope1Rows);
+      const scope12RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.2');
+      const scope12Rows = scope12RowsFiltered.length
+        ? scope12RowsFiltered
+        : makeScope12Defaults(cycleId);
+      const scope141RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.1');
+      const scope141Rows = scope141RowsFiltered.length
+        ? scope141RowsFiltered
+        : makeScope141Defaults(cycleId);
+      const scope142RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.2');
+      const scope142Rows = scope142RowsFiltered.length
+        ? scope142RowsFiltered
+        : makeScope142Defaults(cycleId);
+      const scope143RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.3');
+      const scope143Rows = scope143RowsFiltered.length
+        ? scope143RowsFiltered
+        : makeScope143Defaults(cycleId);
+      const scope144RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.4');
+      const scope144Rows = scope144RowsFiltered.length
+        ? scope144RowsFiltered
+        : makeScope144Defaults(cycleId);
+      const scope145RowsFiltered = scope1Rows.filter(r => r.categoryCode === '1.4.5');
+      const scope145Rows = scope145RowsFiltered.length
+        ? scope145RowsFiltered
+        : makeScope145Defaults(cycleId);
+      const scope2Rows = saved.scope2 ?? [];
+      const scope3Rows = saved.scope3 ?? [];
+      const evidenceMap = this.seedEvidenceKeys(saved.evidence ?? {});
+      return {
+        cycleId,
+        ready: false,
+        scope11Rows,
+        scope12Rows,
+        scope141Rows,
+        scope142Rows,
+        scope143Rows,
+        scope144Rows,
+        scope145Rows,
+        scope2Rows,
+        scope3Rows,
+        evidenceMap,
+      };
     }
 
     // seed defaults เพื่อให้ “เข้าไปกรอกแล้วกด Save ได้ทันที”
-    this.resetDefaults();
-    this.seedEvidenceKeys();
+    const evidenceMap = this.seedEvidenceKeys({});
+    return {
+      cycleId,
+      ready: false,
+      scope11Rows: makeScope11Defaults(cycleId),
+      scope12Rows: makeScope12Defaults(cycleId),
+      scope141Rows: makeScope141Defaults(cycleId),
+      scope142Rows: makeScope142Defaults(cycleId),
+      scope143Rows: makeScope143Defaults(cycleId),
+      scope144Rows: makeScope144Defaults(cycleId),
+      scope145Rows: makeScope145Defaults(cycleId),
+      scope2Rows: [],
+      scope3Rows: [],
+      evidenceMap,
+    };
   }
 
   resetDefaults(): void {
-    this.scope11Rows = makeScope11Defaults(this.cycleId);
-    this.scope12Rows = makeScope12Defaults(this.cycleId);
-    this.scope141Rows = makeScope141Defaults(this.cycleId);
-    this.scope142Rows = makeScope142Defaults(this.cycleId);
-    this.scope143Rows = makeScope143Defaults(this.cycleId);
-    this.scope144Rows = makeScope144Defaults(this.cycleId);
-    this.scope145Rows = makeScope145Defaults(this.cycleId);
+    const cycleId = this.vmSubject.value.cycleId;
+    this.patchVm({
+      scope11Rows: makeScope11Defaults(cycleId),
+      scope12Rows: makeScope12Defaults(cycleId),
+      scope141Rows: makeScope141Defaults(cycleId),
+      scope142Rows: makeScope142Defaults(cycleId),
+      scope143Rows: makeScope143Defaults(cycleId),
+      scope144Rows: makeScope144Defaults(cycleId),
+      scope145Rows: makeScope145Defaults(cycleId),
+    });
   }
 
   async save(): Promise<void> {
-    const existing = this.entrySvc.load(this.cycleId);
+    const vm = this.vmSubject.value;
+    const existing = this.entrySvc.load(vm.cycleId);
     const otherScope1Rows = (existing?.scope1 ?? []).filter(
       row => !['1.1', '1.2', '1.4.1', '1.4.2', '1.4.3', '1.4.4', '1.4.5'].includes(row.categoryCode)
     );
     const payload: DataEntryDoc = {
-      cycleId: this.cycleId,
+      cycleId: vm.cycleId,
       scope1: [
-        ...this.scope11Rows,
-        ...this.scope12Rows,
-        ...this.scope141Rows,
-        ...this.scope142Rows,
-        ...this.scope143Rows,
-        ...this.scope144Rows,
-        ...this.scope145Rows,
+        ...vm.scope11Rows,
+        ...vm.scope12Rows,
+        ...vm.scope141Rows,
+        ...vm.scope142Rows,
+        ...vm.scope143Rows,
+        ...vm.scope144Rows,
+        ...vm.scope145Rows,
         ...otherScope1Rows,
       ],
-      scope2: this.scope2Rows,
-      scope3: this.scope3Rows,
+      scope2: vm.scope2Rows,
+      scope3: vm.scope3Rows,
       cfoFixed: existing?.cfoFixed,
       subsheets: existing?.subsheets,
-      evidence: this.evidenceMap,
+      evidence: vm.evidenceMap,
     };
 
-    this.entrySvc.save(this.cycleId, payload);
+    this.entrySvc.save(vm.cycleId, payload);
     try {
-      const canonical = this.canonicalSvc.build(this.cycleId);
-      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.cycleId = updateResult.cycleId;
+      const canonical = this.canonicalSvc.build(vm.cycleId);
+      const updateResult = await this.cycleApi.updateCycleData(vm.cycleId, canonical);
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      if (updateResult.cycleId !== vm.cycleId) {
+        this.patchVm({ cycleId: updateResult.cycleId });
+      }
       alert('Saved ✅ (synced to backend)');
     } catch (error: any) {
       console.error('Save sync failed', error);
@@ -175,18 +196,19 @@ export class DataEntryComponent implements OnInit {
   }
 
   goFr041(): void {
-    this.router.navigate(['/cycles', this.cycleId, 'fr04-1']);
+    this.router.navigate(['/cycles', this.vmSubject.value.cycleId, 'fr04-1']);
   }
 
-  evidenceFor(key: string): EvidenceModel {
-    return this.evidenceMap[key] ?? { notes: [], tables: [], images: [] };
+  evidenceFor(map: Record<string, EvidenceModel>, key: string): EvidenceModel {
+    return map[key] ?? { notes: [], tables: [], images: [] };
   }
 
   updateEvidence(key: string, model: EvidenceModel): void {
-    this.evidenceMap = { ...this.evidenceMap, [key]: model };
+    const evidenceMap = { ...this.vmSubject.value.evidenceMap, [key]: model };
+    this.patchVm({ evidenceMap });
   }
 
-  private seedEvidenceKeys(): void {
+  private seedEvidenceKeys(source: Record<string, EvidenceModel>): Record<string, EvidenceModel> {
     const keys = [
       'S1::1.1',
       'S1::1.2',
@@ -199,16 +221,73 @@ export class DataEntryComponent implements OnInit {
       'S1::1.4.4',
       'S1::1.4.5',
     ];
-    let updated = false;
-    const next = { ...this.evidenceMap };
+    const next = { ...source };
     for (const key of keys) {
       if (!next[key]) {
         next[key] = { notes: [], tables: [], images: [] };
-        updated = true;
       }
     }
-    if (updated) this.evidenceMap = next;
+    return next;
   }
+
+  updateRows(key: RowsKey, rows: EntryRow[]): void {
+    this.patchVm({ [key]: cloneRows(rows) } as Partial<DataEntryVm>);
+  }
+
+  private patchVm(patch: Partial<DataEntryVm>): void {
+    this.vmSubject.next({ ...this.vmSubject.value, ...patch });
+  }
+}
+
+type DataEntryVm = {
+  cycleId: number;
+  ready: boolean;
+  scope11Rows: EntryRow[];
+  scope12Rows: EntryRow[];
+  scope141Rows: EntryRow[];
+  scope142Rows: EntryRow[];
+  scope143Rows: EntryRow[];
+  scope144Rows: EntryRow[];
+  scope145Rows: EntryRow[];
+  evidenceMap: Record<string, EvidenceModel>;
+  scope2Rows: EntryRow[];
+  scope3Rows: EntryRow[];
+};
+
+type RowsKey =
+  | 'scope11Rows'
+  | 'scope12Rows'
+  | 'scope141Rows'
+  | 'scope142Rows'
+  | 'scope143Rows'
+  | 'scope144Rows'
+  | 'scope145Rows';
+
+function createEmptyVm(): DataEntryVm {
+  return {
+    cycleId: 0,
+    ready: false,
+    scope11Rows: [],
+    scope12Rows: [],
+    scope141Rows: [],
+    scope142Rows: [],
+    scope143Rows: [],
+    scope144Rows: [],
+    scope145Rows: [],
+    evidenceMap: {},
+    scope2Rows: [],
+    scope3Rows: [],
+  };
+}
+
+function cloneRows(rows: EntryRow[]): EntryRow[] {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(rows);
+  }
+  return rows.map(row => ({
+    ...row,
+    months: Array.isArray(row.months) ? row.months.map(month => ({ ...month })) : [],
+  }));
 }
 
 /** ---- defaults ที่ “ตรงกับ export mapping” ---- */

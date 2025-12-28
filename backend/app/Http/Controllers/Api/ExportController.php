@@ -7,16 +7,27 @@ use App\Models\Cycle;
 use App\Models\Export;
 use App\Services\MbaxTemplateService;
 use App\Services\TemplateRegistry;
+use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ExportController extends Controller
 {
-    public function store(Cycle $cycle, MbaxTemplateService $mbax, TemplateRegistry $registry)
+    public function store(Request $request, Cycle $cycle, MbaxTemplateService $mbax, TemplateRegistry $registry)
     {
-        $templateId = $this->resolveTemplateId($cycle);
+        $payload = $request->validate([
+            'templateId' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $templateId = trim((string) ($payload['templateId'] ?? ''));
+        if ($templateId === '') {
+            $templateId = $this->resolveTemplateId($cycle, $registry);
+        }
         $template = $registry->getTemplate($templateId);
         if (!$template) {
-            return response()->json(['message' => 'Unknown templateId.'], 400);
+            return response()->json([
+                'code' => 'INVALID_TEMPLATE',
+                'message' => 'Unknown templateId.',
+            ], 422);
         }
 
         try {
@@ -69,7 +80,7 @@ class ExportController extends Controller
         ]);
     }
 
-    private function resolveTemplateId(Cycle $cycle): string
+    private function resolveTemplateId(Cycle $cycle, TemplateRegistry $registry): string
     {
         $data = $cycle->data_json ?? [];
         $fromData = is_array($data) ? ($data['templateId'] ?? $data['template_id'] ?? null) : null;
@@ -81,6 +92,32 @@ class ExportController extends Controller
             return trim($cycle->template_id);
         }
 
+        if ($this->templateExists($registry, 'VSHEET_CFO')) {
+            return 'VSHEET_CFO';
+        }
+
         return MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+    }
+
+    private function templateExists(TemplateRegistry $registry, string $templateId): bool
+    {
+        $mapping = $registry->getTemplate($templateId);
+        if (!$mapping) return false;
+
+        $envKey = $mapping['path']['env'] ?? null;
+        if (is_string($envKey) && $envKey !== '') {
+            $envPath = env($envKey);
+            if (is_string($envPath) && $envPath !== '' && is_file($envPath)) {
+                return true;
+            }
+        }
+
+        $fallbackRel = $mapping['path']['fallback'] ?? null;
+        if (is_string($fallbackRel) && $fallbackRel !== '') {
+            $fallback = base_path($fallbackRel);
+            if (is_file($fallback)) return true;
+        }
+
+        return false;
     }
 }

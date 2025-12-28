@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { BehaviorSubject, catchError, from, of, shareReplay, switchMap } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -29,11 +29,26 @@ import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-d
   styleUrls: ['./cycles.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CyclesComponent implements OnInit {
+export class CyclesComponent {
   displayedColumns = ['name', 'baseYear', 'status', 'actions'];
 
-  private cyclesSubject = new BehaviorSubject<Cycle[]>([]);
-  cycles$ = this.cyclesSubject.asObservable();
+  private reload$ = new BehaviorSubject<void>(undefined);
+  cycles$ = this.reload$.pipe(
+    switchMap(() =>
+      from(this.cycleApi.listCycles()).pipe(
+        catchError((error: any) => {
+          console.error('Load cycles failed', error);
+          this.snackBar.open(
+            error?.message || 'โหลด Cycle ไม่สำเร็จ',
+            'ปิด',
+            { duration: 6000 }
+          );
+          return of([] as Cycle[]);
+        })
+      )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   exportingId: number | null = null;
 
@@ -45,33 +60,6 @@ export class CyclesComponent implements OnInit {
     private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
   ) {}
-
-  ngOnInit(): void {
-    // ✅ เลื่อน async logic ออกไปหลัง Angular check รอบแรก
-    queueMicrotask(() => {
-      this.bootstrap();
-    });
-  }
-
-  /* =========================
-   * Bootstrap
-   * ========================= */
-
-  private async bootstrap() {
-    try {
-      // 1) โหลด cycles จาก backend
-      const list = await this.cycleApi.listCycles();
-      this.cyclesSubject.next(list);
-    } catch (error: any) {
-      console.error('Bootstrap cycle failed', error);
-      this.snackBar.open(
-        error?.message || 'โหลด Cycle ไม่สำเร็จ',
-        'ปิด',
-        { duration: 6000 }
-      );
-      this.cyclesSubject.next([]);
-    }
-  }
 
   /* =========================
    * Actions
@@ -91,8 +79,8 @@ export class CyclesComponent implements OnInit {
           year: Number(result.baseYear!),
         });
 
-        this.cyclesSubject.next([...this.cyclesSubject.value, created]);
         this.cycleState.setSelectedCycleId(created.id);
+        this.reload$.next();
 
         this.router.navigate(['/cycles', created.id, 'data-entry']);
       } catch (error: any) {

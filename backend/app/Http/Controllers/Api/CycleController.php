@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cycle;
 use App\Services\MbaxTemplateService;
+use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
 use Illuminate\Http\Request;
 
@@ -50,7 +51,13 @@ class CycleController extends Controller
         return response()->json(['id' => $cycle->id, 'updated' => true]);
     }
 
-    public function preview(Request $request, Cycle $cycle, MbaxTemplateService $mbax, TemplateRegistry $registry)
+    public function preview(
+        Request $request,
+        Cycle $cycle,
+        MbaxTemplateService $mbax,
+        TemplateRegistry $registry,
+        SheetRegistry $sheetRegistry
+    )
     {
         $payload = $request->validate([
             'sheetId' => ['required', 'string', 'max:200'],
@@ -58,31 +65,43 @@ class CycleController extends Controller
 
         $sheetId = trim((string) ($payload['sheetId'] ?? ''));
         if ($sheetId === '') {
-            return response()->json(['message' => 'sheetId is required.'], 422);
+            return response()->json([
+                'code' => 'INVALID_SHEET',
+                'message' => 'sheetId is required.',
+            ], 422);
         }
 
-        $templateId = $this->resolveTemplateId($cycle);
+        $templateId = $this->resolveTemplateId($cycle, $registry);
         $template = $registry->getTemplate($templateId);
         if (!$template) {
-            return response()->json(['message' => 'Unknown templateId.'], 400);
+            return response()->json([
+                'code' => 'INVALID_TEMPLATE',
+                'message' => 'Unknown templateId.',
+            ], 422);
         }
 
-        $sheetConfig = $registry->getSheet($templateId, $sheetId);
+        $sheetConfig = $sheetRegistry->getSheet($templateId, $sheetId);
         if (!$sheetConfig) {
             return response()->json([
+                'code' => 'INVALID_SHEET',
                 'message' => 'Invalid sheetId.',
-                'code' => 'INVALID_SHEET_ID',
-                'allowed' => $registry->listSheetIds($templateId),
-            ], 400);
+                'allowed' => $sheetRegistry->listSheetIds($templateId),
+            ], 422);
         }
 
         $sheet = trim((string) ($sheetConfig['name'] ?? ''));
         $range = trim((string) ($sheetConfig['previewRange'] ?? ''));
         if ($sheet === '') {
-            return response()->json(['message' => 'Sheet mapping missing.'], 422);
+            return response()->json([
+                'code' => 'INVALID_SHEET',
+                'message' => 'Sheet mapping missing.',
+            ], 422);
         }
         if ($range === '') {
-            $range = 'A1:Z60';
+            return response()->json([
+                'code' => 'INVALID_RANGE',
+                'message' => 'Preview range missing.',
+            ], 422);
         }
 
         // Root cause seen in logs: missing MBAX template path triggered a 500.
@@ -115,10 +134,16 @@ class CycleController extends Controller
             );
             return response()->json($mbax->buildPreview($spreadsheet, $sheet, $range));
         } catch (\InvalidArgumentException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return response()->json([
+                'code' => 'INVALID_RANGE',
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'Sheet')) {
-                return response()->json(['message' => $e->getMessage()], 404);
+                return response()->json([
+                    'code' => 'INVALID_SHEET',
+                    'message' => $e->getMessage(),
+                ], 422);
             }
             \Log::error('Preview failed', [
                 'cycleId' => $cycle->id,
@@ -138,7 +163,7 @@ class CycleController extends Controller
         }
     }
 
-    private function resolveTemplateId(Cycle $cycle): string
+    private function resolveTemplateId(Cycle $cycle, TemplateRegistry $registry): string
     {
         $data = $cycle->data_json ?? [];
         $fromData = is_array($data) ? ($data['templateId'] ?? $data['template_id'] ?? null) : null;
@@ -150,6 +175,32 @@ class CycleController extends Controller
             return trim($cycle->template_id);
         }
 
+        if ($this->templateExists($registry, 'VSHEET_CFO')) {
+            return 'VSHEET_CFO';
+        }
+
         return MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+    }
+
+    private function templateExists(TemplateRegistry $registry, string $templateId): bool
+    {
+        $mapping = $registry->getTemplate($templateId);
+        if (!$mapping) return false;
+
+        $envKey = $mapping['path']['env'] ?? null;
+        if (is_string($envKey) && $envKey !== '') {
+            $envPath = env($envKey);
+            if (is_string($envPath) && $envPath !== '' && is_file($envPath)) {
+                return true;
+            }
+        }
+
+        $fallbackRel = $mapping['path']['fallback'] ?? null;
+        if (is_string($fallbackRel) && $fallbackRel !== '') {
+            $fallback = base_path($fallbackRel);
+            if (is_file($fallback)) return true;
+        }
+
+        return false;
     }
 }

@@ -13,13 +13,22 @@ Route::get('/health', function () {
     ], 200);
 });
 
-Route::middleware('api-key')->group(function () {
+$publicCycleRoutes = function () {
     Route::get('/cycles', [CycleController::class, 'index']);
     Route::post('/cycles', [CycleController::class, 'store']);
-    Route::get('/cycles/{cycle}', [CycleController::class, 'show']);
     Route::put('/cycles/{cycle}/data', [CycleController::class, 'updateData']);
-    Route::post('/cycles/{cycle}/attachments', [AttachmentController::class, 'store']);
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
+};
+
+if (app()->environment(['local', 'development', 'demo'])) {
+    $publicCycleRoutes();
+} else {
+    Route::middleware('api-key')->group($publicCycleRoutes);
+}
+
+Route::middleware('api-key')->group(function () {
+    Route::get('/cycles/{cycle}', [CycleController::class, 'show']);
+    Route::post('/cycles/{cycle}/attachments', [AttachmentController::class, 'store']);
     Route::get('/exports/{export}', [ExportController::class, 'show']);
 });

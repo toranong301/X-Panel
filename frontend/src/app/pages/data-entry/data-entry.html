@@ -1,13 +1,14 @@
+<ng-container *ngIf="vm$ | async as vm">
 <div class="page-header">
   <h2>Data Entry</h2>
-  <span class="cycle">Cycle ID: {{ cycleId }}</span>
+  <span class="cycle">Cycle ID: {{ vm.cycleId }}</span>
 </div>
 
-<div *ngIf="!ready" class="loading">
+<div *ngIf="!vm.ready" class="loading">
   กำลังโหลดข้อมูล...
 </div>
 
-<mat-tab-group *ngIf="ready">
+<mat-tab-group *ngIf="vm.ready">
 
   <mat-tab label="Scope 1">
 
@@ -17,13 +18,14 @@
       <mat-divider></mat-divider>
 
       <app-scope11-stationary
-        [cycleId]="cycleId"
-        [(rows)]="scope11Rows"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope11Rows"
+        (rowsChange)="updateRows('scope11Rows', $event)"
       ></app-scope11-stationary>
 
       <app-evidence-block
         evidenceKey="S1::1.1"
-        [model]="evidenceFor('S1::1.1')"
+        [model]="evidenceFor(vm.evidenceMap, 'S1::1.1')"
         (modelChange)="updateEvidence('S1::1.1', $event)"
       ></app-evidence-block>
     </mat-card>
@@ -34,13 +36,14 @@
       <mat-divider></mat-divider>
 
       <app-scope12-mobile
-        [cycleId]="cycleId"
-        [(rows)]="scope12Rows"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope12Rows"
+        (rowsChange)="updateRows('scope12Rows', $event)"
       ></app-scope12-mobile>
 
       <app-evidence-block
         evidenceKey="S1::1.2"
-        [model]="evidenceFor('S1::1.2')"
+        [model]="evidenceFor(vm.evidenceMap, 'S1::1.2')"
         (modelChange)="updateEvidence('S1::1.2', $event)"
       ></app-evidence-block>
     </mat-card>
@@ -51,13 +54,14 @@
       <mat-divider></mat-divider>
 
       <app-scope14-fugitive
-        [cycleId]="cycleId"
-        [(rows)]="scope141Rows"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope141Rows"
+        (rowsChange)="updateRows('scope141Rows', $event)"
       ></app-scope14-fugitive>
 
       <app-evidence-block
         evidenceKey="S1::1.4.1"
-        [model]="evidenceFor('S1::1.4.1')"
+        [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.1')"
         (modelChange)="updateEvidence('S1::1.4.1', $event)"
       ></app-evidence-block>
     </mat-card>
@@ -68,13 +72,14 @@
       <mat-divider></mat-divider>
 
       <app-scope142-fire
-        [cycleId]="cycleId"
-        [(rows)]="scope142Rows"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope142Rows"
+        (rowsChange)="updateRows('scope142Rows', $event)"
       ></app-scope142-fire>
 
       <app-evidence-block
         evidenceKey="S1::1.4.2"
-        [model]="evidenceFor('S1::1.4.2')"
+        [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.2')"
         (modelChange)="updateEvidence('S1::1.4.2', $event)"
       ></app-evidence-block>
     </mat-card>
@@ -85,36 +90,37 @@
       <mat-divider></mat-divider>
 
       <app-scope143-septic
-        [cycleId]="cycleId"
-        [(rows)]="scope143Rows"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope143Rows"
+        (rowsChange)="updateRows('scope143Rows', $event)"
       ></app-scope143-septic>
 
       <div class="evidence-groups">
         <h4>#1 โรงงานแหลมฉบัง (6 วัน/สัปดาห์)</h4>
         <app-evidence-block
           evidenceKey="S1::1.4.3::group1"
-          [model]="evidenceFor('S1::1.4.3::group1')"
+          [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.3::group1')"
           (modelChange)="updateEvidence('S1::1.4.3::group1', $event)"
         ></app-evidence-block>
 
         <h4>#2 สำนักงานกรุงเทพ (5 วัน/สัปดาห์)</h4>
         <app-evidence-block
           evidenceKey="S1::1.4.3::group2"
-          [model]="evidenceFor('S1::1.4.3::group2')"
+          [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.3::group2')"
           (modelChange)="updateEvidence('S1::1.4.3::group2', $event)"
         ></app-evidence-block>
 
         <h4>#3 รปภ (7 วัน/สัปดาห์)</h4>
         <app-evidence-block
           evidenceKey="S1::1.4.3::group3"
-          [model]="evidenceFor('S1::1.4.3::group3')"
+          [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.3::group3')"
           (modelChange)="updateEvidence('S1::1.4.3::group3', $event)"
         ></app-evidence-block>
 
         <h4>#4 พยาบาล (7 วัน/สัปดาห์)</h4>
         <app-evidence-block
           evidenceKey="S1::1.4.3::group4"
-          [model]="evidenceFor('S1::1.4.3::group4')"
+          [model]="evidenceFor(vm.evidenceMap, 'S1::1.4.3::group4')"
           (modelChange)="updateEvidence('S1::1.4.3::group4', $event)"
         ></app-evidence-block>
       </div>
@@ -126,9 +132,10 @@
       <mat-divider></mat-divider>
 
       <app-scope144-fertilizer
-        [cycleId]="cycleId"
-        [(rows)]="scope144Rows"
-        [evidenceModel]="evidenceFor('S1::1.4.4')"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope144Rows"
+        (rowsChange)="updateRows('scope144Rows', $event)"
+        [evidenceModel]="evidenceFor(vm.evidenceMap, 'S1::1.4.4')"
         (evidenceModelChange)="updateEvidence('S1::1.4.4', $event)"
       ></app-scope144-fertilizer>
     </mat-card>
@@ -139,9 +146,10 @@
       <mat-divider></mat-divider>
 
       <app-scope145-wwtp
-        [cycleId]="cycleId"
-        [(rows)]="scope145Rows"
-        [evidenceModel]="evidenceFor('S1::1.4.5')"
+        [cycleId]="vm.cycleId"
+        [rows]="vm.scope145Rows"
+        (rowsChange)="updateRows('scope145Rows', $event)"
+        [evidenceModel]="evidenceFor(vm.evidenceMap, 'S1::1.4.5')"
         (evidenceModelChange)="updateEvidence('S1::1.4.5', $event)"
       ></app-scope145-wwtp>
     </mat-card>
@@ -150,7 +158,7 @@
 
 </mat-tab-group>
 
-<div class="actions" style="margin-top:16px;" *ngIf="ready">
+<div class="actions" style="margin-top:16px;" *ngIf="vm.ready">
   <button mat-stroked-button color="primary" (click)="resetDefaults()">
     Reset defaults
   </button>
@@ -163,3 +171,4 @@
     Save
   </button>
 </div>
+</ng-container>
