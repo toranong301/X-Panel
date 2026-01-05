@@ -68,6 +68,7 @@ export class Scope11StationaryComponent {
   readonly unitOptions = ['L', 'kg', 'ถัง', 'm3', 'kWh', 'people', 'days', 'Other'];
 
   exporting = false;
+  reviewing = false;
   readonly sheetId = SHEET_REGISTRY['SCOPE1_STATIONARY'].sheetId;
   private _rows: EntryRow[] = [];
   readonly trackByRow = (_: number, row: EntryRow) => row.id ?? row.subCategoryCode ?? row.itemName ?? _;
@@ -83,6 +84,8 @@ export class Scope11StationaryComponent {
   ) {}
 
   async openReview() {
+    if (this.reviewing) return;
+    this.reviewing = true;
     try {
       const validationError = this.getFirstBlendError();
       if (validationError) {
@@ -113,6 +116,8 @@ export class Scope11StationaryComponent {
         'ปิด',
         { duration: 6000 }
       );
+    } finally {
+      this.reviewing = false;
     }
   }
 
@@ -440,17 +445,19 @@ export class Scope11StationaryComponent {
     if (resolveBlendKey(this.getFuelKey(row), row.fuelType ?? row.remark) !== 'OTHER') {
       return null;
     }
+    if (String(row.unit || '').toLowerCase() !== 'l') return null;
+    if (this.isRowEmpty(row)) return null;
     const spec = row.blendSpec;
     if (!spec) return 'ต้องกำหนดสัดส่วนเชื้อเพลิง (Blend)';
-    const sum =
-      Number(spec.dieselPct || 0)
-      + Number(spec.biodieselPct || 0)
-      + Number(spec.gasolinePct || 0)
-      + Number(spec.ethanolPct || 0);
+    const dieselPct = Number(spec.dieselPct || 0);
+    const biodieselPct = Number(spec.biodieselPct || 0);
+    const gasolinePct = Number(spec.gasolinePct || 0);
+    const ethanolPct = Number(spec.ethanolPct || 0);
+    const sum = dieselPct + biodieselPct + gasolinePct + ethanolPct;
     if (Math.abs(sum - 100) > 0.01) return 'สัดส่วนต้องรวม 100%';
     const biodiesel = spec.density?.biodieselKgPerL;
     const ethanol = spec.density?.ethanolKgPerL;
-    if (!biodiesel || biodiesel <= 0 || !ethanol || ethanol <= 0) {
+    if ((biodiesel !== undefined && biodiesel <= 0) || (ethanol !== undefined && ethanol <= 0)) {
       return 'กรุณาระบุความหนาแน่นของ Biodiesel/Ethanol';
     }
     return null;

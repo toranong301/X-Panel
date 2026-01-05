@@ -580,100 +580,210 @@ const screenRow =
     return String(value).trim();
   }
   private writeScope11Stationary(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string }> {
-  const totals: Record<string, { sheetName: string; totalCell: string }> = {};
-  // ชื่อชีทตาม template จริง: มีเว้นวรรคท้ายด้วย
-  const sheetName = ctx.spec.sheets['scope11']?.name;
-  if (!sheetName) {
-    throw new Error('Missing sheet mapping: scope11');
-  }
-  const ws = ctx.workbook.getWorksheet(sheetName);
-  if (!ws) {
-    throw new Error(`Missing worksheet: ${sheetName}`);
-  }
-
-  const MONTH_COLS = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const; // เดือน 1..12
-
-  const setMonths = (excelRow: number, months?: number[]) => {
-  for (let i = 0; i < 12; i++) {
-    const v = Number(months?.[i] ?? 0);
-    this.setCellValueSafely(ws, `${MONTH_COLS[i]}${excelRow}`, v ? v : null);
-  }
-};
-
-  // ✅ แถว input รายเดือน (ตาม template)
-  const dieselRow = 9;       // E9:P9
-  const gasoholRow = 10;     // E10:P10
-  const acetyl2TankRow = 12; // E12:P12
-  const acetyl3TankRow = 14; // E14:P14
-
-  // เคลียร์ข้อมูลเก่าเฉพาะ input cells
-  for (const r of [dieselRow, gasoholRow, acetyl2TankRow, acetyl3TankRow]) {
-    for (const col of ['A', 'B', 'C']) {
-      this.setCellValueSafely(ws, `${col}${r}`, null);
+    const totals: Record<string, { sheetName: string; totalCell: string }> = {};
+    const sheetName = ctx.spec.sheets['scope11']?.name;
+    if (!sheetName) {
+      throw new Error('Missing sheet mapping: scope11');
     }
-    setMonths(r); // จะเขียน null ทั้ง 12 เดือน (ผ่าน setCellValueSafely)
+    const ws = ctx.workbook.getWorksheet(sheetName);
+    if (!ws) {
+      throw new Error(`Missing worksheet: ${sheetName}`);
+    }
+
+    const wsData = ctx.workbook.getWorksheet('_DATA_SCOPE11');
+    if (wsData) {
+      const rows = this.buildScope11TableRows(ctx);
+      this.writeScope11StationaryTable(wsData, rows);
+    }
+
+    const monthCols = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const;
+    const totalRows: Array<{ key: string; row: number }> = [
+      { key: 'DIESEL_B7_STATIONARY', row: 9 },
+      { key: 'GASOHOL_9195_STATIONARY', row: 10 },
+      { key: 'ACETYLENE_TANK5_MAINT_2', row: 12 },
+      { key: 'ACETYLENE_TANK5_MAINT_3', row: 14 },
+    ];
+
+    for (const it of totalRows) {
+      const totalCell = this.findRowTotalCell(ws, it.row, [...monthCols]);
+      if (totalCell) totals[it.key] = { sheetName: ws.name, totalCell };
+    }
+
+    return totals;
   }
 
+  private buildScope11TableRows(ctx: ExportContext): Array<{
+    rowId: string;
+    itemLabel: string;
+    fuelType: string;
+    evidence: string;
+    unit: string;
+    months: number[];
+    other: {
+      dieselPct: number | null;
+      biodieselPct: number | null;
+      gasolinePct: number | null;
+      ethanolPct: number | null;
+      biodieselDensity: number | null;
+      ethanolDensity: number | null;
+    };
+  }> {
+    const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
+      String(x?.subScope ?? '') === '1.1'
+    );
+    const defaults = [
+      'DIESEL_B7_STATIONARY',
+      'GASOHOL_9195_STATIONARY',
+      'ACETYLENE_TANK5_MAINT_2',
+      'ACETYLENE_TANK5_MAINT_3',
+    ];
 
-  // ดึง canonical
-  const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
-    String(x?.subScope ?? '') === '1.1'
-  );
+    const byFuel = new Map<string, any[]>();
+    for (const row of rows) {
+      const key = this.normalizeScope11FuelKey(row);
+      if (!key) continue;
+      const list = byFuel.get(key) ?? [];
+      list.push(row);
+      byFuel.set(key, list);
+    }
 
-  const getFuelKey = (x: any) => String(x?.fuelKey ?? x?.meta?.fuelKey ?? '').trim().toUpperCase();
-  const getMonths = (x: any) =>
-    Array.isArray(x?.quantityMonthly) ? x.quantityMonthly :
-    Array.isArray(x?.months) ? x.months :
-    undefined;
+    const output: Array<{
+      rowId: string;
+      itemLabel: string;
+      fuelType: string;
+      evidence: string;
+      unit: string;
+      months: number[];
+      other: {
+        dieselPct: number | null;
+        biodieselPct: number | null;
+        gasolinePct: number | null;
+        ethanolPct: number | null;
+        biodieselDensity: number | null;
+        ethanolDensity: number | null;
+      };
+    }> = [];
 
-  const byFuelKey = (k: string) => rows.find((x: any) => getFuelKey(x) === k.toUpperCase());
+    for (const key of defaults) {
+      const row = byFuel.get(key)?.[0];
+      output.push(this.mapScope11TableRow(row, key, true));
+    }
 
-  // ✅ map fuelKey → แถวในชีท
-  const diesel  = byFuelKey('DIESEL_B7_STATIONARY');
-  const gasohol = byFuelKey('GASOHOL_9195_STATIONARY');
-  const acetyl2 = byFuelKey('ACETYLENE_TANK5_MAINT_2');
-  const acetyl3 = byFuelKey('ACETYLENE_TANK5_MAINT_3');
+    for (const row of rows) {
+      const key = this.normalizeScope11FuelKey(row);
+      if (!key || defaults.includes(key)) continue;
+      output.push(this.mapScope11TableRow(row, key, false));
+    }
 
-  if (diesel) {
-    this.setCellValueSafely(ws, `A${dieselRow}`, String((diesel as any).itemLabel ?? ''));
-    this.setCellValueSafely(ws, `B${dieselRow}`, String((diesel as any).dataEvidence ?? ''));
-    this.setCellValueSafely(ws, `C${dieselRow}`, String((diesel as any).unit ?? ''));
-    setMonths(dieselRow, getMonths(diesel));
+    return output;
   }
-  if (gasohol) {
-    this.setCellValueSafely(ws, `A${gasoholRow}`, String((gasohol as any).itemLabel ?? ''));
-    this.setCellValueSafely(ws, `B${gasoholRow}`, String((gasohol as any).dataEvidence ?? ''));
-    this.setCellValueSafely(ws, `C${gasoholRow}`, String((gasohol as any).unit ?? ''));
-    setMonths(gasoholRow, getMonths(gasohol));
-  }
-  if (acetyl2) {
-    this.setCellValueSafely(ws, `A${acetyl2TankRow}`, String((acetyl2 as any).itemLabel ?? ''));
-    this.setCellValueSafely(ws, `B${acetyl2TankRow}`, String((acetyl2 as any).dataEvidence ?? ''));
-    this.setCellValueSafely(ws, `C${acetyl2TankRow}`, String((acetyl2 as any).unit ?? ''));
-    setMonths(acetyl2TankRow, getMonths(acetyl2));
-  }
-  if (acetyl3) {
-    this.setCellValueSafely(ws, `A${acetyl3TankRow}`, String((acetyl3 as any).itemLabel ?? ''));
-    this.setCellValueSafely(ws, `B${acetyl3TankRow}`, String((acetyl3 as any).dataEvidence ?? ''));
-    this.setCellValueSafely(ws, `C${acetyl3TankRow}`, String((acetyl3 as any).unit ?? ''));
-    setMonths(acetyl3TankRow, getMonths(acetyl3));
+
+  private mapScope11TableRow(row: any, fuelKey: string, forceRowId: boolean) {
+    const fuelType = this.resolveScope11FuelType(row, fuelKey);
+    return {
+      rowId: forceRowId ? fuelKey : String(row?.id ?? fuelKey),
+      itemLabel: String(row?.itemLabel ?? ''),
+      fuelType,
+      evidence: String(row?.dataEvidence ?? ''),
+      unit: String(row?.unit ?? ''),
+      months: this.normalizeScope11Months(row),
+      other: this.extractScope11OtherSpec(row, fuelType),
+    };
   }
 
-  const totalRows: Array<{ key: string; row: number }> = [
-    { key: 'DIESEL_B7_STATIONARY', row: dieselRow },
-    { key: 'GASOHOL_9195_STATIONARY', row: gasoholRow },
-    { key: 'ACETYLENE_TANK5_MAINT_2', row: acetyl2TankRow },
-    { key: 'ACETYLENE_TANK5_MAINT_3', row: acetyl3TankRow },
-  ];
-
-  for (const it of totalRows) {
-    const totalCell = this.findRowTotalCell(ws, it.row, [...MONTH_COLS]);
-    if (totalCell) totals[it.key] = { sheetName: ws.name, totalCell };
+  private normalizeScope11Months(row: any): number[] {
+    const out = Array.from({ length: 12 }, () => 0);
+    if (!row) return out;
+    if (Array.isArray(row?.quantityMonthly)) {
+      return out.map((_, idx) => Number(row.quantityMonthly[idx] ?? 0) || 0);
+    }
+    if (Array.isArray(row?.months)) {
+      return out.map((_, idx) => Number(row.months[idx]?.qty ?? row.months[idx] ?? 0) || 0);
+    }
+    return out;
   }
 
-  // ⚠️ ไม่แตะสูตรสรุป/แปลงหน่วยด้านบน และไม่แตะ FR-04.1
-  return totals;
-}
+  private normalizeScope11FuelKey(row: any): string {
+    return String(row?.fuelKey ?? row?.meta?.fuelKey ?? '').trim().toUpperCase();
+  }
+
+  private resolveScope11FuelType(row: any, fuelKey: string): string {
+    const raw = String(row?.fuelType ?? '').trim().toUpperCase();
+    if (raw) return raw;
+    const key = String(fuelKey ?? '').trim().toUpperCase();
+    if (key.includes('DIESEL_B7')) return 'B7';
+    if (key.includes('DIESEL_B10')) return 'B10';
+    if (key.includes('GASOHOL_9195') || key.includes('9195')) return '91/95';
+    if (key.includes('GASOHOL_E20') || key.includes('E20')) return 'E20';
+    if (key.includes('LPG')) return 'LPG';
+    if (key.includes('FUEL_OIL') || key.includes('OIL')) return 'น้ำมันเตา';
+    return 'OTHER';
+  }
+
+  private extractScope11OtherSpec(row: any, fuelType: string) {
+    if (fuelType !== 'OTHER') {
+      return {
+        dieselPct: null,
+        biodieselPct: null,
+        gasolinePct: null,
+        ethanolPct: null,
+        biodieselDensity: null,
+        ethanolDensity: null,
+      };
+    }
+
+    const spec = row?.blendSpec ?? {};
+    const density = spec?.density ?? {};
+    const biodieselDensity = Number(
+      density?.biodieselKgPerL ?? spec?.biodieselDensityKgPerL ?? 0.87
+    );
+    const ethanolDensity = Number(
+      density?.ethanolKgPerL ?? spec?.ethanolDensityKgPerL ?? 0.79
+    );
+
+    return {
+      dieselPct: Number(spec?.dieselPct ?? 0) || 0,
+      biodieselPct: Number(spec?.biodieselPct ?? 0) || 0,
+      gasolinePct: Number(spec?.gasolinePct ?? 0) || 0,
+      ethanolPct: Number(spec?.ethanolPct ?? 0) || 0,
+      biodieselDensity,
+      ethanolDensity,
+    };
+  }
+
+  private writeScope11StationaryTable(ws: any, rows: any[]) {
+    const columns = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W'];
+    const startRow = 2;
+    const maxRows = 200;
+
+    for (let r = startRow; r < startRow + maxRows; r++) {
+      for (const col of columns) {
+        this.setCellValueSafely(ws, `${col}${r}`, null);
+      }
+    }
+
+    rows.forEach((row, idx) => {
+      if (idx >= maxRows) return;
+      const r = startRow + idx;
+      this.setCellValueSafely(ws, `A${r}`, row.rowId || null);
+      this.setCellValueSafely(ws, `B${r}`, row.itemLabel || null);
+      this.setCellValueSafely(ws, `C${r}`, row.fuelType || null);
+      this.setCellValueSafely(ws, `D${r}`, row.evidence || null);
+      this.setCellValueSafely(ws, `E${r}`, row.unit || null);
+
+      for (let m = 0; m < 12; m++) {
+        const value = Number(row.months?.[m] ?? 0);
+        this.setCellValueSafely(ws, `${columns[5 + m]}${r}`, value ? value : null);
+      }
+
+      this.setCellValueSafely(ws, `R${r}`, row.other?.dieselPct ?? null);
+      this.setCellValueSafely(ws, `S${r}`, row.other?.biodieselPct ?? null);
+      this.setCellValueSafely(ws, `T${r}`, row.other?.gasolinePct ?? null);
+      this.setCellValueSafely(ws, `U${r}`, row.other?.ethanolPct ?? null);
+      this.setCellValueSafely(ws, `V${r}`, row.other?.biodieselDensity ?? null);
+      this.setCellValueSafely(ws, `W${r}`, row.other?.ethanolDensity ?? null);
+    });
+  }
 
 
 private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string; slotNo?: number }> {

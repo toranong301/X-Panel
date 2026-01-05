@@ -144,6 +144,11 @@ export class CanonicalGhgService {
 
     for (const row of rows) {
       if (String(row.unit || '').toLowerCase() !== 'l') continue;
+      if (row.computed?.biodieselKg !== undefined || row.computed?.ethanolKg !== undefined) {
+        biodieselKg += Number(row.computed?.biodieselKg || 0);
+        ethanolKg += Number(row.computed?.ethanolKg || 0);
+        continue;
+      }
       const annualL = this.sumEntryRowMonths(row);
       if (!annualL) continue;
       const blendKey = resolveBlendKey(row.subCategoryCode, row.remark);

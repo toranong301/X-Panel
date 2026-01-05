@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, OnDestroy } from '@angular/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { finalize, from, Subscription } from 'rxjs';
 
 import { ExcelPreviewService, SheetPreview, SheetPreviewRow } from '../../../core/export/engine/excel-preview.service';
@@ -10,7 +11,7 @@ import { filterBlankPreviewRows } from '../../../core/export/engine/excel-previe
 @Component({
   selector: 'app-excel-sheet-preview',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, MatButtonModule],
+  imports: [CommonModule, MatProgressSpinnerModule, MatButtonModule, MatSnackBarModule],
   templateUrl: './excel-sheet-preview.component.html',
   styleUrls: ['./excel-sheet-preview.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,6 +35,7 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   constructor(
     private previewSvc: ExcelPreviewService,
     private cdr: ChangeDetectorRef,
+    private snackBar: MatSnackBar,
   ) {}
 
   ngOnChanges(): void {
@@ -103,6 +105,7 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
         const msg = error?.message || String(error);
         if (msg !== 'Preview cancelled.') {
           this.error = msg;
+          this.snackBar.open(msg, 'Close', { duration: 6000 });
         }
         this.cdr.markForCheck();
       },

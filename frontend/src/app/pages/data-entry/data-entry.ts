@@ -129,7 +129,7 @@ export class DataEntryComponent implements OnInit {
     return {
       cycleId,
       ready: false,
-      scope11Rows: makeScope11Defaults(cycleId),
+      scope11Rows: [],
       scope12Rows: makeScope12Defaults(cycleId),
       scope141Rows: makeScope141Defaults(cycleId),
       scope142Rows: makeScope142Defaults(cycleId),

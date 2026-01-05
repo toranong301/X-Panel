@@ -51,4 +51,14 @@ describe('computeStationarySummary', () => {
     const summary = computeStationarySummary([row]);
     expect(summary.rows[0].totalL).toBe(25);
   });
+
+  it('coerces string month values to numbers', () => {
+    const row = mkRow('Diesel B7', 'DIESEL_B7_STATIONARY', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    row.months = [
+      { month: 1, qty: '10' as unknown as number },
+      { month: 2, qty: '5' as unknown as number },
+    ];
+    const summary = computeStationarySummary([row]);
+    expect(summary.rows[0].totalL).toBe(15);
+  });
 });

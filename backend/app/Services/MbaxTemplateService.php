@@ -14,6 +14,16 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 class MbaxTemplateService
 {
     public const DEFAULT_TEMPLATE_ID = 'MBAX_TGO_11102567';
+    private const SCOPE11_TABLE_START_ROW = 2;
+    private const SCOPE11_TABLE_MAX_ROWS = 200;
+    private const SCOPE11_DEFAULT_FUEL_KEYS = [
+        'DIESEL_B7_STATIONARY',
+        'GASOHOL_9195_STATIONARY',
+        'ACETYLENE_TANK5_MAINT_2',
+        'ACETYLENE_TANK5_MAINT_3',
+    ];
+    private const DEFAULT_BIODIESEL_DENSITY = 0.87;
+    private const DEFAULT_ETHANOL_DENSITY = 0.79;
 
     public function __construct(private TemplateRegistry $registry)
     {
@@ -196,42 +206,179 @@ class MbaxTemplateService
         $targetSheet = $mapping['sheet'] ?? '1.1 Stationary ';
         if ($sheetName && $sheetName !== $targetSheet) return;
 
-        $ws = $spreadsheet->getSheetByName($targetSheet);
-        if (!$ws) return;
+        $wsData = $spreadsheet->getSheetByName('_DATA_SCOPE11');
+        if (!$wsData) return;
 
-        $monthCols = $mapping['monthColumns'] ?? ['E','F','G','H','I','J','K','L','M','N','O','P'];
-        $summaryRows = $mapping['summaryRows'] ?? [5, 6, 7];
-        $summaryCols = $mapping['summaryColumns'] ?? range('A', 'P');
-        $this->clearScope11StationaryInputs($ws, $monthCols, [9, 10, 12, 14], $summaryRows, $summaryCols);
-        $rowsByFuel = $this->buildFuelMap($data, '1.1');
+        $rows = $this->buildScope11TableRows($data);
+        $this->writeScope11StationaryTable($wsData, $rows);
+    }
 
-        $map = [];
-        foreach (($mapping['rows'] ?? []) as $rowDef) {
-            $fuelKey = $rowDef['fuelKey'] ?? null;
-            $row = $rowDef['row'] ?? null;
-            if ($fuelKey && $row) {
-                $map[$fuelKey] = (int) $row;
-            }
+    private function buildScope11TableRows(array $data): array
+    {
+        $rows = $this->filterInventoryRows($data, '1.1');
+        $byFuel = [];
+        foreach ($rows as $row) {
+            $fuelKey = $this->normalizeFuelKey($row);
+            if (!$fuelKey) continue;
+            $byFuel[$fuelKey][] = $row;
         }
-        if (!$map) {
-            $map = [
-                'DIESEL_B7_STATIONARY' => 9,
-                'GASOHOL_9195_STATIONARY' => 10,
-                'ACETYLENE_TANK5_MAINT_2' => 12,
-                'ACETYLENE_TANK5_MAINT_3' => 14,
+
+        $output = [];
+        foreach (self::SCOPE11_DEFAULT_FUEL_KEYS as $fuelKey) {
+            $row = $byFuel[$fuelKey][0] ?? null;
+            $output[] = $this->mapScope11TableRow($row, $fuelKey, true);
+        }
+
+        foreach ($rows as $row) {
+            $fuelKey = $this->normalizeFuelKey($row);
+            if (!$fuelKey) continue;
+            if (in_array($fuelKey, self::SCOPE11_DEFAULT_FUEL_KEYS, true)) continue;
+            $output[] = $this->mapScope11TableRow($row, $fuelKey, false);
+        }
+
+        return $output;
+    }
+
+    private function mapScope11TableRow(?array $row, string $fuelKey, bool $forceRowId): array
+    {
+        $rowId = $forceRowId ? $fuelKey : (string) ($row['id'] ?? $fuelKey);
+        $fuelType = $this->resolveScope11FuelType($row, $fuelKey);
+        $months = $row ? $this->normalizeMonths($row) : array_fill(0, 12, 0);
+        $spec = $this->extractOtherBlendSpec($row, $fuelType);
+
+        return [
+            'rowId' => $rowId,
+            'itemLabel' => (string) ($row['itemLabel'] ?? ''),
+            'fuelType' => $fuelType,
+            'evidence' => (string) ($row['dataEvidence'] ?? ''),
+            'unit' => (string) ($row['unit'] ?? ''),
+            'months' => $months,
+            'other' => $spec,
+        ];
+    }
+
+    private function resolveScope11FuelType(?array $row, string $fuelKey): string
+    {
+        $raw = strtoupper(trim((string) ($row['fuelType'] ?? '')));
+        if ($raw !== '') return $raw;
+
+        $key = strtoupper(trim($fuelKey));
+        if (str_contains($key, 'DIESEL_B7')) return 'B7';
+        if (str_contains($key, 'DIESEL_B10')) return 'B10';
+        if (str_contains($key, 'GASOHOL_9195') || str_contains($key, '9195')) return '91/95';
+        if (str_contains($key, 'GASOHOL_E20') || str_contains($key, 'E20')) return 'E20';
+        if (str_contains($key, 'LPG')) return 'LPG';
+        if (str_contains($key, 'FUEL_OIL') || str_contains($key, 'OIL')) return 'น้ำมันเตา';
+        return 'OTHER';
+    }
+
+    private function extractOtherBlendSpec(?array $row, string $fuelType): array
+    {
+        if (strtoupper($fuelType) !== 'OTHER') {
+            return [
+                'dieselPct' => null,
+                'biodieselPct' => null,
+                'gasolinePct' => null,
+                'ethanolPct' => null,
+                'biodieselDensity' => null,
+                'ethanolDensity' => null,
             ];
         }
 
-        foreach ($map as $fuelKey => $excelRow) {
-            $rowData = $this->findInventoryRow($data, $fuelKey, '1.1');
-            $months = $rowsByFuel[$fuelKey]['months'] ?? null;
-            if ($rowData) {
-                $this->setCellValueSafely($ws, 'A' . $excelRow, $rowData['itemLabel'] ?? null, $range);
-                $this->setCellValueSafely($ws, 'B' . $excelRow, $rowData['dataEvidence'] ?? null, $range);
-                $this->setCellValueSafely($ws, 'C' . $excelRow, $rowData['unit'] ?? null, $range);
+        $spec = $row['blendSpec'] ?? [];
+        if (!is_array($spec)) $spec = [];
+        $density = $spec['density'] ?? [];
+        if (!is_array($density)) $density = [];
+
+        $biodieselDensity =
+            $density['biodieselKgPerL']
+                ?? $spec['biodieselDensityKgPerL']
+                ?? self::DEFAULT_BIODIESEL_DENSITY;
+        $ethanolDensity =
+            $density['ethanolKgPerL']
+                ?? $spec['ethanolDensityKgPerL']
+                ?? self::DEFAULT_ETHANOL_DENSITY;
+
+        return [
+            'dieselPct' => $spec['dieselPct'] ?? null,
+            'biodieselPct' => $spec['biodieselPct'] ?? null,
+            'gasolinePct' => $spec['gasolinePct'] ?? null,
+            'ethanolPct' => $spec['ethanolPct'] ?? null,
+            'biodieselDensity' => $biodieselDensity,
+            'ethanolDensity' => $ethanolDensity,
+        ];
+    }
+
+    private function writeScope11StationaryTable($ws, array $rows): void
+    {
+        $columns = [
+            'RowId',
+            'ItemLabel',
+            'FuelType',
+            'Evidence',
+            'Unit',
+            'M1',
+            'M2',
+            'M3',
+            'M4',
+            'M5',
+            'M6',
+            'M7',
+            'M8',
+            'M9',
+            'M10',
+            'M11',
+            'M12',
+            'OtherDieselPct',
+            'OtherBiodieselPct',
+            'OtherGasolinePct',
+            'OtherEthanolPct',
+            'OtherBiodieselDensityKgPerL',
+            'OtherEthanolDensityKgPerL',
+        ];
+
+        $startRow = self::SCOPE11_TABLE_START_ROW;
+        $endRow = $startRow + self::SCOPE11_TABLE_MAX_ROWS - 1;
+        for ($r = $startRow; $r <= $endRow; $r++) {
+            for ($c = 1; $c <= count($columns); $c++) {
+                $cellRef = Coordinate::stringFromColumnIndex($c) . $r;
+                $this->clearCellIfEditable($ws, $cellRef);
             }
-            $this->writeMonthlyCells($ws, $excelRow, $monthCols, $months, $range);
         }
+
+        foreach (array_values($rows) as $idx => $row) {
+            if ($idx >= self::SCOPE11_TABLE_MAX_ROWS) break;
+            $r = $startRow + $idx;
+            $this->setCellValueSafely($ws, 'A' . $r, $row['rowId'] ?? null, null);
+            $this->setCellValueSafely($ws, 'B' . $r, $row['itemLabel'] ?? null, null);
+            $this->setCellValueSafely($ws, 'C' . $r, $row['fuelType'] ?? null, null);
+            $this->setCellValueSafely($ws, 'D' . $r, $row['evidence'] ?? null, null);
+            $this->setCellValueSafely($ws, 'E' . $r, $row['unit'] ?? null, null);
+
+            $months = is_array($row['months'] ?? null) ? $row['months'] : [];
+            for ($m = 0; $m < 12; $m++) {
+                $value = (float) ($months[$m] ?? 0);
+                $cellRef = Coordinate::stringFromColumnIndex(6 + $m) . $r;
+                $this->setCellValueSafely($ws, $cellRef, $value ? $value : null, null, true);
+            }
+
+            $other = is_array($row['other'] ?? null) ? $row['other'] : [];
+            $this->setCellValueSafely($ws, 'R' . $r, $other['dieselPct'] ?? null, null, true);
+            $this->setCellValueSafely($ws, 'S' . $r, $other['biodieselPct'] ?? null, null, true);
+            $this->setCellValueSafely($ws, 'T' . $r, $other['gasolinePct'] ?? null, null, true);
+            $this->setCellValueSafely($ws, 'U' . $r, $other['ethanolPct'] ?? null, null, true);
+            $this->setCellValueSafely($ws, 'V' . $r, $other['biodieselDensity'] ?? null, null, true);
+            $this->setCellValueSafely($ws, 'W' . $r, $other['ethanolDensity'] ?? null, null, true);
+        }
+    }
+
+    private function normalizeFuelKey(array $row): string
+    {
+        $fuelKey = $row['fuelKey'] ?? null;
+        if (!$fuelKey && isset($row['meta']) && is_array($row['meta'])) {
+            $fuelKey = $row['meta']['fuelKey'] ?? null;
+        }
+        return strtoupper(trim((string) ($fuelKey ?? '')));
     }
 
     private function findInventoryRow(array $data, string $fuelKey, string $subScope): ?array
