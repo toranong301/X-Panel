@@ -329,7 +329,10 @@ function makeScope11Defaults(cycleId: number): EntryRow[] {
 }
 
 function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow[] {
-  const existingRows = scope1Rows.filter(r => r.categoryCode === '1.1');
+  const existingRows = scope1Rows
+    .filter(r => r.categoryCode === '1.1')
+    .filter(r => !isDerivedScope11FuelKey(String(r.subCategoryCode ?? '')))
+    .filter(r => !isScope11HeaderRow(r));
   if (!existingRows.length) return [];
   const defaults = makeScope11Defaults(cycleId);
   const legacyMap: Record<string, string> = {
@@ -365,10 +368,12 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
     .filter(r => r.categoryCode === '1.1')
     .filter(r => {
       const code = legacyMap[r.subCategoryCode ?? ''] ?? r.subCategoryCode ?? '';
-      return code && !defaultKeys.has(code);
+      return code && !defaultKeys.has(code) && !isDerivedScope11FuelKey(code);
     });
 
-  const normalizedCustom = customRows.map(row => {
+  const normalizedCustom = customRows
+    .filter(r => !isScope11HeaderRow(r))
+    .map(row => {
     const isOther = String(row.subCategoryCode ?? '').toUpperCase().includes('OTHER');
     return {
       ...row,
@@ -381,7 +386,10 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
 
 function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): EntryRow[] {
   if (!Array.isArray(inventory) || !inventory.length) return [];
-  const scope11 = inventory.filter(item => String(item?.subScope ?? '') === '1.1');
+  const scope11 = inventory
+    .filter(item => String(item?.subScope ?? '') === '1.1')
+    .filter(item => !isDerivedScope11FuelKey(String(item?.fuelKey ?? '')))
+    .filter(item => !isScope11HeaderItem(item));
   if (!scope11.length) return [];
 
   return scope11.map(item => {
@@ -414,6 +422,25 @@ function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): Entry
       computed: item?.computed,
     } as EntryRow;
   });
+}
+
+function isDerivedScope11FuelKey(fuelKey: string): boolean {
+  const normalized = String(fuelKey || '').trim().toUpperCase();
+  return normalized === 'BIODIESEL_STATIONARY' || normalized === 'ETHANOL_STATIONARY';
+}
+
+function isScope11HeaderRow(row: EntryRow): boolean {
+  const label = String(row.itemName ?? '').trim();
+  if (label.startsWith('ปริมาณการใช้แต่ละเดือน/')) return true;
+  const code = String(row.subCategoryCode ?? '').trim().toUpperCase();
+  return code.startsWith('SCOPE11_1_1_HEADER_MONTHS') || code.startsWith('HEADER_M');
+}
+
+function isScope11HeaderItem(item: any): boolean {
+  const label = String(item?.itemLabel ?? '').trim();
+  if (label.startsWith('ปริมาณการใช้แต่ละเดือน/')) return true;
+  const key = String(item?.fuelKey ?? '').trim().toUpperCase();
+  return key.startsWith('SCOPE11_1_1_HEADER_MONTHS') || key.startsWith('HEADER_M');
 }
 
 // Scope 1.2: seed แบบ “ไม่ฟิกจำนวนแถว”

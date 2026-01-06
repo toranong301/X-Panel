@@ -69,6 +69,7 @@ class Scope11HiddenTableExportService
             $normalizedPayload['items'] ?? [],
             (bool) ($normalizedPayload['splitEnabled'] ?? false)
         );
+        $linkCheck = $this->buildLinkCheck($splitRows);
 
         return [
             'ok' => true,
@@ -79,6 +80,7 @@ class Scope11HiddenTableExportService
             'unknownRowIds' => [],
             'warnings' => [],
             'splitRows' => $splitRows,
+            'linkCheck' => $linkCheck,
         ];
     }
 
@@ -573,6 +575,39 @@ class Scope11HiddenTableExportService
     private function round2(float $value): float
     {
         return round($value, 2);
+    }
+
+    private function buildLinkCheck(array $splitRows): array
+    {
+        $totals = [
+            'dieselL' => 0.0,
+            'gasolineL' => 0.0,
+            'biodieselKg' => 0.0,
+            'ethanolKg' => 0.0,
+        ];
+        $hasValue = [
+            'dieselL' => false,
+            'gasolineL' => false,
+            'biodieselKg' => false,
+            'ethanolKg' => false,
+        ];
+
+        foreach ($splitRows as $row) {
+            foreach ($totals as $key => $sum) {
+                $value = $row[$key] ?? null;
+                if (is_numeric($value)) {
+                    $totals[$key] += (float) $value;
+                    $hasValue[$key] = true;
+                }
+            }
+        }
+
+        return [
+            'dieselL' => $hasValue['dieselL'] ? $this->round2($totals['dieselL']) : null,
+            'gasolineL' => $hasValue['gasolineL'] ? $this->round2($totals['gasolineL']) : null,
+            'biodieselKg' => $hasValue['biodieselKg'] ? $this->round2($totals['biodieselKg']) : null,
+            'ethanolKg' => $hasValue['ethanolKg'] ? $this->round2($totals['ethanolKg']) : null,
+        ];
     }
 
     private function appendSplitFlagRow(array $items, bool $splitEnabled, array $headerMap): array

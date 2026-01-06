@@ -282,7 +282,7 @@ export class CanonicalGhgService {
     if (!raw) return {};
 
     const [k, n] = raw.split('#');
-    const fuelKey = String(k || '').trim();
+    const fuelKey = String(k || '').trim().toUpperCase();
     const slotNo = n ? Number(n) : undefined;
 
     return {

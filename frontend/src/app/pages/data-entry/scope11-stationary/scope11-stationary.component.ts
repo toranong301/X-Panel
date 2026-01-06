@@ -80,6 +80,7 @@ export class Scope11StationaryComponent implements OnInit {
     ACETYLENE_TANK5_MAINT_2: 12,
     ACETYLENE_TANK5_MAINT_3: 14,
   };
+  private readonly derivedFuelKeys = new Set(['BIODIESEL_STATIONARY', 'ETHANOL_STATIONARY']);
   private _rows: EntryRow[] = [];
   readonly trackByRow = (_: number, row: EntryRow) => row.id ?? row.subCategoryCode ?? row.itemName ?? _;
   readonly trackByMonth = (_: number, month: number) => month;
@@ -422,6 +423,10 @@ export class Scope11StationaryComponent implements OnInit {
     return String(row.subCategoryCode || '').trim();
   }
 
+  private isDerivedFuelKey(key: string): boolean {
+    return this.derivedFuelKeys.has(String(key || '').trim().toUpperCase());
+  }
+
   private buildRowId(): string {
     return `S11_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -441,6 +446,7 @@ export class Scope11StationaryComponent implements OnInit {
     const otherScope1 = (existing.scope1 ?? []).filter(r => r.categoryCode !== '1.1');
     const scope11Rows = this.rows
       .filter(r => r.categoryCode === '1.1')
+      .filter(r => !this.isDerivedFuelKey(this.getFuelKey(r)))
       .filter(r => !this.isRowEmpty(r))
       .map(row => {
         this.normalizeRowMonths(row);
@@ -498,6 +504,7 @@ export class Scope11StationaryComponent implements OnInit {
     for (const row of rows) {
       const rowId = this.getFuelKey(row) || row.id;
       if (!rowId) continue;
+      if (this.isDerivedFuelKey(this.getFuelKey(row))) continue;
       const fuelKey = this.getTypeChoice(row);
       const blendProfile = this.buildBlendProfile(fuelKey);
       const months: Record<string, number | null> = {};

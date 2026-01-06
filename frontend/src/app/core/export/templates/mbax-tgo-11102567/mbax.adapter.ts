@@ -36,8 +36,8 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     this.writeDynamicBlocks(ctx, getDynamicBlocks(), vsheet);
 
     // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
-    const scope11Totals = this.writeScope11Stationary(ctx);
-    const scope12Totals = this.writeScope12Mobile(ctx);
+    this.writeScope11Stationary(ctx);
+    this.writeScope12Mobile(ctx);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
     this.writeScope144Fertilizer(ctx);
@@ -52,8 +52,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     // 3) Populate FR-04.1 Scope 3 selected lines (B51..B56) referencing FR-03.2
     this.linkFr041Scope3FromFr032(ctx, fr032RowMap);
 
-    // 4) Populate FR-04.1 Scope 1 qty linking to subsheet totals
-    this.linkFr041Scope1QtyFromSubsheets(ctx, { ...scope11Totals, ...scope12Totals });
+    // 4) Keep FR-04.1 Scope 1 qty formulas intact (template pulls from 1.1/1.2 sheets)
   }
 
 
@@ -596,19 +595,6 @@ const screenRow =
       this.writeScope11StationaryTable(wsData, rows);
     }
 
-    const monthCols = ['E','F','G','H','I','J','K','L','M','N','O','P'] as const;
-    const totalRows: Array<{ key: string; row: number }> = [
-      { key: 'DIESEL_B7_STATIONARY', row: 9 },
-      { key: 'GASOHOL_9195_STATIONARY', row: 10 },
-      { key: 'ACETYLENE_TANK5_MAINT_2', row: 12 },
-      { key: 'ACETYLENE_TANK5_MAINT_3', row: 14 },
-    ];
-
-    for (const it of totalRows) {
-      const totalCell = this.findRowTotalCell(ws, it.row, [...monthCols]);
-      if (totalCell) totals[it.key] = { sheetName: ws.name, totalCell };
-    }
-
     return totals;
   }
 
@@ -675,57 +661,15 @@ const screenRow =
       output.push(this.mapScope11TableRow(row, key, false));
     }
 
-    const headerRow = this.buildScope11HeaderRow(ctx);
-    if (headerRow) output.push(headerRow);
-
     return output;
-  }
-
-  private buildScope11HeaderRow(ctx: ExportContext): {
-    rowId: string;
-    itemLabel: string;
-    fuelType: string;
-    evidence: string;
-    unit: string;
-    months: Array<number | null>;
-    other: {
-      dieselPct: number | null;
-      biodieselPct: number | null;
-      gasolinePct: number | null;
-      ethanolPct: number | null;
-      biodieselDensity: number | null;
-      ethanolDensity: number | null;
-    };
-  } | null {
-    const headerMonths = (ctx.canonical as any)?.scope11HeaderMonths;
-    if (!headerMonths) return null;
-    const periodYear = Number((ctx.canonical as any)?.scope11PeriodYear ?? 2566);
-    const months = Array.from({ length: 12 }, (_, idx) => {
-      return this.parseNumberOrNull(headerMonths?.[`M${idx + 1}`]);
-    });
-
-    return {
-      rowId: `SCOPE11_1_1_HEADER_MONTHS_${periodYear}`,
-      itemLabel: `ปริมาณการใช้แต่ละเดือน/${periodYear}`,
-      fuelType: '',
-      evidence: '',
-      unit: '',
-      months,
-      other: {
-        dieselPct: null,
-        biodieselPct: null,
-        gasolinePct: null,
-        ethanolPct: null,
-        biodieselDensity: null,
-        ethanolDensity: null,
-      },
-    };
   }
 
   private mapScope11TableRow(row: any, fuelKey: string, forceRowId: boolean) {
     const fuelType = this.resolveScope11FuelType(row, fuelKey);
+    const explicitRowId = String(row?.rowId ?? row?.fuelKey ?? row?.meta?.fuelKey ?? '').trim();
+    const resolvedRowId = explicitRowId || String(row?.id ?? '').trim() || fuelKey;
     return {
-      rowId: forceRowId ? fuelKey : String(row?.id ?? fuelKey),
+      rowId: forceRowId ? fuelKey : resolvedRowId,
       itemLabel: String(row?.itemLabel ?? ''),
       fuelType,
       evidence: String(row?.dataEvidence ?? ''),

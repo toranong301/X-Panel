@@ -53,6 +53,7 @@ class Scope11ExportController extends Controller
             'unknown_rowIds' => $result['unknownRowIds'] ?? [],
             'warnings' => $result['warnings'] ?? [],
             'splitRows' => $result['splitRows'] ?? [],
+            'linkCheck' => $result['linkCheck'] ?? null,
         ]);
     }
 }
