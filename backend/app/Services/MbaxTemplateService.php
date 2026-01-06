@@ -540,28 +540,33 @@ class MbaxTemplateService
 
         $headers = ['sectionCode', 'sectionTitle', 'sheetName', 'hasData', 'sortOrder'];
         foreach ($headers as $idx => $header) {
-            $ws->setCellValueByColumnAndRow($idx + 1, 1, $header);
+            $this->setCellByColRow($ws, $idx + 1, 1, $header);
         }
 
         $maxRows = max(count($sections), 1);
         $clearRows = max($maxRows + 1, self::FR041_AVAILABLE_END_ROW);
         for ($row = 2; $row <= $clearRows; $row++) {
             for ($col = 1; $col <= count($headers); $col++) {
-                $ws->setCellValueByColumnAndRow($col, $row, null);
+                $this->setCellByColRow($ws, $col, $row, null);
             }
         }
 
         foreach ($sections as $idx => $section) {
             $row = $idx + 2;
-            $ws->setCellValueByColumnAndRow(1, $row, $section['sectionCode']);
-            $ws->setCellValueByColumnAndRow(2, $row, $section['sectionTitle']);
-            $ws->setCellValueByColumnAndRow(3, $row, $section['sheetName']);
-            $ws->setCellValueByColumnAndRow(4, $row, $section['hasData'] ? 1 : 0);
-            $ws->setCellValueByColumnAndRow(5, $row, $section['sortOrder']);
+            $ws->setCellValue('A' . $row, $section['sectionCode']);
+            $ws->setCellValue('B' . $row, $section['sectionTitle']);
+            $ws->setCellValue('C' . $row, $section['sheetName']);
+            $ws->setCellValue('D' . $row, $section['hasData'] ? 1 : 0);
+            $ws->setCellValue('E' . $row, $section['sortOrder']);
         }
 
         $tableRange = 'A1:E' . ($maxRows + 1);
-        $table = $this->getTableByName($ws, self::FR041_META_TABLE);
+        $table = null;
+        try {
+            $table = $this->findTable($spreadsheet, $ws, self::FR041_META_TABLE);
+        } catch (\RuntimeException $e) {
+            $table = null;
+        }
         if ($table) {
             $table->setRange($tableRange);
         } else {
@@ -749,18 +754,21 @@ class MbaxTemplateService
         return true;
     }
 
-    private function getTableByName($ws, string $name): ?Table
+    private function findTable(Spreadsheet $spreadsheet, Worksheet $sheet, string $tableName): Table
     {
-        if (method_exists($ws, 'getTableByName')) {
-            $table = $ws->getTableByName($name);
-            if ($table) return $table;
+        $sheetName = $sheet->getTitle();
+        foreach ($spreadsheet->getTableCollection() as $table) {
+            if (strcasecmp($table->getName(), $tableName) !== 0) {
+                continue;
+            }
+            $tableSheet = method_exists($table, 'getWorksheet') ? $table->getWorksheet() : null;
+            if ($tableSheet && $tableSheet->getTitle() !== $sheetName) {
+                continue;
+            }
+            return $table;
         }
 
-        foreach ($ws->getTables() as $candidate) {
-            if ($candidate->getName() === $name) return $candidate;
-        }
-
-        return null;
+        throw new \RuntimeException("Table not found: {$tableName} on sheet {$sheetName}");
     }
 
     private function setFormulaIfWritable($ws, string $cellRef, string $formula): void
@@ -769,6 +777,12 @@ class MbaxTemplateService
         if ($cell->isFormula()) return;
         if ($cell->getValue() !== null && $cell->getValue() !== '') return;
         $cell->setValue($formula);
+    }
+
+    private function setCellByColRow(Worksheet $sheet, int $col, int $row, $value): void
+    {
+        $cell = Coordinate::stringFromColumnIndex($col) . $row;
+        $sheet->setCellValue($cell, $value);
     }
 
     private function buildIndirectFormula(string $sheetCellRef, string $sourceCol, string $rowExpr, ?string $guardCell = null): string

@@ -31,7 +31,7 @@ class ApiEndpointsTest extends TestCase
         $this->assertIsArray($resp->json());
     }
 
-    public function test_preview_invalid_sheet_id_returns_400(): void
+    public function test_preview_invalid_sheet_id_returns_422(): void
     {
         $cycle = Cycle::create([
             'year' => 2025,
@@ -40,7 +40,7 @@ class ApiEndpointsTest extends TestCase
         ]);
 
         $resp = $this->getJson("/api/cycles/{$cycle->id}/preview?sheetId=NO_SUCH_SHEET", $this->apiHeaders());
-        $resp->assertStatus(400);
+        $resp->assertStatus(422);
         $resp->assertJson([
             'code' => 'INVALID_SHEET_ID',
         ]);

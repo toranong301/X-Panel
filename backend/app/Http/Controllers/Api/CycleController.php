@@ -9,6 +9,8 @@ use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
 use App\Exceptions\TemplateNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class CycleController extends Controller
 {
@@ -64,83 +66,95 @@ class CycleController extends Controller
         SheetRegistry $sheetRegistry
     )
     {
-        $cycle->refresh();
-        $payload = $request->validate([
-            'sheetId' => ['required', 'string', 'max:200'],
-        ]);
-
-        $sheetId = trim((string) ($payload['sheetId'] ?? ''));
-        if ($sheetId === '') {
-            return response()->json([
-                'code' => 'INVALID_SHEET',
-                'message' => 'sheetId is required.',
-            ], 422);
-        }
-
-        $templateId = $this->resolveTemplateId($cycle, $registry);
-        $template = $registry->getTemplate($templateId);
-        if (!$template) {
-            return response()->json([
-                'code' => 'INVALID_TEMPLATE',
-                'message' => 'Unknown templateId.',
-            ], 422);
-        }
-
-        $sheetConfig = $sheetRegistry->getSheet($templateId, $sheetId);
-        if (!$sheetConfig) {
-            return response()->json([
-                'code' => 'INVALID_SHEET',
-                'message' => 'Invalid sheetId.',
-                'allowed' => $sheetRegistry->listSheetIds($templateId),
-            ], 422);
-        }
-
-        $sheet = (string) ($sheetConfig['name'] ?? '');
-        $range = trim((string) ($sheetConfig['previewRange'] ?? ''));
-        if (trim($sheet) === '') {
-            return response()->json([
-                'code' => 'INVALID_SHEET',
-                'message' => 'Sheet mapping missing.',
-            ], 422);
-        }
-        if ($range === '') {
-            return response()->json([
-                'code' => 'INVALID_RANGE',
-                'message' => 'Preview range missing.',
-            ], 422);
-        }
-
-        // Root cause seen in logs: missing MBAX template path triggered a 500.
         try {
+            $cycle->refresh();
+            $payload = $request->validate([
+                'sheetId' => ['required', 'string', 'max:200'],
+            ]);
+
+            $rawSheetId = trim((string) ($payload['sheetId'] ?? ''));
+            if ($rawSheetId === '') {
+                return response()->json([
+                    'code' => 'INVALID_SHEET_ID',
+                    'message' => 'sheetId is required.',
+                ], 422);
+            }
+
+            $templateId = $this->resolveTemplateId($cycle, $registry);
+            $template = $registry->getTemplate($templateId);
+            if (!$template) {
+                return response()->json([
+                    'code' => 'INVALID_TEMPLATE',
+                    'message' => 'Unknown templateId.',
+                ], 422);
+            }
+
+            $sheetIdMap = [
+                'fr041' => ['sheetId' => 'FR041', 'sheetName' => 'Fr-04.1'],
+                'scope11_stationary' => ['sheetId' => 'SCOPE11_STATIONARY', 'sheetName' => '1.1 Stationary '],
+            ];
+            $sheetKey = strtolower($rawSheetId);
+            $normalizedSheetId = $sheetIdMap[$sheetKey]['sheetId'] ?? $sheetRegistry->normalizeSheetId($rawSheetId);
+            $allowedSheetIds = $sheetRegistry->listSheetIds($templateId);
+            if (!in_array($normalizedSheetId, $allowedSheetIds, true)) {
+                return response()->json([
+                    'code' => 'INVALID_SHEET_ID',
+                    'message' => 'Invalid sheetId.',
+                    'allowed' => $allowedSheetIds,
+                ], 422);
+            }
+
+            $sheetConfig = $sheetRegistry->getSheet($templateId, $normalizedSheetId);
+            if (!$sheetConfig) {
+                return response()->json([
+                    'code' => 'INVALID_SHEET_ID',
+                    'message' => 'Sheet mapping missing.',
+                ], 422);
+            }
+
+            $sheet = (string) ($sheetIdMap[$sheetKey]['sheetName'] ?? ($sheetConfig['name'] ?? ''));
+            $range = trim((string) ($sheetConfig['previewRange'] ?? ''));
+            if (trim($sheet) === '') {
+                return response()->json([
+                    'code' => 'INVALID_SHEET_ID',
+                    'message' => 'Sheet mapping missing.',
+                ], 422);
+            }
+            if ($range === '') {
+                return response()->json([
+                    'code' => 'INVALID_RANGE',
+                    'message' => 'Preview range missing.',
+                ], 422);
+            }
+
+            $data = $cycle->data_json ?? [];
+            if (!is_array($data)) {
+                $data = [];
+            }
+            if ($sheetKey === 'fr041' && !$this->hasPreviewData($data, $normalizedSheetId)) {
+                return response()->json([
+                    'ok' => true,
+                    'sheetId' => $sheetKey,
+                    'sheetName' => $sheet,
+                    'data' => [
+                        'rows' => [],
+                        'splitRows' => [],
+                        'headerMonths' => new \stdClass(),
+                    ],
+                ]);
+            }
+
+            try {
+                $mbax->resolveTemplatePath($templateId);
+            } catch (TemplateNotFoundException $e) {
+                $attempted = $e->attemptedPaths ? implode(', ', $e->attemptedPaths) : 'unknown';
+                throw new \RuntimeException("Template not found: {$attempted}");
+            }
+
             $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
-        } catch (TemplateNotFoundException $e) {
-            return response()->json([
-                'message' => 'Template missing',
-                'code' => 'TEMPLATE_NOT_FOUND',
-                'templateId' => $e->templateId,
-                'templateDir' => $e->templateDir,
-                'attemptedPaths' => $e->attemptedPaths,
-            ], 500);
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), 'MBAX template not found')) {
-                return response()->json([
-                    'message' => 'Template missing',
-                    'code' => 'TEMPLATE_NOT_FOUND',
-                ], 500);
-            }
-            if (str_contains($e->getMessage(), 'PhpSpreadsheet')) {
-                return response()->json([
-                    'message' => 'Spreadsheet engine missing',
-                    'code' => 'DEPENDENCY_MISSING',
-                ], 500);
-            }
-            throw $e;
-        }
-
-        try {
             $mbax->applyData(
                 $spreadsheet,
-                $cycle->data_json ?? [],
+                $data,
                 $cycle->attachments()->get()->all(),
                 $sheet,
                 $range,
@@ -157,26 +171,103 @@ class CycleController extends Controller
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'Sheet')) {
                 return response()->json([
-                    'code' => 'INVALID_SHEET',
+                    'code' => 'INVALID_SHEET_ID',
                     'message' => $e->getMessage(),
                 ], 422);
             }
-            \Log::error('Preview failed', [
-                'cycleId' => $cycle->id,
-                'sheet' => $sheet,
-                'range' => $range,
-                'error' => $e->getMessage(),
-            ]);
-            return response()->json(['message' => 'Preview failed.'], 500);
+            throw $e;
         } catch (\Throwable $e) {
-            \Log::error('Preview failed', [
+            Log::error('Preview failed', [
                 'cycleId' => $cycle->id,
-                'sheet' => $sheet,
-                'range' => $range,
+                'sheetId' => $request->query('sheetId'),
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
-            return response()->json(['message' => 'Preview failed.'], 500);
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
+    }
+
+    private function hasPreviewData(array $data, string $sheetId): bool
+    {
+        if (!$data) return false;
+        $inventory = $data['inventory'] ?? [];
+        if (!is_array($inventory) || !$inventory) {
+            return false;
+        }
+
+        if ($sheetId === 'SCOPE11_STATIONARY') {
+            return $this->hasInventoryForScope($inventory, '1.1');
+        }
+        if ($sheetId === 'FR041') {
+            return $this->hasInventoryForScope($inventory, '1.1') || $this->hasInventoryForScope($inventory, '1.2');
+        }
+
+        return true;
+    }
+
+    private function hasInventoryForScope(array $inventory, string $subScope): bool
+    {
+        foreach ($inventory as $row) {
+            if (!is_array($row)) continue;
+            if ((string) ($row['subScope'] ?? '') !== $subScope) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private function buildEmptyPreview(string $sheetName, string $range): array
+    {
+        $rangeInfo = $this->parseRange($range);
+        $columns = [];
+        for ($c = $rangeInfo['startCol']; $c <= $rangeInfo['endCol']; $c++) {
+            $columns[] = Coordinate::stringFromColumnIndex($c);
+        }
+
+        $rows = [];
+        for ($r = $rangeInfo['startRow']; $r <= $rangeInfo['endRow']; $r++) {
+            $cells = [];
+            for ($c = $rangeInfo['startCol']; $c <= $rangeInfo['endCol']; $c++) {
+                $addr = Coordinate::stringFromColumnIndex($c) . $r;
+                $cells[] = [
+                    'addr' => $addr,
+                    'raw' => null,
+                    'formula' => null,
+                    'computed' => null,
+                    'display' => null,
+                    'calcError' => null,
+                    'type' => 'text',
+                ];
+            }
+            $rows[] = [
+                'rowNumber' => $r,
+                'cells' => $cells,
+            ];
+        }
+
+        return [
+            'sheetName' => $sheetName,
+            'columns' => $columns,
+            'rows' => $rows,
+            'range' => $range,
+        ];
+    }
+
+    private function parseRange(string $range): array
+    {
+        $clean = strtoupper(trim(str_replace('$', '', $range)));
+        if (!preg_match('/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/', $clean, $m)) {
+            throw new \InvalidArgumentException("Invalid range: {$range}");
+        }
+        return [
+            'startCol' => Coordinate::columnIndexFromString($m[1]),
+            'startRow' => (int) $m[2],
+            'endCol' => Coordinate::columnIndexFromString($m[3]),
+            'endRow' => (int) $m[4],
+        ];
     }
 
     private function resolveTemplateId(Cycle $cycle, TemplateRegistry $registry): string

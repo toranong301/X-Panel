@@ -6,6 +6,8 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Table;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class Scope11HiddenTableExportService
 {
@@ -372,15 +374,10 @@ class Scope11HiddenTableExportService
     private function resolveTableRange($ws): array
     {
         $table = null;
-        if (method_exists($ws, 'getTableByName')) {
-            $table = $ws->getTableByName(self::TABLE_NAME);
-        } elseif (method_exists($ws, 'getTables')) {
-            foreach ($ws->getTables() as $candidate) {
-                if ($candidate->getName() === self::TABLE_NAME) {
-                    $table = $candidate;
-                    break;
-                }
-            }
+        try {
+            $table = $this->findTable($ws->getParent(), $ws, self::TABLE_NAME);
+        } catch (\RuntimeException $e) {
+            $table = null;
         }
 
         if ($table && method_exists($table, 'getRange')) {
@@ -753,5 +750,22 @@ class Scope11HiddenTableExportService
             'endCol' => Coordinate::columnIndexFromString($m[3]),
             'endRow' => (int) $m[4],
         ];
+    }
+
+    private function findTable(Spreadsheet $spreadsheet, Worksheet $sheet, string $tableName): Table
+    {
+        $sheetName = $sheet->getTitle();
+        foreach ($spreadsheet->getTableCollection() as $table) {
+            if (strcasecmp($table->getName(), $tableName) !== 0) {
+                continue;
+            }
+            $tableSheet = method_exists($table, 'getWorksheet') ? $table->getWorksheet() : null;
+            if ($tableSheet && $tableSheet->getTitle() !== $sheetName) {
+                continue;
+            }
+            return $table;
+        }
+
+        throw new \RuntimeException("Table not found: {$tableName} on sheet {$sheetName}");
     }
 }
