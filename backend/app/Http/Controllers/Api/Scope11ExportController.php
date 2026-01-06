@@ -47,6 +47,8 @@ class Scope11ExportController extends Controller
         return response()->json([
             'ok' => true,
             'splitEnabled' => $result['splitEnabled'] ?? false,
+            'periodYear' => $result['periodYear'] ?? null,
+            'headerMonths' => $result['headerMonths'] ?? null,
             'items' => $result['items'] ?? [],
             'unknown_rowIds' => $result['unknownRowIds'] ?? [],
             'warnings' => $result['warnings'] ?? [],

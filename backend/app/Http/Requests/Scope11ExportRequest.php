@@ -15,12 +15,16 @@ class Scope11ExportRequest extends FormRequest
     public function rules(): array
     {
         $monthRules = [];
+        $headerMonthRules = [];
         for ($i = 1; $i <= 12; $i++) {
             $monthRules["items.*.months.M{$i}"] = ['nullable', 'numeric'];
+            $headerMonthRules["headerMonths.M{$i}"] = ['nullable', 'numeric'];
         }
 
         return [
             'splitEnabled' => ['required', 'boolean'],
+            'periodYear' => ['nullable', 'numeric'],
+            'headerMonths' => ['nullable', 'array'],
             'items' => ['required', 'array'],
             'items.*.rowId' => ['required', 'string'],
             'items.*.fuelKey' => ['nullable', 'string'],
@@ -30,6 +34,7 @@ class Scope11ExportRequest extends FormRequest
             'items.*.blendProfile' => ['nullable', 'string'],
             'items.*.months' => ['nullable', 'array'],
             ...$monthRules,
+            ...$headerMonthRules,
         ];
     }
 
@@ -48,6 +53,11 @@ class Scope11ExportRequest extends FormRequest
                 if ($months !== null && !is_array($months)) {
                     $validator->errors()->add("items.{$idx}.months", 'Months must be an object.');
                 }
+            }
+
+            $headerMonths = $this->input('headerMonths');
+            if ($headerMonths !== null && !is_array($headerMonths)) {
+                $validator->errors()->add('headerMonths', 'Header months must be an object.');
             }
         });
     }

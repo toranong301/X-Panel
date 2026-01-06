@@ -33,7 +33,7 @@ class Scope11HiddenTableExportService
         }
 
         $normalizedPayload = $this->normalizePayload($payload);
-        $this->writeScope11Table($ws, $normalizedPayload['items'], (bool) $normalizedPayload['splitEnabled']);
+        $this->writeScope11Table($ws, $normalizedPayload['items'], (bool) $normalizedPayload['splitEnabled'], $normalizedPayload['headerMonths'] ?? null, $normalizedPayload['periodYear'] ?? null);
 
         $tempBase = tempnam(sys_get_temp_dir(), 'scope11_export_');
         if (!$tempBase) {
@@ -73,6 +73,8 @@ class Scope11HiddenTableExportService
         return [
             'ok' => true,
             'splitEnabled' => $normalizedPayload['splitEnabled'],
+            'periodYear' => $normalizedPayload['periodYear'] ?? null,
+            'headerMonths' => $normalizedPayload['headerMonthsRaw'] ?? null,
             'items' => $this->buildPreviewRows($normalizedPayload['items']),
             'unknownRowIds' => [],
             'warnings' => [],
@@ -236,7 +238,7 @@ class Scope11HiddenTableExportService
         ];
     }
 
-    private function writeScope11Table($ws, array $items, bool $splitEnabled): void
+    private function writeScope11Table($ws, array $items, bool $splitEnabled, ?array $headerMonths, ?int $periodYear): void
     {
         $tableRange = $this->resolveTableRange($ws);
         $headerRow = $tableRange['headerRow'];
@@ -255,7 +257,8 @@ class Scope11HiddenTableExportService
         }
 
         $maxRows = $endRow - $startRow + 1;
-        $itemsToWrite = $this->appendSplitFlagRow($items, $splitEnabled, $headerMap);
+        $itemsToWrite = $this->appendHeaderMonthsRows($items, $headerMonths, $periodYear, $headerMap);
+        $itemsToWrite = $this->appendSplitFlagRow($itemsToWrite, $splitEnabled, $headerMap);
         for ($i = 0; $i < count($itemsToWrite) && $i < $maxRows; $i++) {
             $data = $itemsToWrite[$i] ?? [];
             $rowId = (string) ($data['rowId'] ?? '');
@@ -438,8 +441,29 @@ class Scope11HiddenTableExportService
             ];
         }
 
+        $headerMonthsRaw = is_array($payload['headerMonths'] ?? null) ? $payload['headerMonths'] : null;
+        $headerMonths = null;
+        if (is_array($headerMonthsRaw)) {
+            $headerMonths = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $key = 'M' . $m;
+                if (!array_key_exists($key, $headerMonthsRaw)) {
+                    continue;
+                }
+                $headerMonths[$key] = $this->normalizeValue($headerMonthsRaw[$key]);
+            }
+        }
+
+        $periodYear = null;
+        if (array_key_exists('periodYear', $payload) && $payload['periodYear'] !== null && $payload['periodYear'] !== '') {
+            $periodYear = is_numeric($payload['periodYear']) ? (int) $payload['periodYear'] : null;
+        }
+
         return [
             'splitEnabled' => (bool) ($payload['splitEnabled'] ?? false),
+            'periodYear' => $periodYear,
+            'headerMonthsRaw' => $headerMonthsRaw,
+            'headerMonths' => $headerMonths,
             'items' => $items,
         ];
     }
@@ -571,6 +595,40 @@ class Scope11HiddenTableExportService
             'blendProfile' => null,
             'months' => [],
         ];
+
+        return $items;
+    }
+
+
+    private function appendHeaderMonthsRows(array $items, ?array $headerMonths, ?int $periodYear, array $headerMap): array
+    {
+        if (!is_array($headerMonths)) {
+            return $items;
+        }
+
+        $rowIdCol = $headerMap['ROWID'] ?? null;
+        if (!$rowIdCol) {
+            return $items;
+        }
+
+        $valueCol = $headerMap['VALUE'] ?? $headerMap['ITEMLABEL'] ?? null;
+        if (!$valueCol) {
+            return $items;
+        }
+
+        for ($m = 1; $m <= 12; $m++) {
+            $key = 'M' . $m;
+            $value = array_key_exists($key, $headerMonths) ? $headerMonths[$key] : null;
+            $items[] = [
+                'rowId' => 'HEADER_' . $key,
+                'label' => $periodYear ? "HEADER_{$key}_{$periodYear}" : 'HEADER_' . $key,
+                'value' => $value,
+                'unit' => null,
+                'evidence' => null,
+                'blendProfile' => null,
+                'months' => [],
+            ];
+        }
 
         return $items;
     }
