@@ -73,6 +73,9 @@ export class DataEntryComponent implements OnInit {
       this.router.navigate(['/cycles', resolvedId, 'data-entry'], { replaceUrl: true });
     }
     const vm = this.buildVmFromStorage(resolvedId);
+    const cycle = await this.cycleApi.getCycle(resolvedId).catch(() => null);
+    const inventory = Array.isArray(cycle?.data_json?.inventory) ? cycle?.data_json?.inventory : [];
+    vm.scope11Rows = buildScope11RowsFromInventory(resolvedId, inventory);
     this.vmSubject.next({ ...vm, ready: true });
   }
 
@@ -362,6 +365,38 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
     });
 
   return [...mergedDefaults, ...customRows];
+}
+
+function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): EntryRow[] {
+  if (!Array.isArray(inventory) || !inventory.length) return [];
+  const scope11 = inventory.filter(item => String(item?.subScope ?? '') === '1.1');
+  if (!scope11.length) return [];
+
+  return scope11.map(item => {
+    const months = createEmptyMonths();
+    const monthly = Array.isArray(item?.quantityMonthly) ? item.quantityMonthly : [];
+    for (let i = 0; i < months.length; i++) {
+      months[i].qty = Number(monthly[i] ?? 0) || 0;
+    }
+    return {
+      id: item?.id,
+      cycleId: String(cycleId),
+      scope: 'S1',
+      categoryCode: '1.1',
+      subCategoryCode: String(item?.fuelKey ?? ''),
+      itemName: String(item?.itemLabel ?? ''),
+      unit: String(item?.unit ?? ''),
+      months,
+      referenceText: item?.dataEvidence ?? undefined,
+      remark: item?.remark ?? undefined,
+      dataSourceType: 'ORG',
+      blendSpec: item?.blendSpec,
+      blend: item?.blend,
+      fuelType: item?.fuelType,
+      unitConversion: item?.unitConversion,
+      computed: item?.computed,
+    } as EntryRow;
+  });
 }
 
 // Scope 1.2: seed แบบ “ไม่ฟิกจำนวนแถว”

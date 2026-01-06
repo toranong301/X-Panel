@@ -116,6 +116,18 @@ export class CanonicalGhgService {
     return this.build(cycleId);
   }
 
+  public buildScope11StationaryPayload(cycleId: number, rows: EntryRow[]): Record<string, any> {
+    const entryDoc = this.entrySvc.load(cycleId);
+    const templateId = this.normalizeTemplateId(undefined, (entryDoc as any)?.templateId);
+    const inventory = rows
+      .filter(r => r.categoryCode === '1.1')
+      .map(r => this.mapEntryRowToInventory(r, 1));
+    return {
+      templateId,
+      inventory,
+    };
+  }
+
   // ✅ Scope 1.1 + 1.2: สร้าง InventoryItemRow ที่มี quantityMonthly + fuelKey + slotNo
   private buildScope1Inventory(cycleId: number): InventoryItemRow[] {
     const doc = this.entrySvc.load(cycleId);

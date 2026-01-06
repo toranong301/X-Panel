@@ -92,8 +92,8 @@ export class Scope11StationaryComponent {
         this.snackBar.open(validationError, 'ปิด', { duration: 6000 });
         return;
       }
-      this.persistScopeRows();
-      const canonical = this.canonicalSvc.buildScope11StationaryExport(this.cycleId);
+      const scope11Rows = this.persistScopeRows();
+      const canonical = this.canonicalSvc.buildScope11StationaryPayload(this.cycleId, scope11Rows);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
@@ -129,7 +129,8 @@ export class Scope11StationaryComponent {
         this.snackBar.open(validationError, 'ปิด', { duration: 6000 });
         return;
       }
-      const canonical = this.canonicalSvc.buildScope11StationaryExport(this.cycleId);
+      const scope11Rows = this.persistScopeRows();
+      const canonical = this.canonicalSvc.buildScope11StationaryPayload(this.cycleId, scope11Rows);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
@@ -377,7 +378,7 @@ export class Scope11StationaryComponent {
     return `CUSTOM_${key}_${suffix}`.toUpperCase();
   }
 
-  private persistScopeRows(): void {
+  private persistScopeRows(): EntryRow[] {
     const existing: DataEntryDoc = this.dataEntrySvc.load(this.cycleId) ?? {
       cycleId: this.cycleId,
       scope1: [],
@@ -397,6 +398,7 @@ export class Scope11StationaryComponent {
       cycleId: this.cycleId,
       scope1: [...scope11Rows, ...otherScope1],
     });
+    return scope11Rows;
   }
 
   private applyComputedFields(row: EntryRow): EntryRow {
@@ -457,7 +459,8 @@ export class Scope11StationaryComponent {
     if (Math.abs(sum - 100) > 0.01) return 'สัดส่วนต้องรวม 100%';
     const biodiesel = spec.density?.biodieselKgPerL;
     const ethanol = spec.density?.ethanolKgPerL;
-    if ((biodiesel !== undefined && biodiesel <= 0) || (ethanol !== undefined && ethanol <= 0)) {
+    if ((biodieselPct > 0 && (!biodiesel || biodiesel <= 0))
+      || (ethanolPct > 0 && (!ethanol || ethanol <= 0))) {
       return 'กรุณาระบุความหนาแน่นของ Biodiesel/Ethanol';
     }
     return null;

@@ -80,7 +80,7 @@ describe('Scope11StationaryComponent', () => {
     expect(component.hasOtherBlendErrors()).toBe(true);
   });
 
-  it('allows OTHER rows with missing densities', () => {
+  it('blocks OTHER rows when densities are missing', () => {
     const component = makeComponent();
     const row = makeRow({
       subCategoryCode: 'CUSTOM_OTHER_1',
@@ -94,8 +94,8 @@ describe('Scope11StationaryComponent', () => {
       },
     });
     component.rows = [row];
-    expect(component.getOtherBlendError(row)).toBeNull();
-    expect(component.hasOtherBlendErrors()).toBe(false);
+    expect(component.getOtherBlendError(row)).not.toBeNull();
+    expect(component.hasOtherBlendErrors()).toBe(true);
   });
 
   it('saves before opening preview', async () => {

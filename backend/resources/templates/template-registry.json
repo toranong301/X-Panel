@@ -4,7 +4,7 @@
       "label": "MBAX-TGO-11102567 Demo",
       "path": {
         "env": "MBAX_TEMPLATE_PATH",
-        "fallback": "../frontend/src/assets/templates/mbax/MBAX-TGO-11102567-Demo.xlsx"
+        "fallback": "storage/app/templates/mbax/MBAX-TGO-11102567-Demo.xlsx"
       },
       "sheets": {
         "SCOPE11_STATIONARY": {
