@@ -367,12 +367,11 @@ export class Scope11StationaryComponent implements OnInit {
     return null;
   }
 
-  formatNumber(value: number, zeroAsDash = false, decimals = 2): string {
-    if (zeroAsDash && value === 0) return '-';
-    return value.toLocaleString('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: decimals,
-    });
+  formatFixed2(value: number | string | null | undefined): string {
+    if (value === null || value === undefined || value === '') return '';
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) return '';
+    return normalized.toFixed(2);
   }
 
   get blendRows() {

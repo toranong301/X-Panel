@@ -50,20 +50,20 @@
           <td>{{ item.rule.label }}</td>
           <td>{{ item.row.referenceText || '-' }}</td>
           <td>{{ item.row.unit || 'L' }}</td>
-          <td class="num">{{ formatNumber(item.annualL, true) }}</td>
-          <td class="num">{{ formatNumber(item.dieselL, true) }}</td>
-          <td class="num">{{ formatNumber(item.biodieselL, true) }}</td>
-          <td class="num">{{ formatNumber(item.biodieselKg, true) }}</td>
-          <td class="num">{{ formatNumber(item.gasolineL, true) }}</td>
-          <td class="num">{{ formatNumber(item.ethanolL, true) }}</td>
-          <td class="num">{{ formatNumber(item.ethanolKg, true) }}</td>
+          <td class="num">{{ formatFixed2(item.annualL) }}</td>
+          <td class="num">{{ formatFixed2(item.dieselL) }}</td>
+          <td class="num">{{ formatFixed2(item.biodieselL) }}</td>
+          <td class="num">{{ formatFixed2(item.biodieselKg) }}</td>
+          <td class="num">{{ formatFixed2(item.gasolineL) }}</td>
+          <td class="num">{{ formatFixed2(item.ethanolL) }}</td>
+          <td class="num">{{ formatFixed2(item.ethanolKg) }}</td>
         </tr>
           <tr class="summary">
             <td colspan="7">รวม Biodiesel/Ethanol (kg)</td>
-            <td class="num">{{ formatNumber(totalBiodieselKg(), true) }}</td>
+            <td class="num">{{ formatFixed2(totalBiodieselKg()) }}</td>
             <td></td>
             <td></td>
-            <td class="num">{{ formatNumber(totalEthanolKg(), true) }}</td>
+            <td class="num">{{ formatFixed2(totalEthanolKg()) }}</td>
           </tr>
         </ng-container>
       </tbody>
@@ -90,7 +90,7 @@
         <tr class="header-input-row">
           <td colspan="4" class="header-label">ปริมาณการใช้แต่ละเดือน/2566</td>
           <td class="num">
-            {{ headerMonthsTotal() === null ? '' : formatNumber(headerMonthsTotal()!) }}
+            {{ formatFixed2(headerMonthsTotal()) }}
           </td>
           <td *ngFor="let m of months; trackBy: trackByMonth">
             <input
@@ -190,7 +190,7 @@
                 />
               </mat-form-field>
             </td>
-            <td class="num">{{ formatNumber(total(row)) }}</td>
+            <td class="num">{{ formatFixed2(total(row)) }}</td>
             <td *ngFor="let m of months; trackBy: trackByMonth">
               <input
                 type="number"
@@ -216,9 +216,9 @@
             <td class="placeholder">-</td>
             <td class="placeholder">-</td>
             <td>kg</td>
-            <td class="num">{{ formatNumber(acetyleneKgTotal(row), true) }}</td>
+            <td class="num">{{ formatFixed2(acetyleneKgTotal(row)) }}</td>
             <td *ngFor="let m of months; trackBy: trackByMonth" class="num">
-              {{ formatNumber(getMonthQty(row, m) * 5, true) }}
+              {{ formatFixed2(getMonthQty(row, m) * 5) }}
             </td>
             <td></td>
           </tr>

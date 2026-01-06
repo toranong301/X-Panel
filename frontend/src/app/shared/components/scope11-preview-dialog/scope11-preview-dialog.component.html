@@ -36,18 +36,18 @@
       <div class="payload-key">ปริมาณการใช้แต่ละเดือน/2566</div>
       <div></div>
       <div></div>
-      <div class="payload-value">{{ headerMonthsTotal() ?? '' }}</div>
+      <div class="payload-value">{{ formatFixed2(headerMonthsTotal()) }}</div>
       <div *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">
-        {{ headerMonths['M' + m] ?? '' }}
+        {{ formatFixed2(headerMonths['M' + m]) }}
       </div>
     </div>
     <div *ngFor="let row of visibleItems" class="payload-row">
       <div class="payload-key">{{ row.label || row.rowId }}</div>
       <div>{{ row.evidence }}</div>
       <div>{{ row.unit }}</div>
-      <div class="payload-value">{{ row.total ?? '' }}</div>
+      <div class="payload-value">{{ formatFixed2(row.total) }}</div>
       <div *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">
-        {{ row.months['M' + m] ?? '' }}
+        {{ formatFixed2(row.months['M' + m]) }}
       </div>
     </div>
   </div>
@@ -73,13 +73,13 @@
         <div>{{ row.fuelKey }}</div>
         <div>{{ row.evidence }}</div>
         <div>{{ row.unit }}</div>
-        <div class="payload-value">{{ row.total ?? '' }}</div>
-        <div>{{ row.dieselL ?? '' }}</div>
-        <div>{{ row.biodieselL ?? '' }}</div>
-        <div>{{ row.biodieselKg ?? '' }}</div>
-        <div>{{ row.gasolineL ?? '' }}</div>
-        <div>{{ row.ethanolL ?? '' }}</div>
-        <div>{{ row.ethanolKg ?? '' }}</div>
+        <div class="payload-value">{{ formatFixed2(row.total) }}</div>
+        <div>{{ formatFixed2(row.dieselL) }}</div>
+        <div>{{ formatFixed2(row.biodieselL) }}</div>
+        <div>{{ formatFixed2(row.biodieselKg) }}</div>
+        <div>{{ formatFixed2(row.gasolineL) }}</div>
+        <div>{{ formatFixed2(row.ethanolL) }}</div>
+        <div>{{ formatFixed2(row.ethanolKg) }}</div>
       </div>
     </div>
   </div>

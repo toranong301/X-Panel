@@ -85,4 +85,11 @@ export class Scope11PreviewDialogComponent {
     return values.reduce((sum, v) => sum + Number(v), 0);
   }
 
+  formatFixed2(value: number | string | null | undefined): string {
+    if (value === null || value === undefined || value === '') return '';
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) return '';
+    return normalized.toFixed(2);
+  }
+
 }
