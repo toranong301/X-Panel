@@ -112,15 +112,9 @@
                 </mat-select>
               </mat-form-field>
               <div class="blend-row" *ngIf="getTypeChoice(row) === 'OTHER'">
-                <button mat-stroked-button type="button" (click)="openBlendDialog(row)">
+                <button mat-stroked-button type="button" disabled>
                   Blend
                 </button>
-                <span class="blend-badge" *ngIf="row.blendSpec">
-                  {{ blendBadge(row) }}
-                </span>
-              </div>
-              <div class="blend-error" *ngIf="getOtherBlendError(row)">
-                {{ getOtherBlendError(row) }}
               </div>
               <mat-form-field *ngIf="getTypeChoice(row) === 'OTHER'" appearance="outline">
                 <input

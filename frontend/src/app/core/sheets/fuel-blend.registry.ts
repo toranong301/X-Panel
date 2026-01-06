@@ -1,11 +1,14 @@
-export type FuelBlendKey =
-  | 'B7'
-  | 'B10'
-  | 'GASOHOL_9195'
-  | 'E20'
-  | 'LPG'
-  | 'FUEL_OIL'
-  | 'OTHER';
+export const FUEL_BLEND_KEYS = [
+  'B7',
+  'B10',
+  '91/95',
+  'E20',
+  'LPG',
+  'FUEL_OIL',
+  'OTHER',
+] as const;
+
+export type FuelBlendKey = typeof FUEL_BLEND_KEYS[number];
 
 export type FuelBlendRule = {
   key: FuelBlendKey;
@@ -19,7 +22,7 @@ export type FuelBlendRule = {
 export const FUEL_BLEND_RULES: FuelBlendRule[] = [
   { key: 'B7', label: 'B7', dieselFrac: 0.93, biodieselFrac: 0.07, gasolineFrac: 0, ethanolFrac: 0 },
   { key: 'B10', label: 'B10', dieselFrac: 0.9, biodieselFrac: 0.1, gasolineFrac: 0, ethanolFrac: 0 },
-  { key: 'GASOHOL_9195', label: '91/95', dieselFrac: 0, biodieselFrac: 0, gasolineFrac: 0.9, ethanolFrac: 0.1 },
+  { key: '91/95', label: '91/95', dieselFrac: 0, biodieselFrac: 0, gasolineFrac: 0.9, ethanolFrac: 0.1 },
   { key: 'E20', label: 'E20', dieselFrac: 0, biodieselFrac: 0, gasolineFrac: 0.8, ethanolFrac: 0.2 },
   { key: 'LPG', label: 'LPG', dieselFrac: 0, biodieselFrac: 0, gasolineFrac: 0, ethanolFrac: 0 },
   { key: 'FUEL_OIL', label: 'น้ำมันเตา', dieselFrac: 1, biodieselFrac: 0, gasolineFrac: 0, ethanolFrac: 0 },
@@ -41,20 +44,20 @@ export function resolveBlendKey(fuelKey?: string, typeLabel?: string): FuelBlend
 
   if (type === 'B7') return 'B7';
   if (type === 'B10') return 'B10';
-  if (type === '91/95' || type === '91-95') return 'GASOHOL_9195';
+  if (type === '91/95' || type === '91-95') return '91/95';
   if (type === 'E20') return 'E20';
   if (type === 'LPG') return 'LPG';
   if (type === 'น้ำมันเตา' || type === 'FUEL OIL') return 'FUEL_OIL';
 
   if (raw.includes('DIESEL_B7')) return 'B7';
   if (raw.includes('DIESEL_B10')) return 'B10';
-  if (raw.includes('GASOHOL_9195')) return 'GASOHOL_9195';
+  if (raw.includes('GASOHOL_9195')) return '91/95';
   if (raw.includes('GASOHOL_E20')) return 'E20';
   if (raw.includes('LPG')) return 'LPG';
   if (raw.includes('FUEL_OIL') || raw.includes('OIL')) return 'FUEL_OIL';
   if (raw.startsWith('CUSTOM_B7')) return 'B7';
   if (raw.startsWith('CUSTOM_B10')) return 'B10';
-  if (raw.startsWith('CUSTOM_GASOHOL_9195') || raw.startsWith('CUSTOM_9195')) return 'GASOHOL_9195';
+  if (raw.startsWith('CUSTOM_GASOHOL_9195') || raw.startsWith('CUSTOM_9195') || raw.startsWith('CUSTOM_91/95')) return '91/95';
   if (raw.startsWith('CUSTOM_E20')) return 'E20';
   if (raw.includes('ACETYLENE')) return 'OTHER';
   return 'OTHER';

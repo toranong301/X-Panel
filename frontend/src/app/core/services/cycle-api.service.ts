@@ -26,6 +26,34 @@ export type ExportDownload = {
   filename: string;
 };
 
+export type Scope11PreviewResult = {
+  ok: boolean;
+  splitEnabled: boolean;
+  items: Array<{
+    rowId: string;
+    label: string;
+    evidence: string;
+    unit: string;
+    months: Record<string, any>;
+    total: number | null;
+  }>;
+  unknown_rowIds: string[];
+  warnings: Record<string, any>;
+  splitRows?: Array<{
+    itemLabel: string;
+    fuelKey: string;
+    evidence: string;
+    unit: string;
+    total: number | null;
+    dieselL: number | null;
+    biodieselL: number | null;
+    biodieselKg: number | null;
+    gasolineL: number | null;
+    ethanolL: number | null;
+    ethanolKg: number | null;
+  }>;
+};
+
 export type ExportDto = {
   id: number;
   cycle_id: number;
@@ -120,6 +148,30 @@ export class CycleApiService {
     const disposition = resp.headers?.get('content-disposition') ?? '';
     const filename = this.extractFilename(disposition) ?? `export_${id}.xlsx`;
     return { blob: resp.body ?? new Blob(), filename };
+  }
+
+  async exportScope11Preview(payload: Record<string, any>): Promise<ExportDownload> {
+    const resp = await firstValueFrom(
+      this.api.postBlob('exports/scope11/preview', payload)
+    );
+    const disposition = resp.headers?.get('content-disposition') ?? '';
+    const filename = this.extractFilename(disposition) ?? 'SCOPE11_PREVIEW.xlsx';
+    return { blob: resp.body ?? new Blob(), filename };
+  }
+
+  async exportScope11Xlsx(payload: Record<string, any>): Promise<ExportDownload> {
+    const resp = await firstValueFrom(
+      this.api.postBlob('exports/scope11/xlsx', payload)
+    );
+    const disposition = resp.headers?.get('content-disposition') ?? '';
+    const filename = this.extractFilename(disposition) ?? 'SCOPE11_EXPORT.xlsx';
+    return { blob: resp.body ?? new Blob(), filename };
+  }
+
+  async previewScope11Json(payload: Record<string, any>): Promise<Scope11PreviewResult> {
+    return firstValueFrom(
+      this.api.post<Scope11PreviewResult>('exports/scope11/preview-json', payload)
+    );
   }
 
   getExport(id: number): Promise<ExportDto> {

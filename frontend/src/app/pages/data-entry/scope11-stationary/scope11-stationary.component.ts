@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { MatButtonModule } from '@angular/material/button';
@@ -11,16 +11,14 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
 import { CycleApiService } from '../../../core/services/cycle-api.service';
-import { CycleStateService } from '../../../core/services/cycle-state.service';
 import { DataEntryDoc, DataEntryService } from '../../../core/services/data-entry.service';
 import { SHEET_REGISTRY } from '../../../core/sheet.registry';
 import { getSheetItemOptions } from '../../../core/sheets/sheet-item.registry';
 import { FUEL_BLEND_RULES, FuelBlendKey, findBlendRule, resolveBlendKey } from '../../../core/sheets/fuel-blend.registry';
 import { computeStationarySummary, normalizeMonthValues } from '../../../core/sheets/stationary-compute';
-import { ExcelSheetReviewDialogComponent } from '../../../shared/components/excel-sheet-review-dialog/excel-sheet-review-dialog.component';
 import { OtherBlendDialogComponent, OtherBlendSpec } from '../../../shared/components/other-blend-dialog/other-blend-dialog.component';
+import { Scope11PreviewDialogComponent } from '../../../shared/components/scope11-preview-dialog/scope11-preview-dialog.component';
 import { EntryRow } from '../../../models/entry-row.model';
 import { createEmptyMonths } from '../../../models/entry-row.helpers';
 
@@ -70,17 +68,23 @@ export class Scope11StationaryComponent {
   exporting = false;
   reviewing = false;
   readonly sheetId = SHEET_REGISTRY['SCOPE1_STATIONARY'].sheetId;
+  readonly monthCols = ['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
+  readonly scope11RowMap: Record<string, number> = {
+    DIESEL_B7_STATIONARY: 9,
+    GASOHOL_9195_STATIONARY: 10,
+    ACETYLENE_TANK5_MAINT_2: 12,
+    ACETYLENE_TANK5_MAINT_3: 14,
+  };
   private _rows: EntryRow[] = [];
   readonly trackByRow = (_: number, row: EntryRow) => row.id ?? row.subCategoryCode ?? row.itemName ?? _;
   readonly trackByMonth = (_: number, month: number) => month;
 
   constructor(
     private dialog: MatDialog,
-    private canonicalSvc: CanonicalGhgService,
     private cycleApi: CycleApiService,
-    private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
     private dataEntrySvc: DataEntryService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   async openReview() {
@@ -93,21 +97,14 @@ export class Scope11StationaryComponent {
         return;
       }
       const scope11Rows = this.persistScopeRows();
-      const canonical = this.canonicalSvc.buildScope11StationaryPayload(this.cycleId, scope11Rows);
-      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.cycleId = updateResult.cycleId;
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      this.dialog.open(ExcelSheetReviewDialogComponent, {
-        width: '90vw',
-        maxWidth: '1200px',
-        data: {
-          title: 'Review: 1.1 Stationary',
-          sheetId: this.sheetId,
-          cycleId: this.cycleId,
-          cacheKey: updateResult.previewVersion ?? Date.now(),
-          skipSave: true,
-          hideBlankRows: true,
-        },
+      const payload = this.buildScope11Payload(scope11Rows);
+      const preview = await this.cycleApi.previewScope11Json(payload);
+      this.dialog.open(Scope11PreviewDialogComponent, {
+        width: '95vw',
+        maxWidth: '1400px',
+        height: '85vh',
+        maxHeight: '90vh',
+        data: preview,
       });
     } catch (error: any) {
       console.error('Review preview failed', error);
@@ -117,7 +114,10 @@ export class Scope11StationaryComponent {
         { duration: 6000 }
       );
     } finally {
-      this.reviewing = false;
+      setTimeout(() => {
+        this.reviewing = false;
+        this.cdr.markForCheck();
+      }, 0);
     }
   }
 
@@ -130,11 +130,8 @@ export class Scope11StationaryComponent {
         return;
       }
       const scope11Rows = this.persistScopeRows();
-      const canonical = this.canonicalSvc.buildScope11StationaryPayload(this.cycleId, scope11Rows);
-      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.cycleId = updateResult.cycleId;
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      const payload = this.buildScope11Payload(scope11Rows);
+      const download = await this.cycleApi.exportScope11Xlsx(payload);
       this.downloadFile(download.blob, download.filename);
       this.snackBar.open('Export 1.1 Stationary สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {
@@ -294,13 +291,20 @@ export class Scope11StationaryComponent {
     return this.getNormalizedMonths(row)[month - 1] ?? 0;
   }
 
-  updateMonthQty(row: EntryRow, month: number, value: number) {
+  updateMonthQty(row: EntryRow, month: number, value: number | string | null) {
+    const isEmpty = value === null || value === undefined || value === '';
+    if (isEmpty || Number.isNaN(Number(value))) {
+      row.months = row.months.filter(x => x.month !== month);
+      this.rowsChange.emit(this.rows);
+      return;
+    }
+
     let m = row.months.find(x => x.month === month);
     if (!m) {
       m = { month, qty: 0 };
       row.months.push(m);
     }
-    m.qty = Number(value) || 0;
+    m.qty = Number(value);
     this.normalizeRowMonths(row);
     this.rowsChange.emit(this.rows);
   }
@@ -424,12 +428,81 @@ export class Scope11StationaryComponent {
     return normalizeMonthValues(row.months);
   }
 
+  private buildScope11Payload(rows: EntryRow[]): {
+    splitEnabled: boolean;
+    items: Array<{
+      rowId: string;
+      fuelKey: FuelBlendKey;
+      label: string;
+      evidence: string;
+      unit: 'L' | 'kg';
+      blendProfile: string;
+      months: Record<string, number | null>;
+    }>;
+  } {
+    const items = [];
+    for (const row of rows) {
+      const rowId = this.getFuelKey(row) || row.id;
+      if (!rowId) continue;
+      const fuelKey = this.getTypeChoice(row);
+      const blendProfile = this.buildBlendProfile(fuelKey);
+      const months: Record<string, number | null> = {};
+      for (const entry of row.months ?? []) {
+        const idx = Number(entry?.month ?? 0);
+        const qty = Number(entry?.qty);
+        if (idx < 1 || idx > 12) continue;
+        if (!Number.isFinite(qty)) continue;
+        months[`M${idx}`] = qty;
+      }
+      items.push({
+        rowId,
+        fuelKey,
+        label: String(row.itemName || this.defaultLabelFor(rowId) || '').trim(),
+        evidence: String(row.referenceText || '').trim(),
+        unit: this.normalizeUnit(row.unit),
+        blendProfile,
+        months,
+      });
+    }
+
+    return {
+      splitEnabled: this.shouldEnableSplit(items),
+      items,
+    };
+  }
+
+  private normalizeUnit(unit?: string): 'L' | 'kg' {
+    const raw = String(unit || '').trim().toLowerCase();
+    return raw === 'kg' ? 'kg' : 'L';
+  }
+
+  private buildBlendProfile(key: FuelBlendKey): string {
+    const map: Record<FuelBlendKey, string> = {
+      B7: 'B7',
+      B10: 'B10',
+      '91/95': 'GASOHOL_91_95',
+      E20: 'GASOHOL_E20',
+      LPG: 'NONE',
+      FUEL_OIL: 'NONE',
+      OTHER: 'NONE',
+    };
+    return map[key] ?? 'NONE';
+  }
+
+  private shouldEnableSplit(items: Array<{ unit: 'L' | 'kg'; months: Record<string, number | null> }>): boolean {
+    return items.some(item => item.unit === 'L' && Object.keys(item.months || {}).length > 0);
+  }
+
   private normalizeRowMonths(row: EntryRow): void {
-    const normalized = normalizeMonthValues(row.months);
-    row.months = normalized.map((qty, idx) => ({
-      month: idx + 1,
-      qty,
-    }));
+    const cleaned = [];
+    for (const entry of row.months ?? []) {
+      const month = Number(entry?.month ?? 0);
+      const qty = Number(entry?.qty);
+      if (!Number.isFinite(month) || month < 1 || month > 12) continue;
+      if (!Number.isFinite(qty)) continue;
+      cleaned.push({ month, qty });
+    }
+    row.months = cleaned;
   }
 
   private getFirstBlendError(): string | null {
@@ -446,22 +519,6 @@ export class Scope11StationaryComponent {
   getOtherBlendError(row: EntryRow): string | null {
     if (resolveBlendKey(this.getFuelKey(row), row.fuelType ?? row.remark) !== 'OTHER') {
       return null;
-    }
-    if (String(row.unit || '').toLowerCase() !== 'l') return null;
-    if (this.isRowEmpty(row)) return null;
-    const spec = row.blendSpec;
-    if (!spec) return 'ต้องกำหนดสัดส่วนเชื้อเพลิง (Blend)';
-    const dieselPct = Number(spec.dieselPct || 0);
-    const biodieselPct = Number(spec.biodieselPct || 0);
-    const gasolinePct = Number(spec.gasolinePct || 0);
-    const ethanolPct = Number(spec.ethanolPct || 0);
-    const sum = dieselPct + biodieselPct + gasolinePct + ethanolPct;
-    if (Math.abs(sum - 100) > 0.01) return 'สัดส่วนต้องรวม 100%';
-    const biodiesel = spec.density?.biodieselKgPerL;
-    const ethanol = spec.density?.ethanolKgPerL;
-    if ((biodieselPct > 0 && (!biodiesel || biodiesel <= 0))
-      || (ethanolPct > 0 && (!ethanol || ethanol <= 0))) {
-      return 'กรุณาระบุความหนาแน่นของ Biodiesel/Ethanol';
     }
     return null;
   }

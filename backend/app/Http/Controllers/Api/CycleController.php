@@ -7,6 +7,7 @@ use App\Models\Cycle;
 use App\Services\MbaxTemplateService;
 use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
+use App\Exceptions\TemplateNotFoundException;
 use Illuminate\Http\Request;
 
 class CycleController extends Controller
@@ -94,9 +95,9 @@ class CycleController extends Controller
             ], 422);
         }
 
-        $sheet = trim((string) ($sheetConfig['name'] ?? ''));
+        $sheet = (string) ($sheetConfig['name'] ?? '');
         $range = trim((string) ($sheetConfig['previewRange'] ?? ''));
-        if ($sheet === '') {
+        if (trim($sheet) === '') {
             return response()->json([
                 'code' => 'INVALID_SHEET',
                 'message' => 'Sheet mapping missing.',
@@ -112,6 +113,14 @@ class CycleController extends Controller
         // Root cause seen in logs: missing MBAX template path triggered a 500.
         try {
             $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+        } catch (TemplateNotFoundException $e) {
+            return response()->json([
+                'message' => 'Template missing',
+                'code' => 'TEMPLATE_NOT_FOUND',
+                'templateId' => $e->templateId,
+                'templateDir' => $e->templateDir,
+                'attemptedPaths' => $e->attemptedPaths,
+            ], 500);
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'MBAX template not found')) {
                 return response()->json([

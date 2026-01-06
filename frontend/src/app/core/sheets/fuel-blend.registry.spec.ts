@@ -10,7 +10,7 @@ describe('FuelBlendRegistry', () => {
   });
 
   it('computes 91/95 blend totals (51.55 L)', () => {
-    const result = computeBlendFromAnnualL(51.55, 'GASOHOL_9195');
+    const result = computeBlendFromAnnualL(51.55, '91/95');
     expect(result.ethanolKg).toBeCloseTo(4.07, 2);
     expect(result.gasolineL).toBeCloseTo(46.39, 2);
   });

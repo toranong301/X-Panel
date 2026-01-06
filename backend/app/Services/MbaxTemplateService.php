@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\TemplateNotFoundException;
 use App\Models\Attachment;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -111,12 +112,64 @@ class MbaxTemplateService
             return $envPath;
         }
 
-        $fallback = base_path($fallbackRel);
-        if (!file_exists($fallback)) {
-            throw new \RuntimeException('MBAX template not found. Set MBAX_TEMPLATE_PATH.');
+        $templateDir = env('MBAX_TEMPLATE_DIR') ?: base_path('storage/app/templates/mbax');
+        $attempted = [];
+
+        $dirRegistryPath = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'template-registry.json';
+        if (is_file($dirRegistryPath)) {
+            $attempted[] = $dirRegistryPath;
+            $raw = file_get_contents($dirRegistryPath);
+            $decoded = json_decode($raw ?: '', true);
+            if (is_array($decoded) && isset($decoded[$templateId]['filename'])) {
+                $candidate = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $decoded[$templateId]['filename'];
+                $attempted[] = $candidate;
+                if (is_file($candidate)) {
+                    return $candidate;
+                }
+            }
         }
 
-        return $fallback;
+        $fallback = base_path($fallbackRel);
+        $attempted[] = $fallback;
+        if (is_file($fallback)) {
+            return $fallback;
+        }
+
+        $candidateA = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $templateId . '.xlsx';
+        $attempted[] = $candidateA;
+        if (is_file($candidateA)) {
+            return $candidateA;
+        }
+
+        $hyphenId = str_replace('_', '-', $templateId);
+        $candidateB = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $hyphenId . '.xlsx';
+        $attempted[] = $candidateB;
+        if (is_file($candidateB)) {
+            return $candidateB;
+        }
+
+        $glob = glob(rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.xlsx') ?: [];
+        $matches = array_filter($glob, function ($path) {
+            $name = basename($path);
+            return stripos($name, 'MBAX') === 0 && stripos($name, '11102567') !== false;
+        });
+        if ($matches) {
+            usort($matches, function ($a, $b) {
+                $aDemo = stripos(basename($a), 'demo') !== false;
+                $bDemo = stripos(basename($b), 'demo') !== false;
+                if ($aDemo === $bDemo) return strcmp($a, $b);
+                return $aDemo ? 1 : -1;
+            });
+            foreach ($matches as $match) {
+                $attempted[] = $match;
+            }
+            $preferred = $matches[0];
+            if (is_file($preferred)) {
+                return $preferred;
+            }
+        }
+
+        throw new TemplateNotFoundException($templateId, $templateDir, $attempted);
     }
 
     private function writeFr01(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void
@@ -215,21 +268,48 @@ class MbaxTemplateService
 
     private function buildScope11TableRows(array $data): array
     {
-        $rows = $this->filterInventoryRows($data, '1.1');
+        $rows = array_values($this->filterInventoryRows($data, '1.1'));
         $byFuel = [];
-        foreach ($rows as $row) {
+        $byType = [];
+        foreach ($rows as $idx => $row) {
             $fuelKey = $this->normalizeFuelKey($row);
-            if (!$fuelKey) continue;
-            $byFuel[$fuelKey][] = $row;
+            if ($fuelKey) {
+                $byFuel[$fuelKey][] = $idx;
+            }
+            $fuelType = strtoupper(trim((string) ($row['fuelType'] ?? '')));
+            if ($fuelType) {
+                $byType[$fuelType][] = $idx;
+            }
         }
 
+        $defaultFuelTypes = [
+            'DIESEL_B7_STATIONARY' => 'B7',
+            'GASOHOL_9195_STATIONARY' => '91/95',
+        ];
+
+        $used = [];
         $output = [];
         foreach (self::SCOPE11_DEFAULT_FUEL_KEYS as $fuelKey) {
-            $row = $byFuel[$fuelKey][0] ?? null;
+            $row = null;
+            $idx = $byFuel[$fuelKey][0] ?? null;
+            if ($idx !== null) {
+                $row = $rows[$idx] ?? null;
+                $used[$idx] = true;
+            } elseif (isset($defaultFuelTypes[$fuelKey])) {
+                $typeKey = $defaultFuelTypes[$fuelKey];
+                $typeList = $byType[$typeKey] ?? [];
+                foreach ($typeList as $typeIdx) {
+                    if (isset($used[$typeIdx])) continue;
+                    $row = $rows[$typeIdx] ?? null;
+                    $used[$typeIdx] = true;
+                    break;
+                }
+            }
             $output[] = $this->mapScope11TableRow($row, $fuelKey, true);
         }
 
-        foreach ($rows as $row) {
+        foreach ($rows as $idx => $row) {
+            if (isset($used[$idx])) continue;
             $fuelKey = $this->normalizeFuelKey($row);
             if (!$fuelKey) continue;
             if (in_array($fuelKey, self::SCOPE11_DEFAULT_FUEL_KEYS, true)) continue;

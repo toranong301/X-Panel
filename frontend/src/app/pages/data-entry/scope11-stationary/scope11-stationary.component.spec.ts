@@ -5,26 +5,23 @@ import { EntryRow } from '../../../models/entry-row.model';
 
 const makeComponent = (overrides?: {
   dialog?: any;
-  canonicalSvc?: any;
   cycleApi?: any;
-  cycleState?: any;
   snackBar?: any;
   dataEntrySvc?: any;
+  cdr?: any;
 }) => {
   const dialog = overrides?.dialog ?? { open: () => ({}) };
-  const canonicalSvc = overrides?.canonicalSvc ?? { buildScope11StationaryExport: () => ({}) };
-  const cycleApi = overrides?.cycleApi ?? { updateCycleData: async () => ({ cycleId: 1, previewVersion: 'v1' }) };
-  const cycleState = overrides?.cycleState ?? { setSelectedCycleId: () => {} };
+  const cycleApi = overrides?.cycleApi ?? { previewScope11Json: async () => ({ ok: true, normalized_payload: {}, unknown_keys: [], missing_keys: [] }) };
   const snackBar = overrides?.snackBar ?? { open: () => {} };
   const dataEntrySvc = overrides?.dataEntrySvc ?? { load: () => null, save: () => {} };
+  const cdr = overrides?.cdr ?? { markForCheck: () => {} };
 
   return new Scope11StationaryComponent(
     dialog,
-    canonicalSvc,
     cycleApi,
-    cycleState,
     snackBar,
     dataEntrySvc,
+    cdr,
   );
 };
 
@@ -80,7 +77,7 @@ describe('Scope11StationaryComponent', () => {
     expect(component.hasOtherBlendErrors()).toBe(true);
   });
 
-  it('blocks OTHER rows when densities are missing', () => {
+  it('allows OTHER rows with missing densities (use defaults)', () => {
     const component = makeComponent();
     const row = makeRow({
       subCategoryCode: 'CUSTOM_OTHER_1',
@@ -94,18 +91,22 @@ describe('Scope11StationaryComponent', () => {
       },
     });
     component.rows = [row];
-    expect(component.getOtherBlendError(row)).not.toBeNull();
-    expect(component.hasOtherBlendErrors()).toBe(true);
+    expect(component.getOtherBlendError(row)).toBeNull();
+    expect(component.hasOtherBlendErrors()).toBe(false);
   });
 
-  it('saves before opening preview', async () => {
+  it('posts payload for preview', async () => {
     const calls: string[] = [];
     const component = makeComponent({
-      dialog: { open: () => { calls.push('preview'); return {}; } },
-      cycleApi: { updateCycleData: async () => { calls.push('save'); return { cycleId: 1, previewVersion: 'v1' }; } },
+      cycleApi: {
+        previewScope11Json: async () => {
+          calls.push('preview');
+          return { ok: true, normalized_payload: {}, unknown_keys: [], missing_keys: [] };
+        },
+      },
     });
     component.rows = [];
     await component.openReview();
-    expect(calls).toEqual(['save', 'preview']);
+    expect(calls).toEqual(['preview']);
   });
 });

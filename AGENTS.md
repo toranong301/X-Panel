@@ -8,9 +8,29 @@
 - npm ci || npm install
 - npm run build
 
-## Dev commands
+## Dev commands (frontend)
 - cd frontend
 - npm run start (or npm start if that's what package.json provides)
+
+## Dev commands (backend)
+- cd backend
+- php artisan serve (ensure API_KEY is set in .env)
+
+## Hard rules (Excel export)
+- Single source of truth = UI payload.
+- Preview/Export must match UI values 100%.
+- Do NOT read old workbook values or v-sheet values to fill data.
+- Use Option 2: Hidden sheet data table.
+- Backend writes ONLY to hidden sheet table "_DATA_SCOPE11" (values column).
+- Visible sheet(s) must pull values via formulas from "_DATA_SCOPE11" only.
+- On every request: start from a clean template xlsx and clear hidden table values first to avoid ghost rows.
+- Keep formulas/positions from template only.
+- Payload MUST be row-based: items[] with rowId + months (M1..M12). No cell-key payload (E9/F9...).
+- Empty inputs must stay empty (null/""/omitted). Never default to 0.
+- Backend writes ONLY to hidden sheet table "_DATA_SCOPE11".
+- Visible sheet pulls ONLY via formulas from the hidden table.
+- Derived fuel split section (Diesel/Biodiesel/Gasoline/Ethanol) is controlled by splitEnabled flag and calculated from hidden table only.
+- Preview dialog must render a table (rows/months), not a raw key-value list.
 
 ## Key rules (Excel export)
 - Never overwrite formulas in the Excel template. Write input cells only.
@@ -24,6 +44,10 @@
     - Gasohol 91/95: 45..55 step 2
     - Gasohol E20: 46..56 step 2
     - Diesel B7 off-road forklift: row 58
+
+## Coding style
+- Prefer small diffs.
+- Keep existing APIs unless necessary.
 
 ## Files to edit for this feature
 - frontend/src/app/core/export/templates/mbax-tgo-11102567/mbax.adapter.ts

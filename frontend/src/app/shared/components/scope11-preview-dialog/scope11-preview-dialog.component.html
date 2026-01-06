@@ -1,0 +1,81 @@
+<h2 mat-dialog-title>Scope 1.1 Preview</h2>
+
+<mat-dialog-content class="dialog-body">
+  <div class="warning-group" *ngIf="data.unknown_rowIds.length || data.missing_fields?.length">
+    <span class="badge" *ngIf="data.unknown_rowIds.length">
+      Unknown RowIds: {{ data.unknown_rowIds.length }}
+    </span>
+    <span class="badge" *ngIf="data.missing_fields?.length">
+      Missing fields: {{ data.missing_fields?.length }}
+    </span>
+    <details *ngIf="data.unknown_rowIds.length" class="warning">
+      <summary>Unknown RowIds</summary>
+      <div class="list">{{ data.unknown_rowIds.join(', ') }}</div>
+    </details>
+    <details *ngIf="data.missing_fields?.length" class="warning">
+      <summary>Missing fields</summary>
+      <div class="list">{{ data.missing_fields?.join(', ') }}</div>
+    </details>
+  </div>
+
+  <div class="toggle-row">
+    <button mat-stroked-button type="button" (click)="showAll = !showAll">
+      {{ showAll ? 'Hide empty rows' : 'Show all rows' }}
+    </button>
+  </div>
+
+  <div class="payload-table">
+    <div class="payload-header">
+      <div>รายการ</div>
+      <div>หลักฐาน</div>
+      <div>หน่วย</div>
+      <div>รวม</div>
+      <div *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">{{ m }}</div>
+    </div>
+    <div *ngFor="let row of visibleItems" class="payload-row">
+      <div class="payload-key">{{ row.label || row.rowId }}</div>
+      <div>{{ row.evidence }}</div>
+      <div>{{ row.unit }}</div>
+      <div class="payload-value">{{ row.total ?? '' }}</div>
+      <div *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">
+        {{ row.months['M' + m] ?? '' }}
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="showAll && splitRows.length" class="split-section">
+    <div class="section-title">Split Summary</div>
+    <div class="payload-table">
+      <div class="payload-header split-header">
+        <div>รายการ</div>
+        <div>ชนิด</div>
+        <div>หลักฐาน</div>
+        <div>หน่วย</div>
+        <div>ปริมาณน้ำมัน</div>
+        <div>Diesel(L)</div>
+        <div>Biodiesel(L)</div>
+        <div>Biodiesel(kg)</div>
+        <div>Gasoline(L)</div>
+        <div>Ethanol(L)</div>
+        <div>Ethanol(kg)</div>
+      </div>
+      <div *ngFor="let row of splitRows" class="payload-row split-row">
+        <div class="payload-key">{{ row.itemLabel || '-' }}</div>
+        <div>{{ row.fuelKey }}</div>
+        <div>{{ row.evidence }}</div>
+        <div>{{ row.unit }}</div>
+        <div class="payload-value">{{ row.total ?? '' }}</div>
+        <div>{{ row.dieselL ?? '' }}</div>
+        <div>{{ row.biodieselL ?? '' }}</div>
+        <div>{{ row.biodieselKg ?? '' }}</div>
+        <div>{{ row.gasolineL ?? '' }}</div>
+        <div>{{ row.ethanolL ?? '' }}</div>
+        <div>{{ row.ethanolKg ?? '' }}</div>
+      </div>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Close</button>
+</mat-dialog-actions>
