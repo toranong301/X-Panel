@@ -563,7 +563,7 @@ class MbaxTemplateService
         $tableRange = 'A1:E' . ($maxRows + 1);
         $table = null;
         try {
-            $table = $this->findTable($spreadsheet, $ws, self::FR041_META_TABLE);
+            $table = $this->findTableOnSheet($ws, self::FR041_META_TABLE);
         } catch (\RuntimeException $e) {
             $table = null;
         }
@@ -754,15 +754,11 @@ class MbaxTemplateService
         return true;
     }
 
-    private function findTable(Spreadsheet $spreadsheet, Worksheet $sheet, string $tableName): Table
+    private function findTableOnSheet(Worksheet $sheet, string $tableName): Table
     {
         $sheetName = $sheet->getTitle();
-        foreach ($spreadsheet->getTableCollection() as $table) {
+        foreach ($sheet->getTableCollection() as $table) {
             if (strcasecmp($table->getName(), $tableName) !== 0) {
-                continue;
-            }
-            $tableSheet = method_exists($table, 'getWorksheet') ? $table->getWorksheet() : null;
-            if ($tableSheet && $tableSheet->getTitle() !== $sheetName) {
                 continue;
             }
             return $table;

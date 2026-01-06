@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { finalize, from, Subscription } from 'rxjs';
 
-import { ExcelPreviewService, SheetPreview, SheetPreviewRow } from '../../../core/export/engine/excel-preview.service';
+import { ExcelPreviewService, SheetPreview, SheetPreviewBlock, SheetPreviewRow } from '../../../core/export/engine/excel-preview.service';
 import { filterBlankPreviewRows } from '../../../core/export/engine/excel-preview.utils';
 
 @Component({
@@ -50,6 +50,10 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   get rows(): SheetPreviewRow[] {
     const rows = this.preview?.rows ?? [];
     return this.hideBlankRows ? filterBlankPreviewRows(rows) : rows;
+  }
+
+  get blocks(): SheetPreviewBlock[] {
+    return this.preview?.blocks ?? [];
   }
 
   trackRow(_index: number, row: SheetPreviewRow) {

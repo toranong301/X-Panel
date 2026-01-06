@@ -7,6 +7,7 @@ use App\Models\Cycle;
 use App\Services\MbaxTemplateService;
 use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
+use App\Services\Export\Scope11HiddenTableExportService;
 use App\Exceptions\TemplateNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -63,7 +64,8 @@ class CycleController extends Controller
         Cycle $cycle,
         MbaxTemplateService $mbax,
         TemplateRegistry $registry,
-        SheetRegistry $sheetRegistry
+        SheetRegistry $sheetRegistry,
+        Scope11HiddenTableExportService $scope11Export
     )
     {
         try {
@@ -132,14 +134,15 @@ class CycleController extends Controller
                 $data = [];
             }
             if ($sheetKey === 'fr041' && !$this->hasPreviewData($data, $normalizedSheetId)) {
+                $headerRange = 'A1:K10';
+                $mainRange = 'A11:AO70';
                 return response()->json([
                     'ok' => true,
                     'sheetId' => $sheetKey,
                     'sheetName' => $sheet,
-                    'data' => [
-                        'rows' => [],
-                        'splitRows' => [],
-                        'headerMonths' => new \stdClass(),
+                    'blocks' => [
+                        $this->buildEmptyPreviewBlock($sheet, $headerRange, 'header'),
+                        $this->buildEmptyPreviewBlock($sheet, $mainRange, 'main'),
                     ],
                 ]);
             }
@@ -160,6 +163,26 @@ class CycleController extends Controller
                 $range,
                 $templateId
             );
+            if ($sheetKey === 'fr041') {
+                $payload = $this->buildScope11PayloadFromCycleData($data);
+                $scope11Export->writeToSpreadsheet($spreadsheet, $payload);
+            }
+            if ($sheetKey === 'fr041') {
+                $headerRange = 'A1:K10';
+                $mainRange = 'A11:AO70';
+                $blocks = [
+                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $headerRange, 'header'),
+                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $mainRange, 'main'),
+                ];
+                return response()->json([
+                    'ok' => true,
+                    'sheetId' => $sheetKey,
+                    'sheetName' => $sheet,
+                    'blocks' => $blocks,
+                    'previewVersion' => optional($cycle->updated_at)->toIso8601String(),
+                ]);
+            }
+
             $preview = $mbax->buildPreview($spreadsheet, $sheet, $range);
             $preview['previewVersion'] = optional($cycle->updated_at)->toIso8601String();
             return response()->json($preview);
@@ -189,6 +212,103 @@ class CycleController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function buildScope11PayloadFromCycleData(array $data): array
+    {
+        $items = [];
+        $rows = is_array($data['inventory'] ?? null) ? $data['inventory'] : [];
+        $derived = ['BIODIESEL_STATIONARY', 'ETHANOL_STATIONARY'];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            if ((string) ($row['subScope'] ?? '') !== '1.1') continue;
+
+            $fuelKeyRaw = trim((string) ($row['fuelKey'] ?? ''));
+            if ($fuelKeyRaw !== '' && in_array(strtoupper($fuelKeyRaw), $derived, true)) {
+                continue;
+            }
+
+            $rowId = $fuelKeyRaw !== '' ? $fuelKeyRaw : (string) ($row['id'] ?? '');
+            if ($rowId === '') continue;
+
+            $unitRaw = strtolower(trim((string) ($row['unit'] ?? 'L')));
+            $unit = $unitRaw === 'kg' ? 'kg' : 'L';
+
+            $fuelKey = $this->resolveScope11FuelKey($row);
+
+            $months = [];
+            $monthly = is_array($row['quantityMonthly'] ?? null) ? $row['quantityMonthly'] : [];
+            for ($i = 0; $i < 12; $i++) {
+                if (!array_key_exists($i, $monthly)) continue;
+                $value = $monthly[$i];
+                if ($value === null || $value === '') continue;
+                $months['M' . ($i + 1)] = $value;
+            }
+
+            $items[] = [
+                'rowId' => $rowId,
+                'fuelKey' => $fuelKey,
+                'label' => trim((string) ($row['itemLabel'] ?? '')),
+                'evidence' => trim((string) ($row['dataEvidence'] ?? '')),
+                'unit' => $unit,
+                'otherType' => isset($row['otherType']) ? (string) $row['otherType'] : null,
+                'months' => $months,
+            ];
+        }
+
+        $splitEnabled = false;
+        foreach ($items as $item) {
+            if (($item['unit'] ?? '') !== 'L') continue;
+            if (!empty($item['months'])) {
+                $splitEnabled = true;
+                break;
+            }
+        }
+
+        $headerMonths = is_array($data['scope11HeaderMonths'] ?? null) ? $data['scope11HeaderMonths'] : null;
+        $periodYear = $data['scope11PeriodYear'] ?? null;
+
+        return [
+            'splitEnabled' => $splitEnabled,
+            'periodYear' => $periodYear,
+            'headerMonths' => $headerMonths,
+            'items' => $items,
+        ];
+    }
+
+    private function resolveScope11FuelKey(array $row): string
+    {
+        $fuelType = strtoupper(trim((string) ($row['fuelType'] ?? '')));
+        if ($fuelType !== '') {
+            return $fuelType === '91/95' ? '91/95' : $fuelType;
+        }
+
+        $fuelKey = strtoupper(trim((string) ($row['fuelKey'] ?? '')));
+        if ($fuelKey === '') return 'OTHER';
+        if (str_contains($fuelKey, 'DIESEL_B7')) return 'B7';
+        if (str_contains($fuelKey, 'DIESEL_B10')) return 'B10';
+        if (str_contains($fuelKey, 'GASOHOL_9195') || str_contains($fuelKey, '9195')) return '91/95';
+        if (str_contains($fuelKey, 'GASOHOL_E20') || str_contains($fuelKey, 'E20')) return 'E20';
+        if (str_contains($fuelKey, 'LPG')) return 'LPG';
+        if (str_contains($fuelKey, 'FUEL_OIL') || str_contains($fuelKey, 'OIL')) return 'FUEL_OIL';
+        return 'OTHER';
+    }
+
+    private function buildPreviewBlock(
+        MbaxTemplateService $mbax,
+        \PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet,
+        string $sheetName,
+        string $range,
+        string $id
+    ): array {
+        $preview = $mbax->buildPreview($spreadsheet, $sheetName, $range);
+        return [
+            'id' => $id,
+            'range' => $range,
+            'columns' => $preview['columns'] ?? [],
+            'rows' => $preview['rows'] ?? [],
+        ];
     }
 
     private function hasPreviewData(array $data, string $sheetId): bool
@@ -253,6 +373,17 @@ class CycleController extends Controller
             'columns' => $columns,
             'rows' => $rows,
             'range' => $range,
+        ];
+    }
+
+    private function buildEmptyPreviewBlock(string $sheetName, string $range, string $id): array
+    {
+        $preview = $this->buildEmptyPreview($sheetName, $range);
+        return [
+            'id' => $id,
+            'range' => $range,
+            'columns' => $preview['columns'],
+            'rows' => $preview['rows'],
         ];
     }
 

@@ -21,12 +21,20 @@ export type SheetPreviewRow = {
   cells: SheetPreviewCell[];
 };
 
+export type SheetPreviewBlock = {
+  id: string;
+  range: string;
+  columns: string[];
+  rows: SheetPreviewRow[];
+};
+
 export type SheetPreview = {
   sheetName: string;
   columns: string[];
   rows: SheetPreviewRow[];
   range: string;
   previewVersion?: string | null;
+  blocks?: SheetPreviewBlock[];
 };
 
 @Injectable({ providedIn: 'root' })

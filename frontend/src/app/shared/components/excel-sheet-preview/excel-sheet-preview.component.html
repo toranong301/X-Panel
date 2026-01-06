@@ -9,27 +9,59 @@
     {{ error }}
   </div>
 
-  <div class="sheet-scroll" *ngIf="!loading && preview">
-    <table class="excel-table">
-      <thead>
-        <tr>
-          <th class="corner"></th>
-          <th *ngFor="let col of columns">{{ col }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of rows; trackBy: trackRow">
-          <th class="row-number">{{ row.rowNumber }}</th>
-          <td
-            *ngFor="let cell of row.cells; let i = index; trackBy: trackCell"
-            [class.num]="cell.type === 'number'"
-            [class.formula]="cell.type === 'formula'"
-            [attr.title]="cell.formula || null"
-          >
-            {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <ng-container *ngIf="!loading && preview">
+    <ng-container *ngIf="blocks.length; else singlePreview">
+      <div *ngFor="let block of blocks" class="block">
+        <div class="block-title">{{ block.id }}</div>
+        <div class="sheet-scroll" [class.sheet-scroll--main]="block.id === 'main'">
+          <table class="excel-table" [class.excel-table--main]="block.id === 'main'">
+            <thead>
+              <tr>
+                <th class="corner"></th>
+                <th *ngFor="let col of block.columns">{{ col }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of block.rows; trackBy: trackRow">
+                <th class="row-number">{{ row.rowNumber }}</th>
+                <td
+                  *ngFor="let cell of row.cells; let i = index; trackBy: trackCell"
+                  [class.num]="cell.type === 'number'"
+                  [class.formula]="cell.type === 'formula'"
+                  [attr.title]="cell.formula || null"
+                >
+                  {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </ng-container>
+    <ng-template #singlePreview>
+      <div class="sheet-scroll">
+        <table class="excel-table">
+          <thead>
+            <tr>
+              <th class="corner"></th>
+              <th *ngFor="let col of columns">{{ col }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows; trackBy: trackRow">
+              <th class="row-number">{{ row.rowNumber }}</th>
+              <td
+                *ngFor="let cell of row.cells; let i = index; trackBy: trackCell"
+                [class.num]="cell.type === 'number'"
+                [class.formula]="cell.type === 'formula'"
+                [attr.title]="cell.formula || null"
+              >
+                {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-template>
+  </ng-container>
 </div>

@@ -81,6 +81,23 @@ class Scope11HiddenTableExportService
         ];
     }
 
+    public function writeToSpreadsheet(Spreadsheet $spreadsheet, array $payload): void
+    {
+        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
+        if (!$ws) {
+            throw new \RuntimeException('Missing worksheet: ' . self::SHEET_NAME);
+        }
+
+        $normalizedPayload = $this->normalizePayload($payload);
+        $this->writeScope11Table(
+            $ws,
+            $normalizedPayload['items'],
+            (bool) $normalizedPayload['splitEnabled'],
+            $normalizedPayload['headerMonths'] ?? null,
+            $normalizedPayload['periodYear'] ?? null
+        );
+    }
+
     /**
      * @return array{0: array<string,int>, 1: int, 2?: string[]}
      */

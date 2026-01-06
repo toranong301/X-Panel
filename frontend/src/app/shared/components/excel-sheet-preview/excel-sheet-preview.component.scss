@@ -21,11 +21,29 @@
   border-radius: 8px;
 }
 
+.sheet-scroll--main {
+  max-height: 65vh;
+}
+
+.block {
+  margin-bottom: 16px;
+}
+
+.block-title {
+  font-weight: 600;
+  margin: 8px 0;
+  text-transform: capitalize;
+}
+
 .excel-table {
   border-collapse: collapse;
   width: max-content;
   min-width: 100%;
   font-size: 12px;
+}
+
+.excel-table--main {
+  font-size: 13px;
 }
 
 .excel-table th,
@@ -35,11 +53,16 @@
   white-space: nowrap;
 }
 
-.excel-table thead th {
+.excel-table--main thead th {
   background: #f5f5f5;
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.excel-table--main th,
+.excel-table--main td {
+  padding: 6px 8px;
 }
 
 .corner {
