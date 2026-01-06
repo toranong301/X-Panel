@@ -6,11 +6,14 @@ use App\Exceptions\TemplateNotFoundException;
 use App\Models\Attachment;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Table;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class MbaxTemplateService
 {
@@ -25,6 +28,19 @@ class MbaxTemplateService
     ];
     private const DEFAULT_BIODIESEL_DENSITY = 0.87;
     private const DEFAULT_ETHANOL_DENSITY = 0.79;
+    private const FR041_META_SHEET = '_FR041_META';
+    private const FR041_META_TABLE = 'tblFR041_Sections';
+    private const FR041_AVAILABLE_COL = 'H';
+    private const FR041_AVAILABLE_START_ROW = 2;
+    private const FR041_AVAILABLE_END_ROW = 50;
+    private const FR041_SHEET = 'Fr-04.1';
+    private const FR041_SELECT_CELL = 'B2';
+    private const FR041_SHEETNAME_CELL = 'C2';
+    private const FR041_MONTHLY_START_ROW = 11;
+    private const FR041_MONTHLY_END_ROW = 40;
+    private const FR041_MONTHLY_START_COL = 'BA';
+    private const FR041_SPLIT_START_COL = 'BQ';
+    private const FR041_SUPPORTED_SECTION_CODES = ['1.1'];
 
     public function __construct(private TemplateRegistry $registry)
     {
@@ -64,6 +80,8 @@ class MbaxTemplateService
         $this->writeFr031($spreadsheet, $data, $attachments, $sheetName, $range);
         $this->writeScope11Stationary($spreadsheet, $data, $sheetName, $range, $templateId);
         $this->writeScope12Mobile($spreadsheet, $data, $sheetName, $range, $templateId);
+        $this->writeFr041Meta($spreadsheet, $data);
+        $this->writeFr041DynamicFormulas($spreadsheet);
     }
 
     public function buildPreview(Spreadsheet $spreadsheet, string $sheetName, string $range): array
@@ -513,6 +531,257 @@ class MbaxTemplateService
         if ($offroad) {
             $this->writeMonthlyCells($ws, $offroadForkliftRow, $monthCols, $offroad['months'] ?? null, $range);
         }
+    }
+
+    private function writeFr041Meta(Spreadsheet $spreadsheet, array $data): void
+    {
+        $sections = $this->buildFr041Sections($data);
+        $ws = $this->ensureFr041MetaSheet($spreadsheet);
+
+        $headers = ['sectionCode', 'sectionTitle', 'sheetName', 'hasData', 'sortOrder'];
+        foreach ($headers as $idx => $header) {
+            $ws->setCellValueByColumnAndRow($idx + 1, 1, $header);
+        }
+
+        $maxRows = max(count($sections), 1);
+        $clearRows = max($maxRows + 1, self::FR041_AVAILABLE_END_ROW);
+        for ($row = 2; $row <= $clearRows; $row++) {
+            for ($col = 1; $col <= count($headers); $col++) {
+                $ws->setCellValueByColumnAndRow($col, $row, null);
+            }
+        }
+
+        foreach ($sections as $idx => $section) {
+            $row = $idx + 2;
+            $ws->setCellValueByColumnAndRow(1, $row, $section['sectionCode']);
+            $ws->setCellValueByColumnAndRow(2, $row, $section['sectionTitle']);
+            $ws->setCellValueByColumnAndRow(3, $row, $section['sheetName']);
+            $ws->setCellValueByColumnAndRow(4, $row, $section['hasData'] ? 1 : 0);
+            $ws->setCellValueByColumnAndRow(5, $row, $section['sortOrder']);
+        }
+
+        $tableRange = 'A1:E' . ($maxRows + 1);
+        $table = $this->getTableByName($ws, self::FR041_META_TABLE);
+        if ($table) {
+            $table->setRange($tableRange);
+        } else {
+            $ws->addTable(new Table($tableRange, self::FR041_META_TABLE));
+        }
+
+        for ($row = self::FR041_AVAILABLE_START_ROW; $row <= self::FR041_AVAILABLE_END_ROW; $row++) {
+            $ws->setCellValue(self::FR041_AVAILABLE_COL . $row, null);
+        }
+
+        $available = array_values(array_filter($sections, fn ($s) => (bool) ($s['hasData'] ?? false)));
+        usort($available, fn ($a, $b) => ($a['sortOrder'] ?? 0) <=> ($b['sortOrder'] ?? 0));
+        foreach ($available as $idx => $section) {
+            $row = self::FR041_AVAILABLE_START_ROW + $idx;
+            if ($row > self::FR041_AVAILABLE_END_ROW) break;
+            $ws->setCellValue(self::FR041_AVAILABLE_COL . $row, $section['sectionTitle']);
+        }
+    }
+
+    private function writeFr041DynamicFormulas(Spreadsheet $spreadsheet): void
+    {
+        $ws = $spreadsheet->getSheetByName(self::FR041_SHEET);
+        if (!$ws) return;
+
+        $dv = $ws->getCell(self::FR041_SELECT_CELL)->getDataValidation();
+        $dv->setType(DataValidation::TYPE_LIST);
+        $dv->setAllowBlank(true);
+        $dv->setShowDropDown(true);
+        $dv->setFormula1('=_FR041_META!$H$2:$H$50');
+
+        $sheetCellRef = '$C$2';
+        $helper = '=IF(' . self::FR041_SELECT_CELL . '="","",XLOOKUP(' . self::FR041_SELECT_CELL . ',tblFR041_Sections[sectionTitle],tblFR041_Sections[sheetName],""))';
+        $this->setFormulaIfWritable($ws, self::FR041_SHEETNAME_CELL, $helper);
+
+        $startColIndex = Coordinate::columnIndexFromString(self::FR041_MONTHLY_START_COL);
+        $splitColIndex = Coordinate::columnIndexFromString(self::FR041_SPLIT_START_COL);
+
+        for ($row = self::FR041_MONTHLY_START_ROW; $row <= self::FR041_MONTHLY_END_ROW; $row++) {
+            $rowExpr = 'ROW()-2';
+            $itemCol = Coordinate::stringFromColumnIndex($startColIndex) . $row;
+            $this->setFormulaIfWritable($ws, $itemCol, $this->buildIndirectFormula($sheetCellRef, 'A', $rowExpr));
+
+            $columns = ['B', 'C', 'D'];
+            foreach ($columns as $offset => $sourceCol) {
+                $targetCol = Coordinate::stringFromColumnIndex($startColIndex + 1 + $offset) . $row;
+                $this->setFormulaIfWritable(
+                    $ws,
+                    $targetCol,
+                    $this->buildIndirectFormula($sheetCellRef, $sourceCol, $rowExpr, $itemCol)
+                );
+            }
+
+            for ($i = 0; $i < 12; $i++) {
+                $monthCol = Coordinate::stringFromColumnIndex($startColIndex + 4 + $i) . $row;
+                $sourceCol = Coordinate::stringFromColumnIndex(5 + $i);
+                $this->setFormulaIfWritable(
+                    $ws,
+                    $monthCol,
+                    $this->buildIndirectFormula($sheetCellRef, $sourceCol, $rowExpr, $itemCol)
+                );
+            }
+
+            $splitRowExpr = 'ROW()-7';
+            $splitSourceCols = ['G', 'H', 'I', 'J', 'K', 'L'];
+            foreach ($splitSourceCols as $idx => $sourceCol) {
+                $targetCol = Coordinate::stringFromColumnIndex($splitColIndex + $idx) . $row;
+                $this->setFormulaIfWritable(
+                    $ws,
+                    $targetCol,
+                    $this->buildSplitFormula($sheetCellRef, $itemCol, $sourceCol, $splitRowExpr)
+                );
+            }
+        }
+    }
+
+    private function ensureFr041MetaSheet(Spreadsheet $spreadsheet): Worksheet
+    {
+        $ws = $spreadsheet->getSheetByName(self::FR041_META_SHEET);
+        if ($ws) {
+            $ws->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+            return $ws;
+        }
+
+        $ws = new Worksheet($spreadsheet, self::FR041_META_SHEET);
+        $ws->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+        $spreadsheet->addSheet($ws);
+        return $ws;
+    }
+
+    private function buildFr041Sections(array $data): array
+    {
+        $defs = $this->fr041SectionDefinitions();
+        $sections = [];
+        foreach ($defs as $def) {
+            $sheetName = $def['sheetName'] ?? '';
+            $isSupported = in_array($def['sectionCode'], self::FR041_SUPPORTED_SECTION_CODES, true);
+            $hasData = $isSupported && $sheetName !== '' && $this->sectionHasData($data, $def['sectionCode']);
+            $sections[] = [
+                'sectionCode' => $def['sectionCode'],
+                'sectionTitle' => $def['sectionTitle'],
+                'sheetName' => $sheetName,
+                'hasData' => $hasData,
+                'sortOrder' => $def['sortOrder'],
+            ];
+        }
+        return $sections;
+    }
+
+    private function fr041SectionDefinitions(): array
+    {
+        return [
+            ['sectionCode' => '1.1', 'sectionTitle' => '1.1 Stationary combustion', 'sheetName' => '1.1 Stationary ', 'sortOrder' => 110],
+            ['sectionCode' => '1.2', 'sectionTitle' => '1.2 Mobile combustion', 'sheetName' => '1.2 Mobile', 'sortOrder' => 120],
+            ['sectionCode' => '1.4.1', 'sectionTitle' => '1.4.1 Fugitive emissions', 'sheetName' => '1.4.1 สารทำความเย็น', 'sortOrder' => 141],
+            ['sectionCode' => '1.4.2', 'sectionTitle' => '1.4.2 Fire suppression', 'sheetName' => '1.4.2 สารดับเพลิง', 'sortOrder' => 142],
+            ['sectionCode' => '1.4.3', 'sectionTitle' => '1.4.3 Septic', 'sheetName' => '1.4.3 Septic', 'sortOrder' => 143],
+            ['sectionCode' => '1.4.4', 'sectionTitle' => '1.4.4 Fertilizer', 'sheetName' => '1.4.4 ปุ๋ย', 'sortOrder' => 144],
+            ['sectionCode' => '1.4.5', 'sectionTitle' => '1.4.5 WWTP', 'sheetName' => '1.4.5 ระบบบำบัดน้ำเสีย WWTP', 'sortOrder' => 145],
+            ['sectionCode' => '2.1', 'sectionTitle' => '2.1 Purchased Electricity', 'sheetName' => 'Scope 2.1 Purchased Electricity', 'sortOrder' => 210],
+            ['sectionCode' => '3.1.1', 'sectionTitle' => '3.1.1 Purchased Goods', 'sheetName' => 'Scope 3.1.1 วัตถุดิบผลิต', 'sortOrder' => 311],
+            ['sectionCode' => '3.1.2', 'sectionTitle' => '3.1.2 Water', 'sheetName' => 'Scope 3.1.2 น้ำประปา', 'sortOrder' => 312],
+            ['sectionCode' => '3.1.3', 'sectionTitle' => '3.1.3 Paper', 'sheetName' => 'Scope 3.1.3 กระดาษ A4', 'sortOrder' => 313],
+            ['sectionCode' => '3.1.4', 'sectionTitle' => '3.1.4 Employee transport', 'sheetName' => 'Scope 3.1.4 จ้างเหมารถพนักงาน', 'sortOrder' => 314],
+            ['sectionCode' => '3.2', 'sectionTitle' => '3.2 Capital goods', 'sheetName' => '', 'sortOrder' => 320],
+            ['sectionCode' => '3.3', 'sectionTitle' => '3.3 Fuel and energy-related', 'sheetName' => '', 'sortOrder' => 330],
+            ['sectionCode' => '3.4', 'sectionTitle' => '3.4 Upstream transportation', 'sheetName' => 'Scope 3.4', 'sortOrder' => 340],
+            ['sectionCode' => '3.5', 'sectionTitle' => '3.5 Waste generated', 'sheetName' => 'Scope 3.5', 'sortOrder' => 350],
+            ['sectionCode' => '3.6', 'sectionTitle' => '3.6 Business travel', 'sheetName' => '', 'sortOrder' => 360],
+            ['sectionCode' => '3.7', 'sectionTitle' => '3.7 Employee commuting', 'sheetName' => 'Scope 3.7', 'sortOrder' => 370],
+            ['sectionCode' => '3.8', 'sectionTitle' => '3.8 Upstream leased assets', 'sheetName' => '', 'sortOrder' => 380],
+            ['sectionCode' => '3.9', 'sectionTitle' => '3.9 Downstream transport', 'sheetName' => 'Scope 3.9', 'sortOrder' => 390],
+            ['sectionCode' => '3.10', 'sectionTitle' => '3.10 Processing of sold products', 'sheetName' => '', 'sortOrder' => 3100],
+            ['sectionCode' => '3.11', 'sectionTitle' => '3.11 Use of sold products', 'sheetName' => '', 'sortOrder' => 3110],
+            ['sectionCode' => '3.12', 'sectionTitle' => '3.12 End-of-life', 'sheetName' => 'Scope 3.12', 'sortOrder' => 3120],
+            ['sectionCode' => '3.13', 'sectionTitle' => '3.13 Downstream leased assets', 'sheetName' => '', 'sortOrder' => 3130],
+            ['sectionCode' => '3.14', 'sectionTitle' => '3.14 Franchises', 'sheetName' => '', 'sortOrder' => 3140],
+            ['sectionCode' => '3.15', 'sectionTitle' => '3.15 Investments', 'sheetName' => '', 'sortOrder' => 3150],
+        ];
+    }
+
+    private function sectionHasData(array $data, string $sectionCode): bool
+    {
+        $inventory = $data['inventory'] ?? [];
+        if (!is_array($inventory)) return false;
+
+        foreach ($inventory as $row) {
+            if (!is_array($row)) continue;
+            if ((string) ($row['subScope'] ?? '') !== $sectionCode) continue;
+            if ($this->rowHasData($row)) return true;
+        }
+
+        return false;
+    }
+
+    private function rowHasData(array $row): bool
+    {
+        $label = trim((string) ($row['itemLabel'] ?? ''));
+        $fuelKey = trim((string) ($row['fuelKey'] ?? ''));
+        if ($label === '' && $fuelKey === '') return false;
+
+        if (isset($row['quantityPerYear']) && $this->isNonEmptyValue($row['quantityPerYear'])) {
+            return true;
+        }
+
+        if (isset($row['quantityMonthly']) && is_array($row['quantityMonthly'])) {
+            foreach ($row['quantityMonthly'] as $value) {
+                if ($this->isNonEmptyValue($value)) return true;
+            }
+        }
+
+        if (isset($row['months']) && is_array($row['months'])) {
+            foreach ($row['months'] as $month) {
+                $value = is_array($month) ? ($month['qty'] ?? null) : $month;
+                if ($this->isNonEmptyValue($value)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isNonEmptyValue($value): bool
+    {
+        if ($value === null || $value === '') return false;
+        if (is_numeric($value)) return (float) $value !== 0.0;
+        return true;
+    }
+
+    private function getTableByName($ws, string $name): ?Table
+    {
+        if (method_exists($ws, 'getTableByName')) {
+            $table = $ws->getTableByName($name);
+            if ($table) return $table;
+        }
+
+        foreach ($ws->getTables() as $candidate) {
+            if ($candidate->getName() === $name) return $candidate;
+        }
+
+        return null;
+    }
+
+    private function setFormulaIfWritable($ws, string $cellRef, string $formula): void
+    {
+        $cell = $ws->getCell($cellRef);
+        if ($cell->isFormula()) return;
+        if ($cell->getValue() !== null && $cell->getValue() !== '') return;
+        $cell->setValue($formula);
+    }
+
+    private function buildIndirectFormula(string $sheetCellRef, string $sourceCol, string $rowExpr, ?string $guardCell = null): string
+    {
+        $quote = "'";
+        $guard = $guardCell ?: $sheetCellRef;
+        return '=IF(' . $guard . '="","",INDIRECT("' . $quote . '"&' . $sheetCellRef . '&"' . $quote . '!' . $sourceCol . '"&' . $rowExpr . '))';
+    }
+
+    private function buildSplitFormula(string $sheetCellRef, string $itemCell, string $sourceCol, string $rowExpr): string
+    {
+        $quote = "'";
+        return '=IF(AND(' . $itemCell . '<>"",' . $sheetCellRef . '="1.1 Stationary "),INDIRECT("' . $quote . '"&' . $sheetCellRef . '&"' . $quote . '!' . $sourceCol . '"&' . $rowExpr . '),"")';
     }
 
     private function clearScope11StationaryInputs($ws, array $monthCols, array $rows, array $summaryRows, array $summaryCols): void
