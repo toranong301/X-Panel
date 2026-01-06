@@ -61,9 +61,6 @@ class Scope11HiddenTableExportService
      */
     public function previewPayload(array $payload): array
     {
-        if (!class_exists(IOFactory::class)) {
-            throw new \RuntimeException('PhpSpreadsheet not installed.');
-        }
         $normalizedPayload = $this->normalizePayload($payload);
         $splitRows = $this->computeSplitRows(
             $normalizedPayload['items'] ?? [],
@@ -76,9 +73,7 @@ class Scope11HiddenTableExportService
             'splitEnabled' => $normalizedPayload['splitEnabled'],
             'periodYear' => $normalizedPayload['periodYear'] ?? null,
             'headerMonths' => $normalizedPayload['headerMonthsRaw'] ?? null,
-            'items' => $this->buildPreviewRows($normalizedPayload['items']),
-            'unknownRowIds' => [],
-            'warnings' => [],
+            'itemsPreview' => $this->buildPreviewRows($normalizedPayload['items']),
             'splitRows' => $splitRows,
             'linkCheck' => $linkCheck,
         ];

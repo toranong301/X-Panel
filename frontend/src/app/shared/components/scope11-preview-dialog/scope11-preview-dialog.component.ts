@@ -6,7 +6,7 @@ import { MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 export type Scope11PreviewDialogData = {
   ok: boolean;
   periodYear?: number | null;
-  items: Array<{
+  itemsPreview: Array<{
     rowId: string;
     label: string;
     evidence: string;
@@ -14,7 +14,7 @@ export type Scope11PreviewDialogData = {
     months: Record<string, any>;
     total: number | null;
   }>;
-  unknown_rowIds: string[];
+  unknown_rowIds?: string[];
   missing_fields?: string[];
   splitRows?: Array<{
     itemLabel: string;
@@ -66,7 +66,7 @@ export class Scope11PreviewDialogComponent {
   readonly periodYear: number | null;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: Scope11PreviewDialogData) {
-    this.items = data?.items ?? [];
+    this.items = data?.itemsPreview ?? [];
     this.splitRows = data?.splitRows ?? [];
     this.headerMonths = data?.headerMonths ?? null;
     this.periodYear = typeof data?.periodYear === 'number' ? data.periodYear : null;

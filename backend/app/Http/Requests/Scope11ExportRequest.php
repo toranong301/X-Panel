@@ -31,7 +31,6 @@ class Scope11ExportRequest extends FormRequest
             'items.*.label' => ['nullable', 'string'],
             'items.*.evidence' => ['nullable', 'string'],
             'items.*.unit' => ['required', 'in:L,kg'],
-            'items.*.blendProfile' => ['nullable', 'string'],
             'items.*.otherType' => ['nullable', 'string'],
             'items.*.months' => ['nullable', 'array'],
             ...$monthRules,

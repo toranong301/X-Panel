@@ -43,17 +43,38 @@ class Scope11ExportController extends Controller
 
     public function previewJson(Scope11ExportRequest $request, Scope11HiddenTableExportService $service)
     {
-        $result = $service->previewPayload($request->payload());
-        return response()->json([
-            'ok' => true,
-            'splitEnabled' => $result['splitEnabled'] ?? false,
-            'periodYear' => $result['periodYear'] ?? null,
-            'headerMonths' => $result['headerMonths'] ?? null,
-            'items' => $result['items'] ?? [],
-            'unknown_rowIds' => $result['unknownRowIds'] ?? [],
-            'warnings' => $result['warnings'] ?? [],
-            'splitRows' => $result['splitRows'] ?? [],
-            'linkCheck' => $result['linkCheck'] ?? null,
-        ]);
+        try {
+            $result = $service->previewPayload($request->payload());
+            return response()->json([
+                'ok' => true,
+                'splitEnabled' => $result['splitEnabled'] ?? false,
+                'periodYear' => $result['periodYear'] ?? null,
+                'headerMonths' => $result['headerMonths'] ?? null,
+                'itemsPreview' => $result['itemsPreview'] ?? [],
+                'splitRows' => $result['splitRows'] ?? [],
+                'linkCheck' => $result['linkCheck'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Scope11 preview-json failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'exception' => $e,
+            ]);
+
+            $payload = [
+                'ok' => false,
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ];
+            if (config('app.debug')) {
+                $payload['debug'] = [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ];
+            }
+
+            return response()->json($payload, 500);
+        }
     }
 }

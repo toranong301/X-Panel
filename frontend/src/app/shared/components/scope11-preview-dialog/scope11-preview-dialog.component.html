@@ -1,17 +1,17 @@
 <h2 mat-dialog-title>Scope 1.1 Preview</h2>
 
 <mat-dialog-content class="dialog-body">
-  <div class="warning-group" *ngIf="data.unknown_rowIds.length || data.missing_fields?.length">
-    <span class="badge" *ngIf="data.unknown_rowIds.length">
-      Unknown RowIds: {{ data.unknown_rowIds.length }}
-    </span>
+<div class="warning-group" *ngIf="data.unknown_rowIds?.length || data.missing_fields?.length">
+  <span class="badge" *ngIf="data.unknown_rowIds?.length">
+    Unknown RowIds: {{ data.unknown_rowIds?.length }}
+  </span>
     <span class="badge" *ngIf="data.missing_fields?.length">
       Missing fields: {{ data.missing_fields?.length }}
     </span>
-    <details *ngIf="data.unknown_rowIds.length" class="warning">
-      <summary>Unknown RowIds</summary>
-      <div class="list">{{ data.unknown_rowIds.join(', ') }}</div>
-    </details>
+  <details *ngIf="data.unknown_rowIds?.length" class="warning">
+    <summary>Unknown RowIds</summary>
+    <div class="list">{{ data.unknown_rowIds?.join(', ') }}</div>
+  </details>
     <details *ngIf="data.missing_fields?.length" class="warning">
       <summary>Missing fields</summary>
       <div class="list">{{ data.missing_fields?.join(', ') }}</div>

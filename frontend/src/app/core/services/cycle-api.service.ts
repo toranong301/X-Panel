@@ -31,7 +31,7 @@ export type Scope11PreviewResult = {
   splitEnabled: boolean;
   periodYear?: number | null;
   headerMonths?: Record<string, number | null>;
-  items: Array<{
+  itemsPreview: Array<{
     rowId: string;
     label: string;
     evidence: string;
@@ -39,8 +39,8 @@ export type Scope11PreviewResult = {
     months: Record<string, any>;
     total: number | null;
   }>;
-  unknown_rowIds: string[];
-  warnings: Record<string, any>;
+  unknown_rowIds?: string[];
+  warnings?: Record<string, any>;
   splitRows?: Array<{
     itemLabel: string;
     fuelKey: string;

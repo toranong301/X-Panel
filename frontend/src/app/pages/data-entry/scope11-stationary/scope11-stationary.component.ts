@@ -114,6 +114,7 @@ export class Scope11StationaryComponent implements OnInit {
         ...preview,
         headerMonths: payload.headerMonths,
         periodYear: payload.periodYear,
+        unknown_rowIds: preview.unknown_rowIds ?? [],
       };
       this.dialog.open(Scope11PreviewDialogComponent, {
         width: '95vw',
@@ -124,8 +125,9 @@ export class Scope11StationaryComponent implements OnInit {
       });
     } catch (error: any) {
       console.error('Review preview failed', error);
+      const message = this.formatPreviewError(error);
       this.snackBar.open(
-        error?.message || 'ไม่สามารถโหลดตัวอย่างฟอร์มได้',
+        message || 'ไม่สามารถโหลดตัวอย่างฟอร์มได้',
         'ปิด',
         { duration: 6000 }
       );
@@ -135,6 +137,21 @@ export class Scope11StationaryComponent implements OnInit {
         this.cdr.markForCheck();
       }, 0);
     }
+  }
+
+  private formatPreviewError(error: any): string {
+    const status = Number.isFinite(Number(error?.status)) ? Number(error.status) : null;
+    const body = error?.error;
+    let message = '';
+    if (body && typeof body === 'object') {
+      message = body?.message ? String(body.message) : JSON.stringify(body);
+    } else if (typeof body === 'string') {
+      message = body;
+    } else if (error?.message) {
+      message = String(error.message);
+    }
+    if (!message) return '';
+    return status ? `[${status}] ${message}` : message;
   }
 
   async exportSheet() {
