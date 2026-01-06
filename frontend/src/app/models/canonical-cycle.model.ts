@@ -35,7 +35,7 @@ export interface CanonicalCycleData {
   evidence?: Record<string, EvidenceModel>;
 
   scope11HeaderMonths?: Record<string, number | null>;
-  scope11PeriodYear?: number;
+  scope11PeriodYear?: number | null;
 
   fr01?: Fr01Data | null;
   fr02?: Fr02Data | null;

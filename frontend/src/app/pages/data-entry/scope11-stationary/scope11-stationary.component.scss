@@ -50,6 +50,15 @@
 
     .header-label {
       font-weight: 600;
+      input {
+        width: 90px;
+        margin-left: 4px;
+      }
     }
+  }
+
+  .monthly-table th.header-label input {
+    width: 90px;
+    margin-left: 4px;
   }
 }

@@ -80,6 +80,19 @@
   border-top: 1px solid #efefef;
 }
 
+.header-title {
+  background: #f6f6f6;
+  font-weight: 600;
+}
+
+.header-title-text {
+  grid-column: 5 / span 12;
+}
+
+.header-values {
+  border-top: 1px solid #efefef;
+}
+
 .header-row {
   background: #f8fafc;
   font-weight: 600;

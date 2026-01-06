@@ -93,7 +93,8 @@ export class CanonicalGhgService {
 
     const templateId = this.normalizeTemplateId(templateKey, (entryDoc as any)?.templateId);
     const scope11HeaderMonths = (entryDoc as any)?.scope11HeaderMonths;
-    const scope11PeriodYear = 2566;
+    const rawPeriodYear = (entryDoc as any)?.scope11PeriodYear;
+    const scope11PeriodYear = Number.isFinite(Number(rawPeriodYear)) ? Number(rawPeriodYear) : 2566;
 
     return {
       cycleId,
@@ -127,9 +128,11 @@ export class CanonicalGhgService {
       .filter(r => r.categoryCode === '1.1')
       .map(r => this.mapEntryRowToInventory(r, 1));
     const headerMonths = (entryDoc as any)?.scope11HeaderMonths;
+    const rawPeriodYear = (entryDoc as any)?.scope11PeriodYear;
+    const periodYear = Number.isFinite(Number(rawPeriodYear)) ? Number(rawPeriodYear) : 2566;
     return {
       templateId,
-      periodYear: 2566,
+      periodYear,
       headerMonths,
       inventory,
     };

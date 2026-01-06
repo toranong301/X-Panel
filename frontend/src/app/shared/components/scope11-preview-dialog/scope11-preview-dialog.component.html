@@ -25,6 +25,13 @@
   </div>
 
   <div class="payload-table">
+    <div class="payload-header header-title">
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div class="header-title-text">ปริมาณการใช้แต่ละเดือน/{{ periodYearLabel() }}</div>
+    </div>
     <div class="payload-header">
       <div>รายการ</div>
       <div>หลักฐาน</div>
@@ -32,8 +39,8 @@
       <div>รวม</div>
       <div *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">{{ m }}</div>
     </div>
-    <div *ngIf="headerMonths" class="payload-row header-row">
-      <div class="payload-key">ปริมาณการใช้แต่ละเดือน/2566</div>
+    <div *ngIf="headerMonths" class="payload-row header-row header-values">
+      <div class="payload-key">ปริมาณการใช้แต่ละเดือน</div>
       <div></div>
       <div></div>
       <div class="payload-value">{{ formatFixed2(headerMonthsTotal()) }}</div>

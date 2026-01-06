@@ -179,6 +179,7 @@ export class DataEntryComponent implements OnInit {
       scope2: vm.scope2Rows,
       scope3: vm.scope3Rows,
       scope11HeaderMonths: existing?.scope11HeaderMonths,
+      scope11PeriodYear: existing?.scope11PeriodYear,
       cfoFixed: existing?.cfoFixed,
       subsheets: existing?.subsheets,
       evidence: vm.evidenceMap,

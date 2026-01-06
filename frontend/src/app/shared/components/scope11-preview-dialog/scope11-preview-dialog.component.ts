@@ -5,6 +5,7 @@ import { MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 
 export type Scope11PreviewDialogData = {
   ok: boolean;
+  periodYear?: number | null;
   items: Array<{
     rowId: string;
     label: string;
@@ -62,11 +63,13 @@ export class Scope11PreviewDialogComponent {
   }>;
   showAll = false;
   readonly headerMonths: Record<string, number | null> | null;
+  readonly periodYear: number | null;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: Scope11PreviewDialogData) {
     this.items = data?.items ?? [];
     this.splitRows = data?.splitRows ?? [];
     this.headerMonths = data?.headerMonths ?? null;
+    this.periodYear = typeof data?.periodYear === 'number' ? data.periodYear : null;
   }
 
   get visibleItems() {
@@ -96,6 +99,11 @@ export class Scope11PreviewDialogComponent {
     if (typeof value === 'string' && value.trim() === '') return null;
     const normalized = Number(value);
     return Number.isFinite(normalized) ? normalized : null;
+  }
+
+  periodYearLabel(): string {
+    if (this.periodYear == null) return '';
+    return String(Math.trunc(this.periodYear));
   }
 
 }

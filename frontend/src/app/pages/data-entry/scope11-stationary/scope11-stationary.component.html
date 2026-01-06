@@ -79,7 +79,15 @@
           <th rowspan="2">หลักฐาน</th>
           <th rowspan="2">หน่วย</th>
           <th rowspan="2">รวม</th>
-          <th [attr.colspan]="months.length">ปริมาณการใช้แต่ละเดือน/2566</th>
+          <th [attr.colspan]="months.length" class="header-label">
+            ปริมาณการใช้แต่ละเดือน/
+            <input
+              type="number"
+              inputmode="numeric"
+              [ngModel]="getPeriodYearValue()"
+              (ngModelChange)="updatePeriodYear($event)"
+            />
+          </th>
           <th rowspan="2">ลบ</th>
         </tr>
         <tr>
@@ -88,7 +96,9 @@
       </thead>
       <tbody>
         <tr class="header-input-row">
-          <td colspan="4" class="header-label">ปริมาณการใช้แต่ละเดือน/2566</td>
+          <td colspan="4" class="header-label">
+            ปริมาณการใช้แต่ละเดือน/{{ periodYear ?? '' }}
+          </td>
           <td class="num">
             {{ formatFixed2(headerMonthsTotal()) }}
           </td>

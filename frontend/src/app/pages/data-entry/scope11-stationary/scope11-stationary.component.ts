@@ -53,6 +53,7 @@ export class Scope11StationaryComponent implements OnInit {
 
   readonly months = Array.from({ length: 12 }, (_, i) => i + 1);
   headerMonths: Record<string, number | null> = this.createHeaderMonths();
+  periodYear: number | null = 2566;
 
   readonly typeOptions = FUEL_BLEND_RULES;
   readonly evidenceOptions = [
@@ -90,6 +91,7 @@ export class Scope11StationaryComponent implements OnInit {
 
   ngOnInit(): void {
     this.restoreHeaderMonths();
+    this.restorePeriodYear();
   }
 
   async openReview() {
@@ -107,6 +109,7 @@ export class Scope11StationaryComponent implements OnInit {
       const previewData = {
         ...preview,
         headerMonths: payload.headerMonths,
+        periodYear: payload.periodYear,
       };
       this.dialog.open(Scope11PreviewDialogComponent, {
         width: '95vw',
@@ -338,6 +341,16 @@ export class Scope11StationaryComponent implements OnInit {
     this.persistHeaderMonths();
   }
 
+  getPeriodYearValue(): number | null {
+    return this.periodYear;
+  }
+
+  updatePeriodYear(value: number | string | null) {
+    const normalized = this.normalizePeriodYear(value);
+    this.periodYear = normalized;
+    this.persistHeaderMonths();
+  }
+
   headerMonthsTotal(): number | null {
     const values = Object.values(this.serializeHeaderMonths()).filter(
       v => v !== null && v !== undefined && Number.isFinite(v)
@@ -433,6 +446,7 @@ export class Scope11StationaryComponent implements OnInit {
       cycleId: this.cycleId,
       scope1: [...scope11Rows, ...otherScope1],
       scope11HeaderMonths: this.serializeHeaderMonths(),
+      scope11PeriodYear: this.periodYear,
     });
     return scope11Rows;
   }
@@ -462,7 +476,7 @@ export class Scope11StationaryComponent implements OnInit {
 
   private buildScope11Payload(rows: EntryRow[]): {
     splitEnabled: boolean;
-    periodYear: number;
+    periodYear: number | null;
     headerMonths: Record<string, number | null>;
     items: Array<{
       rowId: string;
@@ -501,7 +515,7 @@ export class Scope11StationaryComponent implements OnInit {
 
     return {
       splitEnabled: this.shouldEnableSplit(items),
-      periodYear: 2566,
+      periodYear: this.periodYear,
       headerMonths: this.serializeHeaderMonths(),
       items,
     };
@@ -610,11 +624,22 @@ export class Scope11StationaryComponent implements OnInit {
     this.headerMonths = restored;
   }
 
+  private restorePeriodYear(): void {
+    const saved = (this.dataEntrySvc.load(this.cycleId) as any)?.scope11PeriodYear;
+    this.periodYear = this.normalizePeriodYear(saved) ?? this.periodYear;
+  }
+
   private parseNumberOrNull(value: any): number | null {
     if (value == null) return null;
     if (typeof value === 'string' && value.trim() === '') return null;
     const normalized = Number(value);
     return Number.isFinite(normalized) ? normalized : null;
+  }
+
+  private normalizePeriodYear(value: any): number | null {
+    const normalized = this.parseNumberOrNull(value);
+    if (normalized === null) return null;
+    return Math.trunc(normalized);
   }
 
   private persistHeaderMonths(): void {
@@ -628,6 +653,7 @@ export class Scope11StationaryComponent implements OnInit {
       ...existing,
       cycleId: this.cycleId,
       scope11HeaderMonths: this.serializeHeaderMonths(),
+      scope11PeriodYear: this.periodYear,
     });
   }
 }
