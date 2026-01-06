@@ -8,6 +8,7 @@ export interface DataEntryDoc {
   scope1: EntryRow[];
   scope2: EntryRow[];
   scope3: EntryRow[];
+  scope11HeaderMonths?: Record<string, number | null>;
   cfoFixed?: VSheetDataDoc['cfoFixed'];
   subsheets?: VSheetDataDoc['subsheets'];
   evidence?: Record<string, EvidenceModel>;

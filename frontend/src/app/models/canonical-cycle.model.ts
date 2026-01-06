@@ -34,6 +34,9 @@ export interface CanonicalCycleData {
   vsheet: VSheetDataDoc;
   evidence?: Record<string, EvidenceModel>;
 
+  scope11HeaderMonths?: Record<string, number | null>;
+  scope11PeriodYear?: number;
+
   fr01?: Fr01Data | null;
   fr02?: Fr02Data | null;
   fr031?: Fr031Data | null;

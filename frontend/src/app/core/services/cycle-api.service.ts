@@ -29,6 +29,8 @@ export type ExportDownload = {
 export type Scope11PreviewResult = {
   ok: boolean;
   splitEnabled: boolean;
+  periodYear?: number;
+  headerMonths?: Record<string, number | null>;
   items: Array<{
     rowId: string;
     label: string;

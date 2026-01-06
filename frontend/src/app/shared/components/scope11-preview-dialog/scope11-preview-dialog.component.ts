@@ -28,6 +28,7 @@ export type Scope11PreviewDialogData = {
     ethanolL: number | null;
     ethanolKg: number | null;
   }>;
+  headerMonths?: Record<string, number | null>;
 };
 
 @Component({
@@ -60,10 +61,12 @@ export class Scope11PreviewDialogComponent {
     ethanolKg: number | null;
   }>;
   showAll = false;
+  readonly headerMonths: Record<string, number | null> | null;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: Scope11PreviewDialogData) {
     this.items = data?.items ?? [];
     this.splitRows = data?.splitRows ?? [];
+    this.headerMonths = data?.headerMonths ?? null;
   }
 
   get visibleItems() {
@@ -71,6 +74,15 @@ export class Scope11PreviewDialogComponent {
     return this.items.filter(row =>
       Object.values(row.months ?? {}).some(value => value !== null && value !== '')
     );
+  }
+
+  headerMonthsTotal(): number | null {
+    if (!this.headerMonths) return null;
+    const values = Object.values(this.headerMonths).filter(
+      v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
+    );
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + Number(v), 0);
   }
 
 }

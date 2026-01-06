@@ -92,6 +92,8 @@ export class CanonicalGhgService {
     const cfoGhg = this.buildCfoGhg(entryDoc, scope3Items);
 
     const templateId = this.normalizeTemplateId(templateKey, (entryDoc as any)?.templateId);
+    const scope11HeaderMonths = (entryDoc as any)?.scope11HeaderMonths;
+    const scope11PeriodYear = 2566;
 
     return {
       cycleId,
@@ -100,6 +102,8 @@ export class CanonicalGhgService {
       fr03_2,
       vsheet,
       evidence: entryDoc?.evidence ?? {},
+      scope11HeaderMonths,
+      scope11PeriodYear,
       fr01,
       fr02,
       fr031,
@@ -122,8 +126,11 @@ export class CanonicalGhgService {
     const inventory = rows
       .filter(r => r.categoryCode === '1.1')
       .map(r => this.mapEntryRowToInventory(r, 1));
+    const headerMonths = (entryDoc as any)?.scope11HeaderMonths;
     return {
       templateId,
+      periodYear: 2566,
+      headerMonths,
       inventory,
     };
   }

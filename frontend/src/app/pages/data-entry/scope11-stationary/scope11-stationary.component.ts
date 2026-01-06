@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { MatButtonModule } from '@angular/material/button';
@@ -40,7 +40,7 @@ import { createEmptyMonths } from '../../../models/entry-row.helpers';
   templateUrl: './scope11-stationary.component.html',
   styleUrls: ['./scope11-stationary.component.scss'],
 })
-export class Scope11StationaryComponent {
+export class Scope11StationaryComponent implements OnInit {
   @Input() cycleId = 0;
   @Input() set rows(value: EntryRow[]) {
     this._rows = value ?? [];
@@ -52,6 +52,7 @@ export class Scope11StationaryComponent {
   @Output() rowsChange = new EventEmitter<EntryRow[]>();
 
   readonly months = Array.from({ length: 12 }, (_, i) => i + 1);
+  headerMonths: Record<string, number | null> = this.createHeaderMonths();
 
   readonly typeOptions = FUEL_BLEND_RULES;
   readonly evidenceOptions = [
@@ -87,6 +88,10 @@ export class Scope11StationaryComponent {
     private cdr: ChangeDetectorRef,
   ) {}
 
+  ngOnInit(): void {
+    this.restoreHeaderMonths();
+  }
+
   async openReview() {
     if (this.reviewing) return;
     this.reviewing = true;
@@ -99,12 +104,16 @@ export class Scope11StationaryComponent {
       const scope11Rows = this.persistScopeRows();
       const payload = this.buildScope11Payload(scope11Rows);
       const preview = await this.cycleApi.previewScope11Json(payload);
+      const previewData = {
+        ...preview,
+        headerMonths: payload.headerMonths,
+      };
       this.dialog.open(Scope11PreviewDialogComponent, {
         width: '95vw',
         maxWidth: '1400px',
         height: '85vh',
         maxHeight: '90vh',
-        data: preview,
+        data: previewData,
       });
     } catch (error: any) {
       console.error('Review preview failed', error);
@@ -313,6 +322,32 @@ export class Scope11StationaryComponent {
     return this.getNormalizedMonths(row).reduce((sum, m) => sum + m, 0);
   }
 
+  getHeaderMonthValue(month: number): number | null {
+    const value = this.headerMonths[`M${month}`];
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
+  }
+
+  updateHeaderMonth(month: number, value: number | string | null) {
+    const key = `M${month}`;
+    const isEmpty = value === null || value === undefined || value === '';
+    if (isEmpty || Number.isNaN(Number(value))) {
+      this.headerMonths[key] = null;
+      this.persistHeaderMonths();
+      return;
+    }
+    this.headerMonths[key] = Number(value);
+    this.persistHeaderMonths();
+  }
+
+  headerMonthsTotal(): number | null {
+    const values = Object.values(this.serializeHeaderMonths()).filter(
+      v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
+    );
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + Number(v), 0);
+  }
+
   acetyleneKgTotal(row: EntryRow): number {
     const kgPerUnit = this.getKgPerUnit(row);
     if (!kgPerUnit) return 0;
@@ -401,6 +436,7 @@ export class Scope11StationaryComponent {
       ...existing,
       cycleId: this.cycleId,
       scope1: [...scope11Rows, ...otherScope1],
+      scope11HeaderMonths: this.serializeHeaderMonths(),
     });
     return scope11Rows;
   }
@@ -430,6 +466,8 @@ export class Scope11StationaryComponent {
 
   private buildScope11Payload(rows: EntryRow[]): {
     splitEnabled: boolean;
+    periodYear: number;
+    headerMonths: Record<string, number | null>;
     items: Array<{
       rowId: string;
       fuelKey: FuelBlendKey;
@@ -467,6 +505,8 @@ export class Scope11StationaryComponent {
 
     return {
       splitEnabled: this.shouldEnableSplit(items),
+      periodYear: 2566,
+      headerMonths: this.serializeHeaderMonths(),
       items,
     };
   }
@@ -544,5 +584,59 @@ export class Scope11StationaryComponent {
     link.target = '_blank';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private createHeaderMonths(): Record<string, number | null> {
+    const out: Record<string, number | null> = {};
+    for (const m of this.months) {
+      out[`M${m}`] = null;
+    }
+    return out;
+  }
+
+  private serializeHeaderMonths(): Record<string, number | null> {
+    const out: Record<string, number | null> = {};
+    for (const m of this.months) {
+      const key = `M${m}`;
+      const value = this.headerMonths[key];
+      if (value === null || value === undefined || value === '') {
+        out[key] = null;
+        continue;
+      }
+      const normalized = Number(value);
+      out[key] = Number.isFinite(normalized) ? normalized : null;
+    }
+    return out;
+  }
+
+  private restoreHeaderMonths(): void {
+    const saved = (this.dataEntrySvc.load(this.cycleId) as any)?.scope11HeaderMonths;
+    if (!saved) return;
+    const restored: Record<string, number | null> = {};
+    for (const m of this.months) {
+      const key = `M${m}`;
+      const raw = saved?.[key];
+      if (raw === null || raw === undefined || raw === '') {
+        restored[key] = null;
+        continue;
+      }
+      const normalized = Number(raw);
+      restored[key] = Number.isFinite(normalized) ? normalized : null;
+    }
+    this.headerMonths = restored;
+  }
+
+  private persistHeaderMonths(): void {
+    const existing = this.dataEntrySvc.load(this.cycleId) ?? {
+      cycleId: this.cycleId,
+      scope1: [],
+      scope2: [],
+      scope3: [],
+    };
+    this.dataEntrySvc.save(this.cycleId, {
+      ...existing,
+      cycleId: this.cycleId,
+      scope11HeaderMonths: this.serializeHeaderMonths(),
+    });
   }
 }

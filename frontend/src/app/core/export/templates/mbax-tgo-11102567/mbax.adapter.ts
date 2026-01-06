@@ -675,7 +675,54 @@ const screenRow =
       output.push(this.mapScope11TableRow(row, key, false));
     }
 
+    const headerRow = this.buildScope11HeaderRow(ctx);
+    if (headerRow) output.push(headerRow);
+
     return output;
+  }
+
+  private buildScope11HeaderRow(ctx: ExportContext): {
+    rowId: string;
+    itemLabel: string;
+    fuelType: string;
+    evidence: string;
+    unit: string;
+    months: Array<number | null>;
+    other: {
+      dieselPct: number | null;
+      biodieselPct: number | null;
+      gasolinePct: number | null;
+      ethanolPct: number | null;
+      biodieselDensity: number | null;
+      ethanolDensity: number | null;
+    };
+  } | null {
+    const headerMonths = (ctx.canonical as any)?.scope11HeaderMonths;
+    if (!headerMonths) return null;
+    const periodYear = Number((ctx.canonical as any)?.scope11PeriodYear ?? 2566);
+    const months = Array.from({ length: 12 }, (_, idx) => {
+      const value = headerMonths?.[`M${idx + 1}`];
+      if (value === null || value === undefined || value === '') return null;
+      const normalized = Number(value);
+      return Number.isFinite(normalized) ? normalized : null;
+    });
+
+    return {
+      rowId: `SCOPE11_1_1_HEADER_MONTHS_${periodYear}`,
+      itemLabel: `ปริมาณการใช้แต่ละเดือน/${periodYear}`,
+      fuelType: '',
+      evidence: '',
+      unit: '',
+      months,
+      other: {
+        dieselPct: null,
+        biodieselPct: null,
+        gasolinePct: null,
+        ethanolPct: null,
+        biodieselDensity: null,
+        ethanolDensity: null,
+      },
+    };
   }
 
   private mapScope11TableRow(row: any, fuelKey: string, forceRowId: boolean) {

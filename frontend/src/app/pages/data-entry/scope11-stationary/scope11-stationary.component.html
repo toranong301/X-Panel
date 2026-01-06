@@ -87,6 +87,22 @@
         </tr>
       </thead>
       <tbody>
+        <tr class="header-input-row">
+          <td colspan="4" class="header-label">ปริมาณการใช้แต่ละเดือน/2566</td>
+          <td class="num">
+            {{ headerMonthsTotal() === null ? '' : formatNumber(headerMonthsTotal()!) }}
+          </td>
+          <td *ngFor="let m of months; trackBy: trackByMonth">
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              [ngModel]="getHeaderMonthValue(m)"
+              (ngModelChange)="updateHeaderMonth(m, $event)"
+            />
+          </td>
+          <td></td>
+        </tr>
         <ng-container *ngFor="let row of rowsView; trackBy: trackByRow">
           <tr>
             <td>
