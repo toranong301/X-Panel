@@ -250,6 +250,7 @@ export class CanonicalGhgService {
       totalTco2e,
       remark,
       dataEvidence: r.referenceText ?? '',
+      otherType: r.otherType ?? null,
 
       fuelKey,
       quantityMonthly: monthly,

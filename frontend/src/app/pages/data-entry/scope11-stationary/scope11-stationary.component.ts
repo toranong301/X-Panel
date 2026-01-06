@@ -44,7 +44,10 @@ export class Scope11StationaryComponent implements OnInit {
   @Input() cycleId = 0;
   @Input() set rows(value: EntryRow[]) {
     this._rows = value ?? [];
-    this._rows.forEach(row => this.normalizeRowMonths(row));
+    this._rows.forEach(row => {
+      this.normalizeRowMonths(row);
+      this.ensureOtherType(row);
+    });
   }
   get rows(): EntryRow[] {
     return this._rows;
@@ -214,13 +217,14 @@ export class Scope11StationaryComponent implements OnInit {
   updateTypeChoice(row: EntryRow, value: FuelBlendKey) {
     const selectedLabel = this.typeOptions.find(opt => opt.key === value)?.label ?? '';
     if (this.isDefaultRow(row)) {
-      row.remark = value === 'OTHER' ? '' : selectedLabel;
+      row.remark = value === 'OTHER' ? (row.otherType ?? row.remark ?? '') : selectedLabel;
     } else {
-      row.remark = value === 'OTHER' ? row.remark : '';
+      row.remark = value === 'OTHER' ? (row.otherType ?? row.remark ?? '') : '';
       row.subCategoryCode = this.buildCustomFuelKey(value, row.id);
     }
     row.fuelType = selectedLabel || value;
     if (value !== 'OTHER') {
+      row.otherType = null;
       row.blendSpec = undefined;
       row.blend = undefined;
     }
@@ -263,6 +267,7 @@ export class Scope11StationaryComponent implements OnInit {
   }
 
   updateTypeText(row: EntryRow, value: string) {
+    row.otherType = value;
     row.remark = value;
     this.rowsChange.emit(this.rows);
   }
@@ -485,6 +490,7 @@ export class Scope11StationaryComponent implements OnInit {
       evidence: string;
       unit: 'L' | 'kg';
       blendProfile: string;
+      otherType?: string | null;
       months: Record<string, number | null>;
     }>;
   } {
@@ -509,6 +515,7 @@ export class Scope11StationaryComponent implements OnInit {
         evidence: String(row.referenceText || '').trim(),
         unit: this.normalizeUnit(row.unit),
         blendProfile,
+        otherType: fuelKey === 'OTHER' ? (String(row.otherType || '').trim() || null) : null,
         months,
       });
     }
@@ -553,6 +560,15 @@ export class Scope11StationaryComponent implements OnInit {
       cleaned.push({ month, qty });
     }
     row.months = cleaned;
+  }
+
+  private ensureOtherType(row: EntryRow): void {
+    if (row.otherType) return;
+    if (this.getTypeChoice(row) !== 'OTHER') return;
+    const remark = String(row.remark ?? '').trim();
+    if (remark) {
+      row.otherType = remark;
+    }
   }
 
   private getFirstBlendError(): string | null {

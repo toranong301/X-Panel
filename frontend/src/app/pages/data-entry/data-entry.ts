@@ -348,6 +348,7 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
   const mergedDefaults = defaults.map(def => {
     const existing = existingByCode.get(def.subCategoryCode ?? '');
     if (!existing) return def;
+    const isOther = String(existing.subCategoryCode ?? '').toUpperCase().includes('OTHER');
     return {
       ...def,
       months: existing.months?.length ? existing.months : def.months,
@@ -355,6 +356,7 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
       itemName: existing.itemName?.trim() ? existing.itemName : def.itemName,
       unit: existing.unit?.trim() ? existing.unit : def.unit,
       remark: existing.remark ?? def.remark,
+      otherType: existing.otherType ?? (isOther ? existing.remark : def.otherType),
     };
   });
 
@@ -366,7 +368,15 @@ function normalizeScope11Rows(cycleId: number, scope1Rows: EntryRow[]): EntryRow
       return code && !defaultKeys.has(code);
     });
 
-  return [...mergedDefaults, ...customRows];
+  const normalizedCustom = customRows.map(row => {
+    const isOther = String(row.subCategoryCode ?? '').toUpperCase().includes('OTHER');
+    return {
+      ...row,
+      otherType: row.otherType ?? (isOther ? row.remark : row.otherType),
+    };
+  });
+
+  return [...mergedDefaults, ...normalizedCustom];
 }
 
 function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): EntryRow[] {
@@ -380,6 +390,10 @@ function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): Entry
     for (let i = 0; i < months.length; i++) {
       months[i].qty = Number(monthly[i] ?? 0) || 0;
     }
+    const fuelKey = String(item?.fuelKey ?? '').toUpperCase();
+    const fuelType = String(item?.fuelType ?? '').toUpperCase();
+    const isOther = fuelKey.includes('OTHER') || fuelType === 'OTHER';
+    const otherType = isOther ? String(item?.otherType ?? item?.remark ?? '') : undefined;
     return {
       id: item?.id,
       cycleId: String(cycleId),
@@ -391,6 +405,7 @@ function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): Entry
       months,
       referenceText: item?.dataEvidence ?? undefined,
       remark: item?.remark ?? undefined,
+      otherType: otherType || undefined,
       dataSourceType: 'ORG',
       blendSpec: item?.blendSpec,
       blend: item?.blend,

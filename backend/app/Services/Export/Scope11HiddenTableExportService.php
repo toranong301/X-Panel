@@ -437,6 +437,7 @@ class Scope11HiddenTableExportService
                 'evidence' => trim((string) ($item['evidence'] ?? '')),
                 'unit' => strtoupper(trim((string) ($item['unit'] ?? 'L'))),
                 'blendProfile' => isset($item['blendProfile']) ? trim((string) $item['blendProfile']) : null,
+                'otherType' => isset($item['otherType']) ? trim((string) $item['otherType']) : null,
                 'months' => $months,
             ];
         }

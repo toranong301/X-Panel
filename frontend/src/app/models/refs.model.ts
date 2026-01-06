@@ -30,6 +30,7 @@ export interface InventoryItemRow {
 
   remark?: string;
   dataEvidence?: string;
+  otherType?: string | null;
 
   // single EF (สำหรับ Scope3Screen แบบง่าย) หรือ EF breakdown (สำหรับ FR-04.1)
   ef?: number;                   // kgCO2e per unit (ถ้าเป็น EF รวมแล้ว)

@@ -109,4 +109,15 @@ describe('Scope11StationaryComponent', () => {
     await component.openReview();
     expect(calls).toEqual(['preview']);
   });
+
+  it('persists otherType text for OTHER rows', () => {
+    const component = makeComponent();
+    const row = makeRow({
+      subCategoryCode: 'CUSTOM_OTHER_1',
+      unit: 'L',
+    });
+    component.rows = [row];
+    component.updateTypeText(row, 'Acetylene Gas');
+    expect(row.otherType).toBe('Acetylene Gas');
+  });
 });
