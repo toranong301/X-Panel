@@ -26,7 +26,7 @@ const DEFAULT_ETHANOL_DENSITY = 0.79;
 export function computeStationaryRow(row: EntryRow): StationaryComputedRow | null {
   const unit = String(row.unit || '').toLowerCase();
   const months = normalizeMonthValues(row.months);
-  const total = months.reduce((sum, v) => sum + v, 0);
+  const total = months.reduce((sum: number, v) => sum + (v ?? 0), 0);
 
   if (unit === 'l') {
     const blendKey = resolveBlendKey(row.subCategoryCode, row.fuelType ?? row.remark);
@@ -49,8 +49,8 @@ export function computeStationaryRow(row: EntryRow): StationaryComputedRow | nul
 
   const kgPerUnit = row.unitConversion?.kgPerUnit;
   if (unit === 'ถัง' && kgPerUnit) {
-    const monthlyKg = months.map(v => v * kgPerUnit);
-    const totalKg = monthlyKg.reduce((sum, v) => sum + v, 0);
+    const monthlyKg = months.map(v => (v ?? 0) * kgPerUnit);
+    const totalKg = monthlyKg.reduce((sum: number, v) => sum + v, 0);
     return {
       row,
       totalL: 0,
@@ -94,14 +94,15 @@ export function computeStationarySummary(rows: EntryRow[]): StationarySummary {
   };
 }
 
-export function normalizeMonthValues(months?: MonthlyQty[]): number[] {
-  const normalized = Array(12).fill(0);
+export function normalizeMonthValues(months?: MonthlyQty[]): Array<number | null> {
+  const normalized = Array(12).fill(null);
   if (!months) return normalized;
   for (const entry of months) {
     const month = Number(entry?.month ?? 0);
     const idx = month - 1;
     if (idx < 0 || idx >= 12) continue;
-    normalized[idx] = Number(entry?.qty ?? 0) || 0;
+    const qty = Number(entry?.qty);
+    normalized[idx] = Number.isFinite(qty) ? qty : null;
   }
   return normalized;
 }

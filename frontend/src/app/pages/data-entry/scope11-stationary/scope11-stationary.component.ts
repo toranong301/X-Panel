@@ -301,8 +301,8 @@ export class Scope11StationaryComponent implements OnInit {
   }
 
   updateMonthQty(row: EntryRow, month: number, value: number | string | null) {
-    const isEmpty = value === null || value === undefined || value === '';
-    if (isEmpty || Number.isNaN(Number(value))) {
+    const normalized = this.parseNumberOrNull(value);
+    if (normalized === null) {
       row.months = row.months.filter(x => x.month !== month);
       this.rowsChange.emit(this.rows);
       return;
@@ -313,39 +313,37 @@ export class Scope11StationaryComponent implements OnInit {
       m = { month, qty: 0 };
       row.months.push(m);
     }
-    m.qty = Number(value);
+    m.qty = normalized;
     this.normalizeRowMonths(row);
     this.rowsChange.emit(this.rows);
   }
 
   total(row: EntryRow): number {
-    return this.getNormalizedMonths(row).reduce((sum, m) => sum + m, 0);
+    return this.getNormalizedMonths(row).reduce((sum: number, m) => sum + (m ?? 0), 0);
   }
 
   getHeaderMonthValue(month: number): number | null {
-    const value = this.headerMonths[`M${month}`];
-    const normalized = Number(value);
-    return Number.isFinite(normalized) ? normalized : null;
+    return this.parseNumberOrNull(this.headerMonths[`M${month}`]);
   }
 
   updateHeaderMonth(month: number, value: number | string | null) {
     const key = `M${month}`;
-    const isEmpty = value === null || value === undefined || value === '';
-    if (isEmpty || Number.isNaN(Number(value))) {
+    const normalized = this.parseNumberOrNull(value);
+    if (normalized === null) {
       this.headerMonths[key] = null;
       this.persistHeaderMonths();
       return;
     }
-    this.headerMonths[key] = Number(value);
+    this.headerMonths[key] = normalized;
     this.persistHeaderMonths();
   }
 
   headerMonthsTotal(): number | null {
     const values = Object.values(this.serializeHeaderMonths()).filter(
-      v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
+      v => v !== null && v !== undefined && Number.isFinite(v)
     );
     if (!values.length) return null;
-    return values.reduce((sum, v) => sum + Number(v), 0);
+    return values.reduce((sum: number, v) => sum + (v ?? 0), 0);
   }
 
   acetyleneKgTotal(row: EntryRow): number {
@@ -368,9 +366,8 @@ export class Scope11StationaryComponent implements OnInit {
   }
 
   formatFixed2(value: number | string | null | undefined): string {
-    if (value === null || value === undefined || value === '') return '';
-    const normalized = Number(value);
-    if (!Number.isFinite(normalized)) return '';
+    const normalized = this.parseNumberOrNull(value);
+    if (normalized === null) return '';
     return normalized.toFixed(2);
   }
 
@@ -459,7 +456,7 @@ export class Scope11StationaryComponent implements OnInit {
     return row;
   }
 
-  private getNormalizedMonths(row: EntryRow): number[] {
+  private getNormalizedMonths(row: EntryRow): Array<number | null> {
     return normalizeMonthValues(row.months);
   }
 
@@ -486,9 +483,9 @@ export class Scope11StationaryComponent implements OnInit {
       const months: Record<string, number | null> = {};
       for (const entry of row.months ?? []) {
         const idx = Number(entry?.month ?? 0);
-        const qty = Number(entry?.qty);
+        const qty = this.parseNumberOrNull(entry?.qty);
         if (idx < 1 || idx > 12) continue;
-        if (!Number.isFinite(qty)) continue;
+        if (qty === null) continue;
         months[`M${idx}`] = qty;
       }
       items.push({
@@ -536,9 +533,9 @@ export class Scope11StationaryComponent implements OnInit {
     const cleaned = [];
     for (const entry of row.months ?? []) {
       const month = Number(entry?.month ?? 0);
-      const qty = Number(entry?.qty);
+      const qty = this.parseNumberOrNull(entry?.qty);
       if (!Number.isFinite(month) || month < 1 || month > 12) continue;
-      if (!Number.isFinite(qty)) continue;
+      if (qty === null) continue;
       cleaned.push({ month, qty });
     }
     row.months = cleaned;
@@ -562,7 +559,7 @@ export class Scope11StationaryComponent implements OnInit {
     return null;
   }
   private isRowEmpty(row: EntryRow): boolean {
-    const hasMonths = this.getNormalizedMonths(row).some(qty => qty !== 0);
+    const hasMonths = this.getNormalizedMonths(row).some(qty => qty !== null);
     const hasEvidence = Boolean(String(row.referenceText || '').trim());
     const label = String(row.itemName || '').trim();
     const defaultLabel = this.defaultLabelFor(this.getFuelKey(row));
@@ -597,13 +594,7 @@ export class Scope11StationaryComponent implements OnInit {
     const out: Record<string, number | null> = {};
     for (const m of this.months) {
       const key = `M${m}`;
-      const value = this.headerMonths[key];
-      if (value === null || value === undefined || value === '') {
-        out[key] = null;
-        continue;
-      }
-      const normalized = Number(value);
-      out[key] = Number.isFinite(normalized) ? normalized : null;
+      out[key] = this.parseNumberOrNull(this.headerMonths[key]);
     }
     return out;
   }
@@ -614,15 +605,16 @@ export class Scope11StationaryComponent implements OnInit {
     const restored: Record<string, number | null> = {};
     for (const m of this.months) {
       const key = `M${m}`;
-      const raw = saved?.[key];
-      if (raw === null || raw === undefined || raw === '') {
-        restored[key] = null;
-        continue;
-      }
-      const normalized = Number(raw);
-      restored[key] = Number.isFinite(normalized) ? normalized : null;
+      restored[key] = this.parseNumberOrNull(saved?.[key]);
     }
     this.headerMonths = restored;
+  }
+
+  private parseNumberOrNull(value: any): number | null {
+    if (value == null) return null;
+    if (typeof value === 'string' && value.trim() === '') return null;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
   }
 
   private persistHeaderMonths(): void {

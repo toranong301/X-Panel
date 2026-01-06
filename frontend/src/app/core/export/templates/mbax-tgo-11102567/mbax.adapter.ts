@@ -618,7 +618,7 @@ const screenRow =
     fuelType: string;
     evidence: string;
     unit: string;
-    months: number[];
+    months: Array<number | null>;
     other: {
       dieselPct: number | null;
       biodieselPct: number | null;
@@ -653,7 +653,7 @@ const screenRow =
       fuelType: string;
       evidence: string;
       unit: string;
-      months: number[];
+      months: Array<number | null>;
       other: {
         dieselPct: number | null;
         biodieselPct: number | null;
@@ -701,10 +701,7 @@ const screenRow =
     if (!headerMonths) return null;
     const periodYear = Number((ctx.canonical as any)?.scope11PeriodYear ?? 2566);
     const months = Array.from({ length: 12 }, (_, idx) => {
-      const value = headerMonths?.[`M${idx + 1}`];
-      if (value === null || value === undefined || value === '') return null;
-      const normalized = Number(value);
-      return Number.isFinite(normalized) ? normalized : null;
+      return this.parseNumberOrNull(headerMonths?.[`M${idx + 1}`]);
     });
 
     return {
@@ -738,14 +735,14 @@ const screenRow =
     };
   }
 
-  private normalizeScope11Months(row: any): number[] {
-    const out = Array.from({ length: 12 }, () => 0);
+  private normalizeScope11Months(row: any): Array<number | null> {
+    const out = Array.from({ length: 12 }, () => null);
     if (!row) return out;
     if (Array.isArray(row?.quantityMonthly)) {
-      return out.map((_, idx) => Number(row.quantityMonthly[idx] ?? 0) || 0);
+      return out.map((_, idx) => this.parseNumberOrNull(row.quantityMonthly[idx]));
     }
     if (Array.isArray(row?.months)) {
-      return out.map((_, idx) => Number(row.months[idx]?.qty ?? row.months[idx] ?? 0) || 0);
+      return out.map((_, idx) => this.parseNumberOrNull(row.months[idx]?.qty ?? row.months[idx]));
     }
     return out;
   }
@@ -819,8 +816,8 @@ const screenRow =
       this.setCellValueSafely(ws, `E${r}`, row.unit || null);
 
       for (let m = 0; m < 12; m++) {
-        const value = Number(row.months?.[m] ?? 0);
-        this.setCellValueSafely(ws, `${columns[5 + m]}${r}`, value ? value : null);
+        const value = this.parseNumberOrNull(row.months?.[m]);
+        this.setCellValueSafely(ws, `${columns[5 + m]}${r}`, value ?? '');
       }
 
       this.setCellValueSafely(ws, `R${r}`, row.other?.dieselPct ?? null);
@@ -830,6 +827,13 @@ const screenRow =
       this.setCellValueSafely(ws, `V${r}`, row.other?.biodieselDensity ?? null);
       this.setCellValueSafely(ws, `W${r}`, row.other?.ethanolDensity ?? null);
     });
+  }
+
+  private parseNumberOrNull(value: any): number | null {
+    if (value == null) return null;
+    if (typeof value === 'string' && value.trim() === '') return null;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
   }
 
 

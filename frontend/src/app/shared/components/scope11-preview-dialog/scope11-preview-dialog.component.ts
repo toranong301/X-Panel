@@ -72,24 +72,30 @@ export class Scope11PreviewDialogComponent {
   get visibleItems() {
     if (this.showAll) return this.items;
     return this.items.filter(row =>
-      Object.values(row.months ?? {}).some(value => value !== null && value !== '')
+      Object.values(row.months ?? {}).some(value => value != null)
     );
   }
 
   headerMonthsTotal(): number | null {
     if (!this.headerMonths) return null;
-    const values = Object.values(this.headerMonths).filter(
-      v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
-    );
+    const values = Object.values(this.headerMonths)
+      .map(v => this.parseNumberOrNull(v))
+      .filter((v): v is number => v !== null);
     if (!values.length) return null;
-    return values.reduce((sum, v) => sum + Number(v), 0);
+    return values.reduce((sum: number, v) => sum + v, 0);
   }
 
   formatFixed2(value: number | string | null | undefined): string {
-    if (value === null || value === undefined || value === '') return '';
-    const normalized = Number(value);
-    if (!Number.isFinite(normalized)) return '';
+    const normalized = this.parseNumberOrNull(value);
+    if (normalized === null) return '';
     return normalized.toFixed(2);
+  }
+
+  private parseNumberOrNull(value: any): number | null {
+    if (value == null) return null;
+    if (typeof value === 'string' && value.trim() === '') return null;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
   }
 
 }
