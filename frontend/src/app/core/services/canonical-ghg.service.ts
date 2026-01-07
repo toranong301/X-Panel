@@ -124,17 +124,57 @@ export class CanonicalGhgService {
   public buildScope11StationaryPayload(cycleId: number, rows: EntryRow[]): Record<string, any> {
     const entryDoc = this.entrySvc.load(cycleId);
     const templateId = this.normalizeTemplateId(undefined, (entryDoc as any)?.templateId);
-    const inventory = rows
-      .filter(r => r.categoryCode === '1.1')
-      .map(r => this.mapEntryRowToInventory(r, 1));
     const headerMonths = (entryDoc as any)?.scope11HeaderMonths;
     const rawPeriodYear = (entryDoc as any)?.scope11PeriodYear;
     const periodYear = Number.isFinite(Number(rawPeriodYear)) ? Number(rawPeriodYear) : 2566;
+
+    const items = rows
+      .filter(r => r.categoryCode === '1.1')
+      .filter(r => !this.isDerivedScope11FuelKey(r.subCategoryCode))
+      .map(row => {
+        const rowId = String(row.subCategoryCode || row.id || '').trim();
+        if (!rowId) return null;
+
+        const months: Record<string, number | null> = {};
+        for (const entry of row.months ?? []) {
+          const idx = Number(entry?.month ?? 0);
+          if (idx < 1 || idx > 12) continue;
+          const qty = this.parseNumberOrNull(entry?.qty);
+          if (qty === null) continue;
+          months[`M${idx}`] = qty;
+        }
+
+        const fuelKey = resolveBlendKey(row.subCategoryCode, row.fuelType ?? row.remark);
+
+        return {
+          rowId,
+          fuelKey,
+          label: String(row.itemName || this.getScope1Label(row.subCategoryCode) || '').trim(),
+          evidence: String(row.referenceText || '').trim(),
+          unit: this.normalizeScope11Unit(row.unit),
+          otherType: fuelKey === 'OTHER' ? (String(row.otherType || '').trim() || null) : null,
+          months,
+        };
+      })
+      .filter((item): item is {
+        rowId: string;
+        fuelKey: string;
+        label: string;
+        evidence: string;
+        unit: 'L' | 'kg';
+        otherType?: string | null;
+        months: Record<string, number | null>;
+      } => Boolean(item));
+
+    const splitEnabled = items.some(
+      item => item.unit === 'L' && Object.keys(item.months || {}).length > 0
+    );
     return {
       templateId,
       periodYear,
       headerMonths,
-      inventory,
+      splitEnabled,
+      items,
     };
   }
 
@@ -264,10 +304,12 @@ export class CanonicalGhgService {
   }
 
   private toMonthlyArray(months: { month: number; qty: number }[]): number[] {
-    const out = Array.from({ length: 12 }, () => 0);
+    const out = Array.from({ length: 12 }, () => Number.NaN);
     for (const m of months || []) {
       const idx = Number(m.month) - 1;
-      if (idx >= 0 && idx < 12) out[idx] = Number((m as any).qty || 0);
+      if (idx < 0 || idx >= 12) continue;
+      const value = this.parseNumberOrNull((m as any).qty);
+      if (value !== null) out[idx] = value;
     }
     return out;
   }
@@ -305,6 +347,23 @@ export class CanonicalGhgService {
       DIESEL_B7_OFFROAD: 'Diesel B7 off-road (forklift)',
     };
     return labels[String(fuelKey || '').trim().toUpperCase()] ?? '';
+  }
+
+  private isDerivedScope11FuelKey(code?: string): boolean {
+    const raw = String(code || '').trim().toUpperCase();
+    return raw === 'BIODIESEL_STATIONARY' || raw === 'ETHANOL_STATIONARY';
+  }
+
+  private normalizeScope11Unit(unit?: string): 'L' | 'kg' {
+    const raw = String(unit || '').trim().toLowerCase();
+    return raw === 'kg' ? 'kg' : 'L';
+  }
+
+  private parseNumberOrNull(value: any): number | null {
+    if (value == null) return null;
+    if (typeof value === 'string' && value.trim() === '') return null;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
   }
 
   private mapScope3ToInventory(it: Scope3ItemRow): InventoryItemRow {

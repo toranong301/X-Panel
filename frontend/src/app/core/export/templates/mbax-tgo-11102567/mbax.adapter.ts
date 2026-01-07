@@ -614,9 +614,10 @@ const screenRow =
       ethanolDensity: number | null;
     };
   }> {
-    const rows = (ctx.canonical.inventory ?? []).filter((x: any) =>
-      String(x?.subScope ?? '') === '1.1'
-    );
+    const derivedKeys = new Set(['BIODIESEL_STATIONARY', 'ETHANOL_STATIONARY']);
+    const rows = (ctx.canonical.inventory ?? [])
+      .filter((x: any) => String(x?.subScope ?? '') === '1.1')
+      .filter((x: any) => !derivedKeys.has(String(x?.fuelKey ?? '').trim().toUpperCase()));
     const defaults = [
       'DIESEL_B7_STATIONARY',
       'GASOHOL_9195_STATIONARY',
@@ -720,22 +721,35 @@ const screenRow =
       };
     }
 
-    const spec = row?.blendSpec ?? {};
-    const density = spec?.density ?? {};
-    const biodieselDensity = Number(
-      density?.biodieselKgPerL ?? spec?.biodieselDensityKgPerL ?? 0.87
-    );
-    const ethanolDensity = Number(
-      density?.ethanolKgPerL ?? spec?.ethanolDensityKgPerL ?? 0.79
-    );
+    const spec = row?.blendSpec ?? row?.blend ?? null;
+    if (!spec) {
+      return {
+        dieselPct: null,
+        biodieselPct: null,
+        gasolinePct: null,
+        ethanolPct: null,
+        biodieselDensity: null,
+        ethanolDensity: null,
+      };
+    }
+
+    const density = (spec as any)?.density ?? spec ?? {};
+    const toNumberOrNull = (value: any): number | null => {
+      const normalized = Number(value);
+      return Number.isFinite(normalized) ? normalized : null;
+    };
 
     return {
-      dieselPct: Number(spec?.dieselPct ?? 0) || 0,
-      biodieselPct: Number(spec?.biodieselPct ?? 0) || 0,
-      gasolinePct: Number(spec?.gasolinePct ?? 0) || 0,
-      ethanolPct: Number(spec?.ethanolPct ?? 0) || 0,
-      biodieselDensity,
-      ethanolDensity,
+      dieselPct: toNumberOrNull((spec as any)?.dieselPct),
+      biodieselPct: toNumberOrNull((spec as any)?.biodieselPct),
+      gasolinePct: toNumberOrNull((spec as any)?.gasolinePct),
+      ethanolPct: toNumberOrNull((spec as any)?.ethanolPct),
+      biodieselDensity: toNumberOrNull(
+        (density as any)?.biodieselKgPerL ?? (spec as any)?.biodieselDensityKgPerL
+      ),
+      ethanolDensity: toNumberOrNull(
+        (density as any)?.ethanolKgPerL ?? (spec as any)?.ethanolDensityKgPerL
+      ),
     };
   }
 
@@ -780,24 +794,23 @@ const screenRow =
     return Number.isFinite(normalized) ? normalized : null;
   }
 
+  private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string; slotNo?: number }> {
+    const totals: Record<string, { sheetName: string; totalCell: string; slotNo?: number }> = {};
+    const sheetName = ctx.spec.sheets['scope12']?.name;
+    if (!sheetName) {
+      throw new Error('Missing sheet mapping: scope12');
+    }
+    const ws = ctx.workbook.getWorksheet(sheetName);
+    if (!ws) return totals;
 
-private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string; slotNo?: number }> {
-  const totals: Record<string, { sheetName: string; totalCell: string; slotNo?: number }> = {};
-  const sheetName = ctx.spec.sheets['scope12']?.name;
-  if (!sheetName) {
-    throw new Error('Missing sheet mapping: scope12');
-  }
-  const ws = ctx.workbook.getWorksheet(sheetName);
-  if (!ws) return totals;
+    const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12
 
-  const MONTH_COLS = ['G','H','I','J','K','L','M','N','O','P','Q','R'] as const; // เดือน 1..12
-
-  const setMonths = (excelRow: number, months?: number[]) => {
-  for (let i = 0; i < 12; i++) {
-    const v = Number(months?.[i] ?? 0);
-    this.setCellValueSafely(ws, `${MONTH_COLS[i]}${excelRow}`, v ? v : null);
-  }
-};
+    const setMonths = (excelRow: number, months?: Array<number | null>) => {
+      for (let i = 0; i < 12; i++) {
+        const v = this.parseNumberOrNull(months?.[i]);
+        this.setCellValueSafely(ws, `${MONTH_COLS[i]}${excelRow}`, v ?? null);
+      }
+    };
 
 
   // row slots ตาม template
@@ -1162,8 +1175,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
 
       const months = getMonths(it);
       for (let m = 0; m < 12; m++) {
-        const v = Number(months?.[m] ?? 0);
-        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
+        const v = this.parseNumberOrNull(months?.[m]);
+        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ?? null);
       }
     }
   }
@@ -1222,10 +1235,10 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
       const offMonths = offRow ? getMonths(offRow) : [];
 
       for (let m = 0; m < 12; m++) {
-        const peopleValue = Number(peopleMonths?.[m] ?? 0);
-        const offValue = Number(offMonths?.[m] ?? 0);
-        this.setCellValueSafely(ws, `${peopleCol}${janRow + m}`, peopleValue ? peopleValue : null);
-        this.setCellValueSafely(ws, `${offCol}${janRow + m}`, offValue ? offValue : null);
+        const peopleValue = this.parseNumberOrNull(peopleMonths?.[m]);
+        const offValue = this.parseNumberOrNull(offMonths?.[m]);
+        this.setCellValueSafely(ws, `${peopleCol}${janRow + m}`, peopleValue ?? null);
+        this.setCellValueSafely(ws, `${offCol}${janRow + m}`, offValue ?? null);
       }
     }
   }
@@ -1269,8 +1282,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
 
       const months = getMonths(it);
       for (let m = 0; m < 12; m++) {
-        const v = Number(months?.[m] ?? 0);
-        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ? v : null);
+        const v = this.parseNumberOrNull(months?.[m]);
+        this.setCellValueSafely(ws, `${MONTH_COLS[m]}${r}`, v ?? null);
       }
     }
   }
@@ -1315,8 +1328,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
 
         const months = getMonths(it);
         for (let m = 0; m < 12; m++) {
-          const v = Number(months?.[m] ?? 0);
-          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ? v : null);
+          const v = this.parseNumberOrNull(months?.[m]);
+          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ?? null);
         }
       }
     }
@@ -1343,8 +1356,8 @@ private writeScope12Mobile(ctx: ExportContext): Record<string, { sheetName: stri
 
         const months = getMonths(it);
         for (let m = 0; m < 12; m++) {
-          const v = Number(months?.[m] ?? 0);
-          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ? v : null);
+          const v = this.parseNumberOrNull(months?.[m]);
+          this.setCellValueSafely(ws, `${monthCols[m]}${row}`, v ?? null);
         }
       }
     }
