@@ -22,6 +22,7 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
   @Input() cacheKey?: string | number;
   @Input() skipSave = false;
   @Input() hideBlankRows = false;
+  @Input() formatNumbersFixed2 = false;
 
   loading = false;
   error: string | null = null;
@@ -62,6 +63,15 @@ export class ExcelSheetPreviewComponent implements OnChanges, OnDestroy {
 
   trackCell(index: number) {
     return index;
+  }
+
+  displayCell(cell: any): string {
+    const base = cell?.display ?? cell?.computed ?? cell?.raw ?? '';
+    if (!this.formatNumbersFixed2) return String(base ?? '');
+    if (cell?.type !== 'number') return String(base ?? '');
+    const numeric = Number(base);
+    if (!Number.isFinite(numeric)) return String(base ?? '');
+    return numeric.toFixed(2);
   }
 
   private scheduleLoad() {

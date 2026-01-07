@@ -7,7 +7,8 @@
       "templateFilePath": "../shared/templates/mbax/VSheetCFO_BASE.xlsx",
       "requiredSheets": [
         "Fr-04.1",
-        "_DATA_SCOPE11"
+        "_DATA_SCOPE11",
+        "_FR041_SEL"
       ],
       "hiddenTables": {
         "scope11": {
@@ -38,6 +39,14 @@
             "OtherBiodieselDensityKgPerL",
             "OtherEthanolDensityKgPerL",
             "IncludeFR041"
+          ]
+        },
+        "fr041_sel": {
+          "sheet": "_FR041_SEL",
+          "tableName": "tblFR041Sel",
+          "columns": [
+            "RowId",
+            "Include"
           ]
         }
       },

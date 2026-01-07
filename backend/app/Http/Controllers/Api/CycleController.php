@@ -221,7 +221,14 @@ class CycleController extends Controller
                 );
                 $blocks = [
                     $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $blocksDef[0]['range'], $blocksDef[0]['id']),
-                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $blocksDef[1]['range'], $blocksDef[1]['id']),
+                    $this->buildPreviewBlockWithFallback(
+                        $mbax,
+                        $spreadsheet,
+                        $sheet,
+                        $blocksDef[1]['range'],
+                        'A11:AO120',
+                        $blocksDef[1]['id']
+                    ),
                 ];
                 return response()->json([
                     'ok' => true,
@@ -358,6 +365,21 @@ class CycleController extends Controller
             'columns' => $preview['columns'] ?? [],
             'rows' => $preview['rows'] ?? [],
         ];
+    }
+
+    private function buildPreviewBlockWithFallback(
+        MbaxTemplateService $mbax,
+        \PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet,
+        string $sheetName,
+        string $range,
+        string $fallbackRange,
+        string $id
+    ): array {
+        try {
+            return $this->buildPreviewBlock($mbax, $spreadsheet, $sheetName, $range, $id);
+        } catch (\InvalidArgumentException $e) {
+            return $this->buildPreviewBlock($mbax, $spreadsheet, $sheetName, $fallbackRange, $id);
+        }
     }
 
     private function resolvePreviewBlocks(array $profile, string $sheetKey, array $fallback): array

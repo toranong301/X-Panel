@@ -30,7 +30,7 @@
                   [class.formula]="cell.type === 'formula'"
                   [attr.title]="cell.formula || null"
                 >
-                  {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
+                  {{ displayCell(cell) }}
                 </td>
               </tr>
             </tbody>
@@ -56,7 +56,7 @@
                 [class.formula]="cell.type === 'formula'"
                 [attr.title]="cell.formula || null"
               >
-                {{ cell.display ?? cell.computed ?? cell.raw ?? '' }}
+                {{ displayCell(cell) }}
               </td>
             </tr>
           </tbody>

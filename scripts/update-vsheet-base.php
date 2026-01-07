@@ -26,6 +26,17 @@ if (!$wsData) {
     $wsData->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
 }
 
+// Ensure selection sheet
+$selSheetName = '_FR041_SEL';
+$wsSel = $spreadsheet->getSheetByName($selSheetName);
+if (!$wsSel) {
+    $wsSel = new Worksheet($spreadsheet, $selSheetName);
+    $wsSel->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+    $spreadsheet->addSheet($wsSel);
+} else {
+    $wsSel->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+}
+
 // Build table headers
 $headers = [
     'RowId',
@@ -74,6 +85,26 @@ if (!$existingTable) {
     $existingTable->setRange($tableRange);
 }
 
+// Build selection table
+$selHeaders = ['RowId', 'Include'];
+foreach ($selHeaders as $idx => $label) {
+    $col = Coordinate::stringFromColumnIndex($idx + 1);
+    $wsSel->setCellValue($col . '1', $label);
+}
+$selRange = 'A1:B201';
+$selTable = null;
+foreach ($wsSel->getTableCollection() as $table) {
+    if (strcasecmp($table->getName(), 'tblFR041Sel') === 0) {
+        $selTable = $table;
+        break;
+    }
+}
+if (!$selTable) {
+    $wsSel->addTable(new Table($selRange, 'tblFR041Sel'));
+} else {
+    $selTable->setRange($selRange);
+}
+
 // Update FR-04.1 formulas for Scope 1 Stationary (rows 11-24)
 $wsFr = $spreadsheet->getSheetByName('Fr-04.1');
 if ($wsFr) {
@@ -83,7 +114,7 @@ if ($wsFr) {
 
     for ($row = $startRow; $row <= $endRow; $row++) {
         $helperCell = $helperCol . $row;
-        $indexFormula = '=IFERROR(INDEX(FILTER(tblScope11Stationary[RowId],tblScope11Stationary[IncludeFR041]=1),ROWS($' . $helperCol . '$' . $startRow . ':' . $helperCell . ')),"")';
+        $indexFormula = '=IFERROR(INDEX(FILTER(tblFR041Sel[RowId],tblFR041Sel[Include]=1),ROWS($' . $helperCol . '$' . $startRow . ':' . $helperCell . ')),"")';
         $wsFr->setCellValue($helperCell, $indexFormula);
 
         $wsFr->setCellValue('B' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblScope11Stationary[RowId],tblScope11Stationary[ItemLabel],""))');

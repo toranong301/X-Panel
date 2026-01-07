@@ -13,6 +13,8 @@ class Scope11HiddenTableExportService
 {
     private const TABLE_NAME = 'tblScope11Stationary';
     private const SHEET_NAME = '_DATA_SCOPE11';
+    private const FR041_SEL_TABLE_NAME = 'tblFR041Sel';
+    private const FR041_SEL_SHEET_NAME = '_FR041_SEL';
     private const KEY_COLUMN = 'A';
     private const VALUE_COLUMN = 'B';
     private const START_ROW = 2;
@@ -98,33 +100,32 @@ class Scope11HiddenTableExportService
         );
     }
 
-    public function writeSelectionToSpreadsheet(Spreadsheet $spreadsheet, array $selectedRowIds, string $columnName = 'IncludeFR041'): void
+    public function writeSelectionToSpreadsheet(Spreadsheet $spreadsheet, array $selectedRowIds): void
     {
-        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
+        $ws = $spreadsheet->getSheetByName(self::FR041_SEL_SHEET_NAME);
         if (!$ws) {
-            throw new \RuntimeException('Missing worksheet: ' . self::SHEET_NAME);
+            throw new \RuntimeException('Missing worksheet: ' . self::FR041_SEL_SHEET_NAME);
         }
 
-        $tableRange = $this->resolveTableRange($ws);
+        $tableRange = $this->resolveSelectionTableRange($ws);
         $headerMap = $this->buildHeaderMap($ws, $tableRange['headerRow'], $tableRange['startCol'], $tableRange['endCol']);
         $rowIdCol = $headerMap['ROWID'] ?? null;
-        if (!$rowIdCol) {
+        $includeCol = $headerMap['INCLUDE'] ?? null;
+        if (!$rowIdCol || !$includeCol) {
             return;
         }
 
-        $includeCol = $headerMap[strtoupper($columnName)] ?? null;
-        if (!$includeCol) {
-            return;
-        }
-
-        $selected = array_fill_keys(array_map('strval', $selectedRowIds), true);
         for ($r = $tableRange['startRow']; $r <= $tableRange['endRow']; $r++) {
-            $rowId = trim((string) $ws->getCell($rowIdCol . $r)->getValue());
-            if ($rowId === '') {
-                $this->writeValue($ws, $includeCol . $r, null);
-                continue;
-            }
-            $this->writeValue($ws, $includeCol . $r, isset($selected[$rowId]) ? 1 : null);
+            $this->writeValue($ws, $rowIdCol . $r, null);
+            $this->writeValue($ws, $includeCol . $r, null);
+        }
+
+        $rows = array_values(array_filter(array_map('trim', array_map('strval', $selectedRowIds))));
+        $maxRows = $tableRange['endRow'] - $tableRange['startRow'] + 1;
+        for ($i = 0; $i < count($rows) && $i < $maxRows; $i++) {
+            $excelRow = $tableRange['startRow'] + $i;
+            $this->writeValue($ws, $rowIdCol . $excelRow, $rows[$i]);
+            $this->writeValue($ws, $includeCol . $excelRow, 1);
         }
     }
 
@@ -423,6 +424,37 @@ class Scope11HiddenTableExportService
         $table = null;
         try {
             $table = $this->findTable($ws->getParent(), $ws, self::TABLE_NAME);
+        } catch (\RuntimeException $e) {
+            $table = null;
+        }
+
+        if ($table && method_exists($table, 'getRange')) {
+            $rangeInfo = $this->parseRange($table->getRange());
+            return [
+                'headerRow' => $rangeInfo['startRow'],
+                'startRow' => $rangeInfo['startRow'] + 1,
+                'endRow' => $rangeInfo['endRow'],
+                'startCol' => $rangeInfo['startCol'],
+                'endCol' => $rangeInfo['endCol'],
+            ];
+        }
+
+        $headerRow = 1;
+        $maxCols = max($ws->getHighestColumn() ? Coordinate::columnIndexFromString($ws->getHighestColumn()) : 1, 1);
+        return [
+            'headerRow' => $headerRow,
+            'startRow' => self::START_ROW,
+            'endRow' => self::START_ROW + 199,
+            'startCol' => 1,
+            'endCol' => $maxCols,
+        ];
+    }
+
+    private function resolveSelectionTableRange($ws): array
+    {
+        $table = null;
+        try {
+            $table = $this->findTable($ws->getParent(), $ws, self::FR041_SEL_TABLE_NAME);
         } catch (\RuntimeException $e) {
             $table = null;
         }
