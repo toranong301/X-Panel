@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cycle;
 use App\Models\Fr041Config;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class Fr041ConfigController extends Controller
 {
@@ -14,6 +15,10 @@ class Fr041ConfigController extends Controller
 
     public function show(Cycle $cycle)
     {
+        if (!Schema::hasTable('fr041_configs')) {
+            return response()->json($this->defaultConfig());
+        }
+
         $config = Fr041Config::query()
             ->where('cycle_id', $cycle->id)
             ->where('sheet_id', self::SHEET_ID)
@@ -31,6 +36,10 @@ class Fr041ConfigController extends Controller
 
     public function update(Request $request, Cycle $cycle)
     {
+        if (!Schema::hasTable('fr041_configs')) {
+            return response()->json($this->defaultConfig());
+        }
+
         $payload = $request->validate([
             'selectedRowIds' => ['nullable', 'array'],
             'selectedRowIds.*' => ['string', 'max:200'],
@@ -62,5 +71,16 @@ class Fr041ConfigController extends Controller
             'selectedRowIds' => $config->selected_row_ids ?? [],
             'options' => $config->options ?? new \stdClass(),
         ]);
+    }
+
+    private function defaultConfig(): array
+    {
+        return [
+            'ok' => true,
+            'sheetId' => self::SHEET_ID,
+            'section' => self::SECTION_SCOPE11,
+            'selectedRowIds' => [],
+            'options' => ['templateSetId' => 'vsheet_base'],
+        ];
     }
 }
