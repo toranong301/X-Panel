@@ -14,6 +14,18 @@ import { Fr032Service } from './fr03-2.service';
 import { Scope3SummaryService } from './scope3-summary.service';
 import { computeBlendFromAnnualL, computeBlendFromSpec, resolveBlendKey } from '../sheets/fuel-blend.registry';
 
+type FuelKey = 'B7' | 'B10' | '91/95' | 'E20' | 'LPG' | 'FUEL_OIL' | 'OTHER';
+
+const FUEL_KEYS: FuelKey[] = ['B7', 'B10', '91/95', 'E20', 'LPG', 'FUEL_OIL', 'OTHER'];
+
+function isFuelKey(value: string): value is FuelKey {
+  return FUEL_KEYS.includes(value as FuelKey);
+}
+
+function isNonNull<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CanonicalGhgService {
   constructor(
@@ -144,7 +156,7 @@ export class CanonicalGhgService {
           months[`M${idx}`] = qty;
         }
 
-        const fuelKey = resolveBlendKey(row.subCategoryCode, row.fuelType ?? row.remark);
+        const fuelKey = String(resolveBlendKey(row.subCategoryCode, row.fuelType ?? row.remark)).trim();
 
         return {
           rowId,
@@ -156,15 +168,11 @@ export class CanonicalGhgService {
           months,
         };
       })
-      .filter((item): item is {
-        rowId: string;
-        fuelKey: string;
-        label: string;
-        evidence: string;
-        unit: 'L' | 'kg';
-        otherType?: string | null;
-        months: Record<string, number | null>;
-      } => Boolean(item));
+      .filter(isNonNull)
+      .map(item => ({
+        ...item,
+        fuelKey: isFuelKey(item.fuelKey) ? item.fuelKey : 'OTHER',
+      }));
 
     const splitEnabled = items.some(
       item => item.unit === 'L' && Object.keys(item.months || {}).length > 0
