@@ -5,9 +5,9 @@ require __DIR__ . '/../backend/vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-$basePath = __DIR__ . '/../shared/templates/mbax/แบบฟอร์ม V-Sheet CFO.xlsx';
-$mbaxPath = __DIR__ . '/../shared/templates/mbax/MBAX-TGO-11102567-Demo.xlsx';
-$outPath = __DIR__ . '/../shared/templates/mbax/VSheetCFO_BASE.xlsx';
+$basePath = $argv[1] ?? (__DIR__ . '/../shared/templates/mbax/แบบฟอร์ม V-Sheet CFO.xlsx');
+$mbaxPath = $argv[2] ?? (__DIR__ . '/../shared/templates/mbax/MBAX-TGO-11102567-Demo.xlsx');
+$outPath = $argv[3] ?? (__DIR__ . '/../shared/templates/mbax/VSheetCFO_BASE.xlsx');
 
 if (!is_file($basePath)) {
     fwrite(STDERR, "Missing base template: {$basePath}\n");
@@ -40,6 +40,10 @@ foreach ($copySheets as $sheetName) {
 }
 
 $writer = IOFactory::createWriter($base, 'Xlsx');
+$outDir = dirname($outPath);
+if (!is_dir($outDir)) {
+    mkdir($outDir, 0777, true);
+}
 $writer->save($outPath);
 
 echo "Generated VSheetCFO_BASE.xlsx at {$outPath}\n";

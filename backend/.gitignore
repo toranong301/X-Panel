@@ -19,6 +19,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+!/storage/app/templates/
+!/storage/app/templates/VSheetCFO_BASE.xlsx
 Homestead.json
 Homestead.yaml
 Thumbs.db

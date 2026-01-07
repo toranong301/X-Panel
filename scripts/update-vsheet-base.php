@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-$path = __DIR__ . '/../shared/templates/mbax/VSheetCFO_BASE.xlsx';
+$path = $argv[1] ?? (__DIR__ . '/../shared/templates/mbax/VSheetCFO_BASE.xlsx');
 if (!is_file($path)) {
     fwrite(STDERR, "Missing template: {$path}\n");
     exit(1);

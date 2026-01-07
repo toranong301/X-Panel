@@ -4,7 +4,7 @@
       "id": "vsheet_cfo",
       "label": "V-Sheet CFO (Base)",
       "templateId": "VSHEET_CFO",
-      "templateFilePath": "../shared/templates/mbax/VSheetCFO_BASE.xlsx",
+      "templateFilePath": "storage/app/templates/VSheetCFO_BASE.xlsx",
       "requiredSheets": [
         "Fr-04.1",
         "_DATA_SCOPE11",

@@ -78,7 +78,7 @@
       "label": "V-Sheet CFO",
       "path": {
         "env": "CFO_TEMPLATE_PATH",
-        "fallback": "../shared/templates/mbax/VSheetCFO_BASE.xlsx"
+        "fallback": "storage/app/templates/VSheetCFO_BASE.xlsx"
       },
       "mappings": {
         "cfoSheets": []

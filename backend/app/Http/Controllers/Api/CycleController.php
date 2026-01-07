@@ -191,13 +191,41 @@ class CycleController extends Controller
             try {
                 $mbax->resolveTemplatePath($templateId);
             } catch (TemplateNotFoundException $e) {
-                $attempted = $e->attemptedPaths ? implode(', ', $e->attemptedPaths) : 'unknown';
-                throw new \RuntimeException("Template not found: {$attempted}");
+                if ($sheetKey === 'fr041') {
+                    Log::warning('Template missing, fallback to MBAX for FR-04.1 preview', [
+                        'cycleId' => $cycle->id,
+                        'templateId' => $templateId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+                } else {
+                    $attempted = $e->attemptedPaths ? implode(', ', $e->attemptedPaths) : 'unknown';
+                    throw new \RuntimeException("Template not found: {$attempted}");
+                }
             }
 
-            $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
-            $this->assertRequiredSheets($spreadsheet, $profile['requiredSheets'] ?? []);
-            $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
+            $requiredSheets = $this->resolveRequiredSheets($profile['requiredSheets'] ?? [], $sheetKey);
+            $requiredTables = $this->resolveRequiredTables($profile['hiddenTables'] ?? [], $sheetKey);
+
+            try {
+                $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+                $this->assertRequiredSheets($spreadsheet, $requiredSheets);
+                $this->assertHiddenTables($spreadsheet, $requiredTables);
+            } catch (\RuntimeException $e) {
+                if ($sheetKey === 'fr041') {
+                    Log::warning('FR-04.1 template missing required sheet, fallback to MBAX', [
+                        'cycleId' => $cycle->id,
+                        'templateId' => $templateId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+                    $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+                    $this->assertRequiredSheets($spreadsheet, $requiredSheets);
+                    $this->assertHiddenTables($spreadsheet, $requiredTables);
+                } else {
+                    throw $e;
+                }
+            }
             $mbax->applyData(
                 $spreadsheet,
                 $data,
@@ -587,5 +615,24 @@ class CycleController extends Controller
 
         $rows = $config?->selected_row_ids ?? [];
         return is_array($rows) ? $rows : [];
+    }
+
+    private function resolveRequiredSheets(array $requiredSheets, string $sheetKey): array
+    {
+        if ($sheetKey !== 'fr041') {
+            return array_values(array_filter($requiredSheets, function ($name) {
+                $normalized = strtoupper(trim((string) $name));
+                return $normalized !== '_DATA_SCOPE11' && $normalized !== '_FR041_SEL';
+            }));
+        }
+        return $requiredSheets;
+    }
+
+    private function resolveRequiredTables(array $hiddenTables, string $sheetKey): array
+    {
+        if ($sheetKey !== 'fr041') {
+            return [];
+        }
+        return $hiddenTables;
     }
 }
