@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safe-storage';
 import { Scope3ItemRow, Scope3SummaryStore } from '../../models/scope3-summary.model';
 
 @Injectable({ providedIn: 'root' })
@@ -56,7 +57,7 @@ export class Scope3SummaryService {
 
   load(cycleId: number): Scope3SummaryStore | null {
     try {
-      const raw = localStorage.getItem(this.key(cycleId));
+      const raw = safeLocalStorageGet(this.key(cycleId));
       if (!raw) return null;
 
       const doc = JSON.parse(raw) as Scope3SummaryStore;
@@ -76,7 +77,7 @@ export class Scope3SummaryService {
       rows: normalized,
       updatedAt: new Date().toISOString(),
     };
-    localStorage.setItem(this.key(cycleId), JSON.stringify(payload));
+    safeLocalStorageSet(this.key(cycleId), JSON.stringify(payload));
   }
 
   // ===== MOCK ตามตารางใหม่ =====

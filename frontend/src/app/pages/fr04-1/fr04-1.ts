@@ -16,6 +16,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
 import {
   CycleApiService,
+  EfAr5Option,
   Fr041Config,
   Scope11StationaryItem,
   TemplateInfo,
@@ -29,6 +30,7 @@ import { Fr01Data } from '../../models/fr01.model';
 import { SHEET_REGISTRY } from '../../core/sheet.registry';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 import { computeBlendFromAnnualL, FuelBlendKey } from '../../core/sheets/fuel-blend.registry';
+import { SplitSummaryRow } from '../../core/services/canonical-ghg.service';
 
 @Component({
   selector: 'app-fr04-1',
@@ -83,6 +85,8 @@ export class Fr041Component implements OnInit {
   selectedRowIds = new Set<string>();
   selectionSaving = false;
   previewKey = 0;
+  efOptions: EfAr5Option[] = [];
+  efSelectionByRowId: Record<string, string> = {};
 
   selectedScope3: any[] = [];
   fr01Meta: Fr01Data | null = null;
@@ -114,6 +118,7 @@ export class Fr041Component implements OnInit {
       this.templateId = String(cycle?.template_id || 'mbax');
       this.templateKey = this.templateId;
       this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      await this.loadEfOptions();
     } catch (error: any) {
       console.error('Load template state failed', error);
       this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
@@ -158,6 +163,7 @@ export class Fr041Component implements OnInit {
       this.scope11HeaderMonths = itemsResp?.headerMonths ?? null;
 
       this.applySelectionConfig(config, this.scope11Items);
+      this.syncFr041SelectionLocal();
     } catch (error: any) {
       console.error('Load FR-04.1 data failed', error);
       this.snackBar.open(error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ', 'ปิด', { duration: 6000 });
@@ -243,6 +249,7 @@ export class Fr041Component implements OnInit {
       this.templateId = templateId;
       this.templateKey = templateId;
       this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      await this.loadEfOptions();
       this.snackBar.open('Template updated', 'ปิด', { duration: 3000 });
       this.reloadPreview();
     } catch (error: any) {
@@ -262,6 +269,12 @@ export class Fr041Component implements OnInit {
     const next = new Set(this.selectedRowIds);
     if (checked) {
       next.add(item.rowId);
+      if (!this.efSelectionByRowId[item.rowId]) {
+        const efId = this.defaultEfIdForFuelKey(item.fuelKey);
+        if (efId) {
+          this.efSelectionByRowId = { ...this.efSelectionByRowId, [item.rowId]: efId };
+        }
+      }
     } else {
       next.delete(item.rowId);
     }
@@ -286,6 +299,7 @@ export class Fr041Component implements OnInit {
       const unit = item.unit || '-';
       const total = this.resolveTotal(item);
       const row = {
+        itemId: item.rowId,
         itemLabel: item.itemLabel || item.rowId,
         fuelKey,
         otherType: item.otherType,
@@ -298,6 +312,7 @@ export class Fr041Component implements OnInit {
         gasolineL: null as number | null,
         ethanolL: null as number | null,
         ethanolKg: null as number | null,
+        efId: this.getEfIdForItem(item),
       };
 
       if (String(unit).toLowerCase() !== 'l' || total === null) return row;
@@ -376,15 +391,35 @@ export class Fr041Component implements OnInit {
     if (fromOptions) {
       this.templateSetId = fromOptions;
     }
+
+    const efOptions = config?.options?.['efSelectionByRowId'];
+    if (efOptions && typeof efOptions === 'object') {
+      this.efSelectionByRowId = { ...(efOptions as Record<string, string>) };
+    }
+
+    if (this.selectedRowIds.size) {
+      const next = { ...this.efSelectionByRowId };
+      for (const item of items) {
+        if (!this.selectedRowIds.has(item.rowId)) continue;
+        if (next[item.rowId]) continue;
+        const efId = this.defaultEfIdForFuelKey(item.fuelKey);
+        if (efId) next[item.rowId] = efId;
+      }
+      this.efSelectionByRowId = next;
+    }
   }
 
   private async saveFr041Config() {
     if (!this.cycleId) return;
     this.selectionSaving = true;
     try {
+      this.syncFr041SelectionLocal();
       const payload = {
         selectedRowIds: Array.from(this.selectedRowIds.values()),
-        options: { templateSetId: this.templateSetId },
+        options: {
+          templateSetId: this.templateSetId,
+          efSelectionByRowId: this.efSelectionByRowId,
+        },
       };
       await this.cycleApi.updateFr041Config(this.cycleId, payload);
       this.previewKey += 1;
@@ -394,5 +429,78 @@ export class Fr041Component implements OnInit {
     } finally {
       this.selectionSaving = false;
     }
+  }
+
+  async loadEfOptions() {
+    try {
+      this.efOptions = await this.cycleApi.getEfAr5Options(this.templateKey, 'stationary');
+    } catch (error: any) {
+      console.error('Load EF options failed', error);
+      this.efOptions = [];
+    }
+  }
+
+  onEfChangeByRowId(rowId: string, efId: string): void {
+    if (!rowId) return;
+    this.efSelectionByRowId = { ...this.efSelectionByRowId, [rowId]: efId };
+    void this.saveFr041Config();
+  }
+
+  getEfIdForItem(item: Scope11StationaryItem): string {
+    if (!item?.rowId) return '';
+    const picked = this.efSelectionByRowId[item.rowId];
+    return picked ?? this.defaultEfIdForFuelKey(item.fuelKey);
+  }
+
+  private defaultEfIdForFuelKey(fuelKey: string): string {
+    const key = String(fuelKey || '').trim().toUpperCase();
+    if (key === 'B7' || key === 'B10') return 'SC_GAS_DIESEL_OIL_L';
+    if (key === '91/95' || key === 'E20') return 'SC_MOTOR_GASOLINE_L';
+    return '';
+  }
+
+  private syncFr041SelectionLocal(): void {
+    if (!this.cycleId) return;
+    const entryDoc = this.dataEntrySvc.load(this.cycleId) ?? {
+      cycleId: this.cycleId,
+      scope1: [],
+      scope2: [],
+      scope3: [],
+    };
+
+    const splitRows: SplitSummaryRow[] = this.selectedSummaryRows.map(row => {
+      const splitValues = [
+        row.dieselL,
+        row.biodieselL,
+        row.biodieselKg,
+        row.gasolineL,
+        row.ethanolL,
+        row.ethanolKg,
+      ];
+      const hasSplit = splitValues.some(value => Number.isFinite(Number(value)));
+      const otherQty = !hasSplit && Number.isFinite(Number(row.total)) ? Number(row.total) : undefined;
+      return {
+        itemId: String((row as any).itemId ?? ''),
+        itemName: String(row.itemLabel ?? ''),
+        fuelKey: String(row.fuelKey ?? ''),
+        evidence: String(row.evidence ?? ''),
+        dieselL: row.dieselL ?? undefined,
+        biodieselL: row.biodieselL ?? undefined,
+        biodieselKg: row.biodieselKg ?? undefined,
+        gasolineL: row.gasolineL ?? undefined,
+        ethanolL: row.ethanolL ?? undefined,
+        ethanolKg: row.ethanolKg ?? undefined,
+        otherQty,
+        otherUnit: String(row.unit ?? ''),
+      };
+    });
+
+    const efMap = { byItemId: { ...this.efSelectionByRowId } };
+    const rows = this.canonicalSvc.buildFr041SelectionRows(splitRows, efMap, 11);
+
+    this.dataEntrySvc.save(this.cycleId, {
+      ...entryDoc,
+      fr041Selection: rows,
+    });
   }
 }

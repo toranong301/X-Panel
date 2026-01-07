@@ -53,6 +53,24 @@ export type Scope11StationaryItemsResponse = {
   items: Scope11StationaryItem[];
 };
 
+export type EfAr5Option = {
+  efId: string;
+  Name?: string;
+  Unit?: string;
+  CO2?: any;
+  'Fossil CH4'?: any;
+  CH4?: any;
+  N2O?: any;
+  Total?: any;
+  Source?: any;
+  [key: string]: any;
+};
+
+type EfAr5Response = {
+  ok: boolean;
+  options: EfAr5Option[];
+};
+
 export type Fr041Config = {
   ok?: boolean;
   sheetId?: string;
@@ -192,6 +210,12 @@ export class CycleApiService {
     return firstValueFrom(
       this.api.put<Fr041Config>(`cycles/${cycleId}/fr041/config`, payload)
     );
+  }
+
+  getEfAr5Options(templateKey: string, section = 'stationary'): Promise<EfAr5Option[]> {
+    const params = { templateKey, section };
+    const request = this.api.get<EfAr5Response>('ef/ar5', { params }) as Observable<EfAr5Response>;
+    return firstValueFrom(request).then(resp => resp?.options ?? []);
   }
 
   /* ---------- update data (auto-create + retry) ---------- */

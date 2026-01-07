@@ -124,6 +124,7 @@
         <tr>
           <th rowspan="2">รายการ</th>
           <th rowspan="2">ชนิด</th>
+          <th rowspan="2">EF (AR5)</th>
           <th rowspan="2">หลักฐาน</th>
           <th rowspan="2">หน่วย</th>
           <th rowspan="2" class="num">ปริมาณน้ำมัน</th>
@@ -148,6 +149,19 @@
             <span>{{ row.fuelKey }}</span>
             <span *ngIf="row.otherType"> (Other: {{ row.otherType }})</span>
           </td>
+          <td>
+            <mat-form-field appearance="fill" class="ef-select">
+              <mat-select
+                [ngModel]="row.efId"
+                (ngModelChange)="onEfChangeByRowId(row.itemId, $event)"
+              >
+                <mat-option value="">-- เลือก EF --</mat-option>
+                <mat-option *ngFor="let ef of efOptions" [value]="ef.efId">
+                  {{ ef.efId }} — {{ ef.Name }} ({{ ef.Unit }})
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </td>
           <td class="truncate">{{ row.evidence }}</td>
           <td>{{ row.unit }}</td>
           <td class="num">{{ formatFixed2(row.total) }}</td>
@@ -159,7 +173,7 @@
           <td class="num">{{ formatFixed2(row.ethanolKg) }}</td>
         </tr>
         <tr class="empty" *ngIf="!selectedSummaryRows.length">
-          <td colspan="11">ยังไม่ได้เลือกรายการ (ติ๊ก Include ด้านบน)</td>
+          <td colspan="12">ยังไม่ได้เลือกรายการ (ติ๊ก Include ด้านบน)</td>
         </tr>
       </tbody>
     </table>

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\EfAr5Controller;
 use App\Http\Controllers\Api\Fr041ConfigController;
 use App\Http\Controllers\Api\Scope11ExportController;
 use App\Http\Controllers\Api\Scope11StationaryController;
@@ -30,6 +31,7 @@ $publicCycleRoutes = function () {
     Route::get('/cycles/{cycle}/scope11/stationary/items', [Scope11StationaryController::class, 'items']);
     Route::get('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'show']);
     Route::put('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'update']);
+    Route::get('/ef/ar5', [EfAr5Controller::class, 'index']);
 };
 
 $publicScope11ExportRoutes = function () {

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { safeLocalStorageGet, safeLocalStorageRemove, safeLocalStorageSet } from '../../utils/safe-storage';
 import { Fr032SavedMap } from '../../models/fr03-2.model';
 
 const LS_KEY = (cycleId: number) => `fr03-2:${cycleId}`;
@@ -7,7 +8,7 @@ const LS_KEY = (cycleId: number) => `fr03-2:${cycleId}`;
 export class Fr032Service {
   load(cycleId: number): Fr032SavedMap | null {
     try {
-      const raw = localStorage.getItem(LS_KEY(cycleId));
+      const raw = safeLocalStorageGet(LS_KEY(cycleId));
       return raw ? (JSON.parse(raw) as Fr032SavedMap) : null;
     } catch {
       return null;
@@ -15,10 +16,10 @@ export class Fr032Service {
   }
 
   save(cycleId: number, data: Fr032SavedMap) {
-    localStorage.setItem(LS_KEY(cycleId), JSON.stringify(data));
+    safeLocalStorageSet(LS_KEY(cycleId), JSON.stringify(data));
   }
 
   clear(cycleId: number) {
-    localStorage.removeItem(LS_KEY(cycleId));
+    safeLocalStorageRemove(LS_KEY(cycleId));
   }
 }

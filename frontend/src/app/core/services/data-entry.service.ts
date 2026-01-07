@@ -2,12 +2,14 @@ import { Injectable } from '@angular/core';
 import { VSheetDataDoc } from '../vsheet/vsheet.schema';
 import { EvidenceModel } from '../../models/evidence.model';
 import { EntryRow } from '../../models/entry-row.model';
+import { safeLocalStorageGet, safeLocalStorageRemove, safeLocalStorageSet } from '../../utils/safe-storage';
 
 export interface DataEntryDoc {
   cycleId: number;
   scope1: EntryRow[];
   scope2: EntryRow[];
   scope3: EntryRow[];
+  fr041Selection?: any[];
   scope11HeaderMonths?: Record<string, number | null>;
   scope11PeriodYear?: number | null;
   cfoFixed?: VSheetDataDoc['cfoFixed'];
@@ -22,8 +24,7 @@ export class DataEntryService {
   }
 
   load(cycleId: number): DataEntryDoc | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(this.key(cycleId));
+    const raw = safeLocalStorageGet(this.key(cycleId));
     if (!raw) return null;
     try {
       return JSON.parse(raw) as DataEntryDoc;
@@ -33,8 +34,7 @@ export class DataEntryService {
   }
 
   save(cycleId: number, doc: DataEntryDoc): void {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(this.key(cycleId), JSON.stringify(doc));
+    safeLocalStorageSet(this.key(cycleId), JSON.stringify(doc));
   }
 
   loadVSheet(cycleId: number): VSheetDataDoc {
@@ -61,7 +61,6 @@ export class DataEntryService {
   }
 
   clear(cycleId: number): void {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(this.key(cycleId));
+    safeLocalStorageRemove(this.key(cycleId));
   }
 }

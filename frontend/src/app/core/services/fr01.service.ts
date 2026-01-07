@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { safeLocalStorageGet, safeLocalStorageRemove, safeLocalStorageSet } from '../../utils/safe-storage';
 import { Fr01Data } from '../../models/fr01.model';
 
 @Injectable({ providedIn: 'root' })
@@ -8,7 +9,7 @@ export class Fr01Service {
   }
 
   load(cycleId: number): Fr01Data | null {
-    const raw = localStorage.getItem(this.key(cycleId));
+    const raw = safeLocalStorageGet(this.key(cycleId));
     if (!raw) return null;
     try {
       return JSON.parse(raw) as Fr01Data;
@@ -18,10 +19,10 @@ export class Fr01Service {
   }
 
   save(cycleId: number, data: Fr01Data): void {
-    localStorage.setItem(this.key(cycleId), JSON.stringify(data));
+    safeLocalStorageSet(this.key(cycleId), JSON.stringify(data));
   }
 
   clear(cycleId: number): void {
-    localStorage.removeItem(this.key(cycleId));
+    safeLocalStorageRemove(this.key(cycleId));
   }
 }

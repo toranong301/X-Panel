@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safe-storage';
 
 type NavItem = { label: string; path: string };
 
@@ -43,23 +44,15 @@ export class Sidebar {
     if (m?.[1]) {
       const id = Number(m[1]);
       this.currentCycleId.set(Number.isFinite(id) ? id : null);
-      try {
-        localStorage.setItem('xpanel:lastCycleId', String(id));
-      } catch {
-        // ignore
-      }
+      safeLocalStorageSet('xpanel:lastCycleId', String(id));
       return;
     }
 
     // fallback: last cycle
-    try {
-      const saved = localStorage.getItem('xpanel:lastCycleId');
-      if (saved) {
-        const id = Number(saved);
-        this.currentCycleId.set(Number.isFinite(id) ? id : null);
-      }
-    } catch {
-      // ignore
+    const saved = safeLocalStorageGet('xpanel:lastCycleId');
+    if (saved) {
+      const id = Number(saved);
+      this.currentCycleId.set(Number.isFinite(id) ? id : null);
     }
   }
 }

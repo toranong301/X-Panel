@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 
 import { Cycle, CycleApiService } from './cycle-api.service';
+import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safe-storage';
 
 @Injectable({ providedIn: 'root' })
 export class CycleStateService {
@@ -39,15 +40,13 @@ export class CycleStateService {
   }
 
   setSelectedCycleId(id: number): void {
-    if (typeof localStorage === 'undefined') return;
     if (Number.isFinite(id) && id > 0) {
-      localStorage.setItem(this.selectedKey, String(id));
+      safeLocalStorageSet(this.selectedKey, String(id));
     }
   }
 
   private readSelectedCycleId(): number | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(this.selectedKey);
+    const raw = safeLocalStorageGet(this.selectedKey);
     const id = raw ? Number(raw) : NaN;
     return Number.isFinite(id) && id > 0 ? id : null;
   }
