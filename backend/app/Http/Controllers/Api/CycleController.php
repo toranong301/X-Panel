@@ -98,6 +98,7 @@ class CycleController extends Controller
             $cycle->refresh();
             $payload = $request->validate([
                 'sheetId' => ['required', 'string', 'max:200'],
+                'templateKey' => ['nullable', 'string', 'max:200'],
             ]);
 
             $rawSheetId = trim((string) ($payload['sheetId'] ?? ''));
@@ -120,6 +121,10 @@ class CycleController extends Controller
             }
 
             $templateId = $this->resolveTemplateId($cycle, $registry);
+            $templateKey = trim((string) ($payload['templateKey'] ?? $request->query('templateKey', '')));
+            if ($templateKey !== '') {
+                $templateId = $this->normalizeTemplateKey($templateKey, $registry) ?? $templateId;
+            }
             $template = $registry->getTemplate($templateId);
             if (!$template) {
                 return response()->json([
@@ -189,7 +194,7 @@ class CycleController extends Controller
             }
 
             try {
-                $mbax->resolveTemplatePath($templateId);
+                $resolvedPath = $mbax->resolveTemplatePath($templateId);
             } catch (TemplateNotFoundException $e) {
                 if ($sheetKey === 'fr041') {
                     Log::warning('Template missing, fallback to MBAX for FR-04.1 preview', [
@@ -208,6 +213,7 @@ class CycleController extends Controller
             $requiredTables = $this->resolveRequiredTables($profile['hiddenTables'] ?? [], $sheetKey);
 
             try {
+                $resolvedPath = $mbax->resolveTemplatePath($templateId);
                 $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
                 $this->assertRequiredSheets($spreadsheet, $requiredSheets);
                 $this->assertHiddenTables($spreadsheet, $requiredTables);
@@ -219,12 +225,23 @@ class CycleController extends Controller
                         'error' => $e->getMessage(),
                     ]);
                     $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+                    $resolvedPath = $mbax->resolveTemplatePath($templateId);
                     $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
                     $this->assertRequiredSheets($spreadsheet, $requiredSheets);
                     $this->assertHiddenTables($spreadsheet, $requiredTables);
                 } else {
                     throw $e;
                 }
+            }
+
+            if (isset($resolvedPath)) {
+                Log::debug('Preview resolved template', [
+                    'cycleId' => $cycle->id,
+                    'sheetId' => $sheetKey,
+                    'templateId' => $templateId,
+                    'templatePath' => $resolvedPath,
+                    'sheetNames' => array_map(fn ($s) => $s->getTitle(), $spreadsheet->getAllSheets()),
+                ]);
             }
             $mbax->applyData(
                 $spreadsheet,
@@ -581,6 +598,21 @@ class CycleController extends Controller
         }
 
         return MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+    }
+
+    private function normalizeTemplateKey(string $templateKey, TemplateRegistry $registry): ?string
+    {
+        $raw = strtolower(trim($templateKey));
+        if ($raw === '') return null;
+        $profile = $registry->getProfile($raw);
+        if ($profile) {
+            return $registry->resolveTemplateIdForProfile($raw);
+        }
+        $template = $registry->getTemplate($templateKey);
+        if ($template) {
+            return $templateKey;
+        }
+        return null;
     }
 
     private function templateExists(TemplateRegistry $registry, string $templateId): bool
