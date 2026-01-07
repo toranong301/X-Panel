@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cycle;
 use App\Models\Export;
+use App\Models\Fr041Config;
+use App\Services\Export\Scope11HiddenTableExportService;
 use App\Services\MbaxTemplateService;
 use App\Services\TemplateRegistry;
 use Illuminate\Http\Request;
@@ -12,7 +14,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ExportController extends Controller
 {
-    public function store(Request $request, Cycle $cycle, MbaxTemplateService $mbax, TemplateRegistry $registry)
+    public function store(
+        Request $request,
+        Cycle $cycle,
+        MbaxTemplateService $mbax,
+        TemplateRegistry $registry,
+        Scope11HiddenTableExportService $scope11Export
+    )
     {
         $payload = $request->validate([
             'templateId' => ['nullable', 'string', 'max:200'],
@@ -41,6 +49,8 @@ class ExportController extends Controller
                 $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
             }
             $mbax->applyData($spreadsheet, $cycle->data_json ?? [], $cycle->attachments()->get()->all(), null, null, $templateId);
+            $selection = $this->loadFr041SelectionRowIds($cycle->id);
+            $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
 
             $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $tmpFile = tempnam(sys_get_temp_dir(), 'xpanel_export_');
@@ -169,5 +179,17 @@ class ExportController extends Controller
         }
 
         return false;
+    }
+
+    private function loadFr041SelectionRowIds(int $cycleId): array
+    {
+        $config = Fr041Config::query()
+            ->where('cycle_id', $cycleId)
+            ->where('sheet_id', 'fr041')
+            ->where('section', 'scope1_stationary')
+            ->first();
+
+        $rows = $config?->selected_row_ids ?? [];
+        return is_array($rows) ? $rows : [];
     }
 }

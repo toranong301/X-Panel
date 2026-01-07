@@ -20,9 +20,46 @@ export interface TemplateInfo {
   label: string;
 }
 
+export interface TemplateSetInfo {
+  id: string;
+  label: string;
+  templates?: string[];
+}
+
 export interface TemplatesResponse {
   templates: TemplateInfo[];
 }
+
+export interface TemplateSetsResponse {
+  templateSets: TemplateSetInfo[];
+}
+
+export type Scope11StationaryItem = {
+  rowId: string;
+  itemLabel: string;
+  evidence: string;
+  unit: string;
+  fuelKey: string;
+  otherType?: string | null;
+  months: Record<string, number | null>;
+  total?: number | null;
+};
+
+export type Scope11StationaryItemsResponse = {
+  ok: boolean;
+  splitEnabled: boolean;
+  periodYear?: number | null;
+  headerMonths?: Record<string, number | null>;
+  items: Scope11StationaryItem[];
+};
+
+export type Fr041Config = {
+  ok?: boolean;
+  sheetId?: string;
+  section?: string;
+  selectedRowIds: string[];
+  options?: Record<string, any>;
+};
 
 export type CycleDto = {
   id: number;
@@ -116,6 +153,11 @@ export class CycleApiService {
     return this.getTemplates().then(resp => resp as TemplateProfile[]);
   }
 
+  getTemplateSets(): Promise<TemplateSetInfo[]> {
+    const request = this.api.get<TemplateSetsResponse>('template-sets') as unknown as Observable<TemplateSetsResponse>;
+    return firstValueFrom(request).then((resp: TemplateSetsResponse | undefined) => resp?.templateSets ?? []);
+  }
+
   createCycle(payload: { year: number; name: string }): Promise<CycleDto> {
     return firstValueFrom(
       this.api.post<CycleDto>('cycles', payload)
@@ -131,6 +173,24 @@ export class CycleApiService {
   updateCycleTemplate(id: number, templateId: string): Promise<{ updated: boolean; templateId: string }> {
     return firstValueFrom(
       this.api.put<{ updated: boolean; templateId: string }>(`cycles/${id}/template`, { templateId })
+    );
+  }
+
+  getScope11StationaryItems(cycleId: number): Promise<Scope11StationaryItemsResponse> {
+    return firstValueFrom(
+      this.api.get<Scope11StationaryItemsResponse>(`cycles/${cycleId}/scope11/stationary/items`)
+    );
+  }
+
+  getFr041Config(cycleId: number): Promise<Fr041Config> {
+    return firstValueFrom(
+      this.api.get<Fr041Config>(`cycles/${cycleId}/fr041/config`)
+    );
+  }
+
+  updateFr041Config(cycleId: number, payload: { selectedRowIds: string[]; options?: Record<string, any> }): Promise<Fr041Config> {
+    return firstValueFrom(
+      this.api.put<Fr041Config>(`cycles/${cycleId}/fr041/config`, payload)
     );
   }
 

@@ -3,8 +3,11 @@
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\Fr041ConfigController;
 use App\Http\Controllers\Api\Scope11ExportController;
+use App\Http\Controllers\Api\Scope11StationaryController;
 use App\Http\Controllers\Api\TemplateController;
+use App\Http\Controllers\Api\TemplateSetController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -23,6 +26,10 @@ $publicCycleRoutes = function () {
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
     Route::get('/templates', [TemplateController::class, 'index']);
+    Route::get('/template-sets', [TemplateSetController::class, 'index']);
+    Route::get('/cycles/{cycle}/scope11/stationary/items', [Scope11StationaryController::class, 'items']);
+    Route::get('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'show']);
+    Route::put('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'update']);
 };
 
 $publicScope11ExportRoutes = function () {

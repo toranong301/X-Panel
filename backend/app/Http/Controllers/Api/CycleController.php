@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cycle;
+use App\Models\Fr041Config;
 use App\Services\MbaxTemplateService;
 use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
@@ -208,6 +209,8 @@ class CycleController extends Controller
             if ($sheetKey === 'fr041') {
                 $payload = $this->buildScope11PayloadFromCycleData($data);
                 $scope11Export->writeToSpreadsheet($spreadsheet, $payload);
+                $selection = $this->loadFr041SelectionRowIds($cycle->id);
+                $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
             }
             if ($sheetKey === 'fr041') {
                 $blocksDef = $this->normalizePreviewBlocks(
@@ -550,5 +553,17 @@ class CycleController extends Controller
         }
 
         return false;
+    }
+
+    private function loadFr041SelectionRowIds(int $cycleId): array
+    {
+        $config = Fr041Config::query()
+            ->where('cycle_id', $cycleId)
+            ->where('sheet_id', 'fr041')
+            ->where('section', 'scope1_stationary')
+            ->first();
+
+        $rows = $config?->selected_row_ids ?? [];
+        return is_array($rows) ? $rows : [];
     }
 }

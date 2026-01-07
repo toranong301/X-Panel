@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,13 +14,21 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
-import { CycleApiService, TemplateInfo, TemplateProfile } from '../../core/services/cycle-api.service';
+import {
+  CycleApiService,
+  Fr041Config,
+  Scope11StationaryItem,
+  TemplateInfo,
+  TemplateProfile,
+  TemplateSetInfo,
+} from '../../core/services/cycle-api.service';
 import { CycleStateService } from '../../core/services/cycle-state.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
 import { Fr01Data } from '../../models/fr01.model';
 import { SHEET_REGISTRY } from '../../core/sheet.registry';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
+import { computeBlendFromAnnualL, FuelBlendKey } from '../../core/sheets/fuel-blend.registry';
 
 @Component({
   selector: 'app-fr04-1',
@@ -29,6 +38,7 @@ import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-
     FormsModule,
 
     MatCardModule,
+    MatCheckboxModule,
     MatDividerModule,
     MatFormFieldModule,
     MatSelectModule,
@@ -61,6 +71,20 @@ export class Fr041Component implements OnInit {
   templateLoading = false;
   templateStyle = 'default';
 
+  templateSets: TemplateSetInfo[] = [];
+  templateSetId = 'vsheet_base';
+  templateSetLoading = false;
+
+  scope11Items: Scope11StationaryItem[] = [];
+  scope11Loading = false;
+  scope11SplitEnabled = false;
+  scope11PeriodYear: number | null = null;
+  scope11HeaderMonths: Record<string, number | null> | null = null;
+  selectedRowIds = new Set<string>();
+  selectionSaving = false;
+  showSplitSummary = false;
+  previewKey = 0;
+
   selectedScope3: any[] = [];
   fr01Meta: Fr01Data | null = null;
   reportYearLabel = '-';
@@ -73,12 +97,14 @@ export class Fr041Component implements OnInit {
   ngOnInit(): void {
     void this.resolveCycleId();
     void this.loadTemplates();
+    void this.loadTemplateSets();
   }
 
   private async resolveCycleId() {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
     this.cycleId = await this.cycleState.resolveCycleId(routeId);
     await this.loadTemplateState();
+    await this.loadFr041Data();
     this.reloadPreview();
   }
 
@@ -104,6 +130,40 @@ export class Fr041Component implements OnInit {
     } catch (error: any) {
       console.error('Load templates failed', error);
       this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    }
+  }
+
+  private async loadTemplateSets() {
+    this.templateSetLoading = true;
+    try {
+      this.templateSets = await this.cycleApi.getTemplateSets();
+    } catch (error: any) {
+      console.error('Load template sets failed', error);
+      this.snackBar.open(error?.message || 'โหลด Template Set ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    } finally {
+      this.templateSetLoading = false;
+    }
+  }
+
+  private async loadFr041Data() {
+    this.scope11Loading = true;
+    try {
+      const [config, itemsResp] = await Promise.all([
+        this.cycleApi.getFr041Config(this.cycleId),
+        this.cycleApi.getScope11StationaryItems(this.cycleId),
+      ]);
+
+      this.scope11Items = itemsResp?.items ?? [];
+      this.scope11SplitEnabled = Boolean(itemsResp?.splitEnabled);
+      this.scope11PeriodYear = itemsResp?.periodYear ?? null;
+      this.scope11HeaderMonths = itemsResp?.headerMonths ?? null;
+
+      this.applySelectionConfig(config, this.scope11Items);
+    } catch (error: any) {
+      console.error('Load FR-04.1 data failed', error);
+      this.snackBar.open(error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    } finally {
+      this.scope11Loading = false;
     }
   }
 
@@ -192,6 +252,86 @@ export class Fr041Component implements OnInit {
     }
   }
 
+  async changeTemplateSet(templateSetId: string) {
+    if (!templateSetId) return;
+    this.templateSetId = templateSetId;
+    await this.saveFr041Config();
+  }
+
+  toggleSelection(item: Scope11StationaryItem, checked: boolean) {
+    if (!item?.rowId) return;
+    if (checked) {
+      this.selectedRowIds.add(item.rowId);
+    } else {
+      this.selectedRowIds.delete(item.rowId);
+    }
+    void this.saveFr041Config();
+  }
+
+  isSelected(item: Scope11StationaryItem): boolean {
+    return Boolean(item?.rowId && this.selectedRowIds.has(item.rowId));
+  }
+
+  get selectedItems(): Scope11StationaryItem[] {
+    if (!this.scope11Items.length) return [];
+    return this.scope11Items.filter(item => this.selectedRowIds.has(item.rowId));
+  }
+
+  get splitRows() {
+    const allowed: FuelBlendKey[] = ['B7', 'B10', '91/95', 'E20'];
+    return this.selectedItems
+      .filter(item => String(item.unit || '').toLowerCase() === 'l')
+      .map(item => {
+        const fuelKey = String(item.fuelKey || '').toUpperCase() as FuelBlendKey;
+        if (!allowed.includes(fuelKey)) return null;
+        const totalL = this.sumMonths(item.months);
+        if (totalL === null) return null;
+        const blend = computeBlendFromAnnualL(totalL, fuelKey);
+        return {
+          itemLabel: item.itemLabel,
+          fuelKey,
+          unit: item.unit,
+          total: totalL,
+          dieselL: blend.dieselL,
+          biodieselL: blend.biodieselL,
+          biodieselKg: blend.biodieselKg,
+          gasolineL: blend.gasolineL,
+          ethanolL: blend.ethanolL,
+          ethanolKg: blend.ethanolKg,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  }
+
+  sumMonths(months: Record<string, number | null> | undefined): number | null {
+    if (!months) return null;
+    let total = 0;
+    let hasValue = false;
+    for (let i = 1; i <= 12; i++) {
+      const value = months[`M${i}`];
+      if (Number.isFinite(Number(value))) {
+        hasValue = true;
+        total += Number(value);
+      }
+    }
+    return hasValue ? total : null;
+  }
+
+  formatFixed2(value: number | string | null | undefined): string {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) return '';
+    return normalized.toFixed(2);
+  }
+
+  get monthsHeader(): number[] {
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  }
+
+  periodYearLabel(): string {
+    if (this.scope11PeriodYear) return String(this.scope11PeriodYear);
+    return this.reportYearLabel || '-';
+  }
+
   get templateStyleClass(): string {
     return this.templateStyle === 'mbax' ? 'card--compact' : 'card--standard';
   }
@@ -205,5 +345,34 @@ export class Fr041Component implements OnInit {
     const uiFlags = (profile as TemplateProfile | undefined)?.uiFlags;
     const style = String(uiFlags?.['compactSummaryStyle'] ?? '').trim();
     return style || 'default';
+  }
+
+  private applySelectionConfig(config: Fr041Config | null, items: Scope11StationaryItem[]) {
+    const rowIds = new Set(items.map(item => item.rowId));
+    const selected = (config?.selectedRowIds ?? []).filter(rowId => rowIds.has(rowId));
+    this.selectedRowIds = new Set(selected);
+
+    const fromOptions = String(config?.options?.['templateSetId'] ?? '').trim();
+    if (fromOptions) {
+      this.templateSetId = fromOptions;
+    }
+  }
+
+  private async saveFr041Config() {
+    if (!this.cycleId) return;
+    this.selectionSaving = true;
+    try {
+      const payload = {
+        selectedRowIds: Array.from(this.selectedRowIds.values()),
+        options: { templateSetId: this.templateSetId },
+      };
+      await this.cycleApi.updateFr041Config(this.cycleId, payload);
+      this.previewKey += 1;
+    } catch (error: any) {
+      console.error('Save FR-04.1 config failed', error);
+      this.snackBar.open(error?.message || 'บันทึกการเลือกไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    } finally {
+      this.selectionSaving = false;
+    }
   }
 }

@@ -4,7 +4,7 @@
       "id": "vsheet_cfo",
       "label": "V-Sheet CFO (Base)",
       "templateId": "VSHEET_CFO",
-      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx",
+      "templateFilePath": "../shared/templates/mbax/VSheetCFO_BASE.xlsx",
       "requiredSheets": [
         "Fr-04.1",
         "_DATA_SCOPE11"
@@ -30,7 +30,14 @@
             "M9",
             "M10",
             "M11",
-            "M12"
+            "M12",
+            "OtherDieselPct",
+            "OtherBiodieselPct",
+            "OtherGasolinePct",
+            "OtherEthanolPct",
+            "OtherBiodieselDensityKgPerL",
+            "OtherEthanolDensityKgPerL",
+            "IncludeFR041"
           ]
         }
       },

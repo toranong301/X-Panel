@@ -56,6 +56,17 @@
 
   <div class="grid">
     <mat-form-field appearance="outline" class="w-320">
+      <mat-label>Template Set</mat-label>
+      <mat-select
+        [value]="templateSetId"
+        (selectionChange)="changeTemplateSet($event.value)"
+        [disabled]="templateSetLoading || selectionSaving"
+      >
+        <mat-option *ngFor="let set of templateSets" [value]="set.id">{{ set.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-320">
       <mat-label>Template</mat-label>
       <mat-select
         [value]="templateId"
@@ -65,6 +76,94 @@
         <mat-option *ngFor="let tpl of templates" [value]="tpl.id">{{ tpl.label }}</mat-option>
       </mat-select>
     </mat-form-field>
+  </div>
+
+  <div class="section-title">Scope 1 → Stationary combustion (จาก 1.1 Stationary)</div>
+  <div class="hint">เลือกเฉพาะรายการที่ต้องการแสดงบน FR-04.1 (ใช้ข้อมูลที่บันทึกไว้จาก UI)</div>
+
+  <div class="loading-row" *ngIf="scope11Loading">
+    <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+    <span>กำลังโหลดรายการ...</span>
+  </div>
+
+  <div class="items-table" *ngIf="!scope11Loading">
+    <div class="items-header">
+      <div>Include</div>
+      <div>รายการ</div>
+      <div>หน่วย</div>
+      <div>รวม</div>
+      <div>หลักฐาน</div>
+      <div>ชนิดเชื้อเพลิง</div>
+    </div>
+    <div class="items-row" *ngFor="let item of scope11Items">
+      <div>
+        <mat-checkbox
+          [checked]="isSelected(item)"
+          (change)="toggleSelection(item, $event.checked)"
+          [disabled]="selectionSaving"
+        ></mat-checkbox>
+      </div>
+      <div class="truncate">{{ item.itemLabel || item.rowId }}</div>
+      <div>{{ item.unit || '-' }}</div>
+      <div class="num">{{ formatFixed2(item.total ?? sumMonths(item.months)) }}</div>
+      <div class="truncate">{{ item.evidence || '-' }}</div>
+      <div class="truncate">
+        <span>{{ item.fuelKey || '-' }}</span>
+        <span *ngIf="item.otherType"> (Other: {{ item.otherType }})</span>
+      </div>
+    </div>
+    <div class="empty" *ngIf="!scope11Items.length">
+      ยังไม่มีรายการจาก Scope 1.1 Stationary
+    </div>
+  </div>
+
+  <div class="section-title" *ngIf="selectedItems.length">Selected Items (Monthly)</div>
+  <div class="payload-table" *ngIf="selectedItems.length">
+    <div class="payload-header">
+      <div>รายการ</div>
+      <div>หน่วย</div>
+      <div>รวม</div>
+      <div *ngFor="let m of monthsHeader">{{ m }}</div>
+    </div>
+    <div *ngFor="let row of selectedItems" class="payload-row">
+      <div class="payload-key">{{ row.itemLabel || row.rowId }}</div>
+      <div>{{ row.unit }}</div>
+      <div class="payload-value">{{ formatFixed2(sumMonths(row.months)) }}</div>
+      <div *ngFor="let m of monthsHeader">{{ formatFixed2(row.months['M' + m]) }}</div>
+    </div>
+  </div>
+
+  <div *ngIf="splitRows.length" class="split-section">
+    <div class="section-title">Split Summary</div>
+    <button mat-stroked-button type="button" (click)="showSplitSummary = !showSplitSummary">
+      {{ showSplitSummary ? 'Hide split summary' : 'Show split summary' }}
+    </button>
+    <div class="payload-table" *ngIf="showSplitSummary">
+      <div class="payload-header split-header">
+        <div>รายการ</div>
+        <div>ชนิด</div>
+        <div>หน่วย</div>
+        <div>ปริมาณน้ำมัน</div>
+        <div>Diesel(L)</div>
+        <div>Biodiesel(L)</div>
+        <div>Biodiesel(kg)</div>
+        <div>Gasoline(L)</div>
+        <div>Ethanol(L)</div>
+        <div>Ethanol(kg)</div>
+      </div>
+      <div *ngFor="let row of splitRows" class="payload-row split-row">
+        <div class="payload-key">{{ row.itemLabel || '-' }}</div>
+        <div>{{ row.fuelKey }}</div>
+        <div>{{ row.unit }}</div>
+        <div class="payload-value">{{ formatFixed2(row.total) }}</div>
+        <div>{{ formatFixed2(row.dieselL) }}</div>
+        <div>{{ formatFixed2(row.biodieselL) }}</div>
+        <div>{{ formatFixed2(row.biodieselKg) }}</div>
+        <div>{{ formatFixed2(row.gasolineL) }}</div>
+        <div>{{ formatFixed2(row.ethanolL) }}</div>
+        <div>{{ formatFixed2(row.ethanolKg) }}</div>
+      </div>
+    </div>
   </div>
 
   <div class="hint">
@@ -78,6 +177,7 @@
   <app-excel-sheet-preview
     [cycleId]="cycleId"
     [sheetId]="sheetId"
+    [cacheKey]="previewKey"
   ></app-excel-sheet-preview>
 </mat-card>
 

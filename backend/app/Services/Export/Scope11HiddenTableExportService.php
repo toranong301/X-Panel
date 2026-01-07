@@ -98,6 +98,36 @@ class Scope11HiddenTableExportService
         );
     }
 
+    public function writeSelectionToSpreadsheet(Spreadsheet $spreadsheet, array $selectedRowIds, string $columnName = 'IncludeFR041'): void
+    {
+        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
+        if (!$ws) {
+            throw new \RuntimeException('Missing worksheet: ' . self::SHEET_NAME);
+        }
+
+        $tableRange = $this->resolveTableRange($ws);
+        $headerMap = $this->buildHeaderMap($ws, $tableRange['headerRow'], $tableRange['startCol'], $tableRange['endCol']);
+        $rowIdCol = $headerMap['ROWID'] ?? null;
+        if (!$rowIdCol) {
+            return;
+        }
+
+        $includeCol = $headerMap[strtoupper($columnName)] ?? null;
+        if (!$includeCol) {
+            return;
+        }
+
+        $selected = array_fill_keys(array_map('strval', $selectedRowIds), true);
+        for ($r = $tableRange['startRow']; $r <= $tableRange['endRow']; $r++) {
+            $rowId = trim((string) $ws->getCell($rowIdCol . $r)->getValue());
+            if ($rowId === '') {
+                $this->writeValue($ws, $includeCol . $r, null);
+                continue;
+            }
+            $this->writeValue($ws, $includeCol . $r, isset($selected[$rowId]) ? 1 : null);
+        }
+    }
+
     /**
      * @return array{0: array<string,int>, 1: int, 2?: string[]}
      */

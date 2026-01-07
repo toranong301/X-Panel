@@ -1,0 +1,14 @@
+{
+  "templateSets": {
+    "vsheet_base": {
+      "id": "vsheet_base",
+      "label": "VSheetCFO_BASE",
+      "templates": ["VSHEET_CFO"]
+    },
+    "vsheet_base_plus_mbax_demo": {
+      "id": "vsheet_base_plus_mbax_demo",
+      "label": "VSheetCFO_BASE + MBAX-TGO-11102567 Demo",
+      "templates": ["VSHEET_CFO", "MBAX_TGO_11102567"]
+    }
+  }
+}
