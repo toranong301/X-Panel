@@ -1,16 +1,19 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { BehaviorSubject, catchError, from, of, shareReplay, switchMap } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Router } from '@angular/router';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
-import { Cycle, CycleApiService } from '../../core/services/cycle-api.service';
+import { Cycle, CycleApiService, TemplateProfile } from '../../core/services/cycle-api.service';
 import { CycleStateService } from '../../core/services/cycle-state.service';
 import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-dialog';
 
@@ -19,18 +22,21 @@ import { CreateCycleDialogComponent } from './create-cycle-dialog/create-cycle-d
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatTableModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatFormFieldModule,
+    MatSelectModule,
     MatSnackBarModule,
   ],
   templateUrl: './cycles.html',
   styleUrls: ['./cycles.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CyclesComponent {
-  displayedColumns = ['name', 'baseYear', 'status', 'actions'];
+export class CyclesComponent implements OnInit {
+  displayedColumns = ['name', 'baseYear', 'template', 'status', 'actions'];
 
   private reload$ = new BehaviorSubject<void>(undefined);
   cycles$ = this.reload$.pipe(
@@ -51,6 +57,8 @@ export class CyclesComponent {
   );
 
   exportingId: number | null = null;
+  templates: TemplateProfile[] = [];
+  templateLoading = false;
 
   constructor(
     private dialog: MatDialog,
@@ -60,6 +68,26 @@ export class CyclesComponent {
     private cycleState: CycleStateService,
     private snackBar: MatSnackBar,
   ) {}
+
+  ngOnInit(): void {
+    this.loadTemplates();
+  }
+
+  private async loadTemplates() {
+    this.templateLoading = true;
+    try {
+      this.templates = await this.cycleApi.listTemplates();
+    } catch (error: any) {
+      console.error('Load templates failed', error);
+      this.snackBar.open(
+        error?.message || 'โหลด Template ไม่สำเร็จ',
+        'ปิด',
+        { duration: 6000 }
+      );
+    } finally {
+      this.templateLoading = false;
+    }
+  }
 
   /* =========================
    * Actions
@@ -131,6 +159,21 @@ export class CyclesComponent {
   goFr032(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr03-2']); }
   goScreenScope3(c: Cycle) { this.router.navigate(['/cycles', c.id, 'scope3-screen']); }
   goFr041(c: Cycle) { this.router.navigate(['/cycles', c.id, 'fr04-1']); }
+
+  async changeTemplate(cycle: Cycle, templateId: string) {
+    try {
+      await this.cycleApi.updateCycleTemplate(cycle.id, templateId);
+      cycle.template_id = templateId;
+      this.snackBar.open('Template updated', 'ปิด', { duration: 3000 });
+    } catch (error: any) {
+      console.error('Update template failed', error);
+      this.snackBar.open(
+        error?.message || 'อัปเดต Template ไม่สำเร็จ',
+        'ปิด',
+        { duration: 6000 }
+      );
+    }
+  }
 
   private downloadFile(blob: Blob, filename: string) {
     const url = window.URL.createObjectURL(blob);

@@ -10,6 +10,7 @@ class Cycle extends Model
     protected $fillable = [
         'year',
         'name',
+        'template_id',
         'data_json',
     ];
 

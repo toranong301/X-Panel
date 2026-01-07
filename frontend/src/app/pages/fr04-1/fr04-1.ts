@@ -10,11 +10,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
-import { CycleApiService } from '../../core/services/cycle-api.service';
+import { CycleApiService, TemplateInfo, TemplateProfile } from '../../core/services/cycle-api.service';
 import { CycleStateService } from '../../core/services/cycle-state.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
@@ -35,7 +34,6 @@ import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-
     MatSelectModule,
     MatButtonModule,
     MatIconModule,
-    MatSlideToggleModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
     ExcelSheetPreviewComponent,
@@ -56,14 +54,12 @@ export class Fr041Component implements OnInit {
   cycleId = 0;
   readonly sheetId = SHEET_REGISTRY['FR041'].sheetId;
 
-  // templates (add more by registering in resolveTemplate)
-  templateOptions = [
-    { key: 'MBAX_TGO_11102567::demo', label: 'MBAX-TGO-11102567 (Demo)' },
-  ];
-  templateKey = this.templateOptions[0]?.key ?? 'MBAX_TGO_11102567::demo';
-
-  // Excel features toggle (some orgs use older Excel versions)
+  templateKey = 'mbax';
   useModernExcel = false;
+  templates: TemplateInfo[] = [];
+  templateId = 'mbax';
+  templateLoading = false;
+  templateStyle = 'default';
 
   selectedScope3: any[] = [];
   fr01Meta: Fr01Data | null = null;
@@ -76,12 +72,39 @@ export class Fr041Component implements OnInit {
 
   ngOnInit(): void {
     void this.resolveCycleId();
+    void this.loadTemplates();
   }
 
   private async resolveCycleId() {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
     this.cycleId = await this.cycleState.resolveCycleId(routeId);
+    await this.loadTemplateState();
     this.reloadPreview();
+  }
+
+  private async loadTemplateState() {
+    this.templateLoading = true;
+    try {
+      const cycle = await this.cycleApi.getCycle(this.cycleId);
+      this.templateId = String(cycle?.template_id || 'mbax');
+      this.templateKey = this.templateId;
+      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+    } catch (error: any) {
+      console.error('Load template state failed', error);
+      this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    } finally {
+      this.templateLoading = false;
+    }
+  }
+
+  private async loadTemplates() {
+    try {
+      this.templates = await this.cycleApi.getTemplates();
+      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+    } catch (error: any) {
+      console.error('Load templates failed', error);
+      this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    }
   }
 
   reloadPreview() {
@@ -97,7 +120,7 @@ export class Fr041Component implements OnInit {
     this.exportError = null;
 
     try {
-      const canonical = await this.canonicalSvc.build(this.cycleId, this.templateKey);
+      const canonical = await this.canonicalSvc.build(this.cycleId);
       const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
       this.cycleId = updateResult.cycleId;
       this.cycleState.setSelectedCycleId(updateResult.cycleId);
@@ -153,5 +176,34 @@ export class Fr041Component implements OnInit {
     link.target = '_blank';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async changeTemplate(templateId: string) {
+    try {
+      await this.cycleApi.updateCycleTemplate(this.cycleId, templateId);
+      this.templateId = templateId;
+      this.templateKey = templateId;
+      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      this.snackBar.open('Template updated', 'ปิด', { duration: 3000 });
+      this.reloadPreview();
+    } catch (error: any) {
+      console.error('Update template failed', error);
+      this.snackBar.open(error?.message || 'อัปเดต Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+    }
+  }
+
+  get templateStyleClass(): string {
+    return this.templateStyle === 'mbax' ? 'card--compact' : 'card--standard';
+  }
+
+  get templateOptions(): TemplateInfo[] {
+    return this.templates;
+  }
+
+  private resolveTemplateStyle(templateId: string, templates: TemplateInfo[]): string {
+    const profile = templates.find(t => t.id === templateId);
+    const uiFlags = (profile as TemplateProfile | undefined)?.uiFlags;
+    const style = String(uiFlags?.['compactSummaryStyle'] ?? '').trim();
+    return style || 'default';
   }
 }

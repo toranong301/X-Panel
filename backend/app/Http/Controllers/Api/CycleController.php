@@ -32,6 +32,7 @@ class CycleController extends Controller
             'year' => $payload['year'],
             'name' => $payload['name'],
             'data_json' => $payload['data_json'] ?? null,
+            'template_id' => 'mbax',
         ]);
 
         return response()->json($cycle);
@@ -59,6 +60,30 @@ class CycleController extends Controller
         ]);
     }
 
+    public function updateTemplate(Request $request, Cycle $cycle, TemplateRegistry $registry)
+    {
+        $payload = $request->validate([
+            'templateId' => ['required', 'string', 'max:200'],
+        ]);
+
+        $templateId = strtolower(trim((string) $payload['templateId']));
+        if ($templateId === '' || !$registry->getProfile($templateId)) {
+            return response()->json([
+                'code' => 'INVALID_TEMPLATE',
+                'message' => 'Unknown templateId.',
+            ], 422);
+        }
+
+        $cycle->template_id = $templateId;
+        $cycle->save();
+
+        return response()->json([
+            'id' => $cycle->id,
+            'templateId' => $cycle->template_id,
+            'updated' => true,
+        ]);
+    }
+
     public function preview(
         Request $request,
         Cycle $cycle,
@@ -79,6 +104,17 @@ class CycleController extends Controller
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => 'sheetId is required.',
+                ], 422);
+            }
+
+            $profileId = isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== ''
+                ? strtolower(trim($cycle->template_id))
+                : 'mbax';
+            $profile = $registry->getProfile($profileId);
+            if (!$profile) {
+                return response()->json([
+                    'code' => 'INVALID_TEMPLATE',
+                    'message' => 'Unknown templateId.',
                 ], 422);
             }
 
@@ -134,15 +170,19 @@ class CycleController extends Controller
                 $data = [];
             }
             if ($sheetKey === 'fr041' && !$this->hasPreviewData($data, $normalizedSheetId)) {
-                $headerRange = 'A1:K10';
-                $mainRange = 'A11:AO70';
+                $blocks = $this->normalizePreviewBlocks(
+                    $this->resolvePreviewBlocks($profile, $sheetKey, [
+                        ['id' => 'header', 'range' => 'A1:K10'],
+                        ['id' => 'main', 'range' => 'A11:AO70'],
+                    ])
+                );
                 return response()->json([
                     'ok' => true,
                     'sheetId' => $sheetKey,
                     'sheetName' => $sheet,
                     'blocks' => [
-                        $this->buildEmptyPreviewBlock($sheet, $headerRange, 'header'),
-                        $this->buildEmptyPreviewBlock($sheet, $mainRange, 'main'),
+                        $this->buildEmptyPreviewBlock($sheet, $blocks[0]['range'], $blocks[0]['id']),
+                        $this->buildEmptyPreviewBlock($sheet, $blocks[1]['range'], $blocks[1]['id']),
                     ],
                 ]);
             }
@@ -155,6 +195,8 @@ class CycleController extends Controller
             }
 
             $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+            $this->assertRequiredSheets($spreadsheet, $profile['requiredSheets'] ?? []);
+            $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
             $mbax->applyData(
                 $spreadsheet,
                 $data,
@@ -168,11 +210,15 @@ class CycleController extends Controller
                 $scope11Export->writeToSpreadsheet($spreadsheet, $payload);
             }
             if ($sheetKey === 'fr041') {
-                $headerRange = 'A1:K10';
-                $mainRange = 'A11:AO70';
+                $blocksDef = $this->normalizePreviewBlocks(
+                    $this->resolvePreviewBlocks($profile, $sheetKey, [
+                        ['id' => 'header', 'range' => 'A1:K10'],
+                        ['id' => 'main', 'range' => 'A11:AO70'],
+                    ])
+                );
                 $blocks = [
-                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $headerRange, 'header'),
-                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $mainRange, 'main'),
+                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $blocksDef[0]['range'], $blocksDef[0]['id']),
+                    $this->buildPreviewBlock($mbax, $spreadsheet, $sheet, $blocksDef[1]['range'], $blocksDef[1]['id']),
                 ];
                 return response()->json([
                     'ok' => true,
@@ -311,6 +357,67 @@ class CycleController extends Controller
         ];
     }
 
+    private function resolvePreviewBlocks(array $profile, string $sheetKey, array $fallback): array
+    {
+        $ranges = $profile['previewRanges'][$sheetKey]['blocks'] ?? null;
+        if (!is_array($ranges) || count($ranges) < 2) {
+            return $fallback;
+        }
+        return $ranges;
+    }
+
+    private function normalizePreviewBlocks(array $blocks): array
+    {
+        $normalized = [];
+        foreach ($blocks as $block) {
+            if (!is_array($block)) continue;
+            $id = trim((string) ($block['id'] ?? ''));
+            $range = trim((string) ($block['range'] ?? ''));
+            if ($id === '' || $range === '') continue;
+            $normalized[] = ['id' => $id, 'range' => $range];
+        }
+        return count($normalized) >= 2 ? $normalized : $blocks;
+    }
+
+    private function assertRequiredSheets(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, array $requiredSheets): void
+    {
+        foreach ($requiredSheets as $sheetName) {
+            if (!is_string($sheetName) || trim($sheetName) === '') {
+                continue;
+            }
+            if (!$spreadsheet->getSheetByName($sheetName)) {
+                throw new \RuntimeException("Missing required sheet: {$sheetName}");
+            }
+        }
+    }
+
+    private function assertHiddenTables(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, array $hiddenTables): void
+    {
+        if (!is_array($hiddenTables)) return;
+        foreach ($hiddenTables as $table) {
+            if (!is_array($table)) continue;
+            $sheetName = $table['sheet'] ?? '';
+            $tableName = $table['tableName'] ?? '';
+            if (!is_string($sheetName) || !is_string($tableName) || $sheetName === '' || $tableName === '') {
+                continue;
+            }
+            $sheet = $spreadsheet->getSheetByName($sheetName);
+            if (!$sheet) {
+                throw new \RuntimeException("Missing required sheet: {$sheetName}");
+            }
+            $found = false;
+            foreach ($sheet->getTableCollection() as $tbl) {
+                if (strcasecmp($tbl->getName(), $tableName) === 0) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                throw new \RuntimeException("Missing required table: {$tableName} on sheet {$sheetName}");
+            }
+        }
+    }
+
     private function hasPreviewData(array $data, string $sheetId): bool
     {
         if (!$data) return false;
@@ -403,14 +510,17 @@ class CycleController extends Controller
 
     private function resolveTemplateId(Cycle $cycle, TemplateRegistry $registry): string
     {
+        if (isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== '') {
+            $resolved = $registry->resolveTemplateIdForProfile($cycle->template_id);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
         $data = $cycle->data_json ?? [];
         $fromData = is_array($data) ? ($data['templateId'] ?? $data['template_id'] ?? null) : null;
         if (is_string($fromData) && trim($fromData) !== '') {
             return trim($fromData);
-        }
-
-        if (isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== '') {
-            return trim($cycle->template_id);
         }
 
         if ($this->templateExists($registry, 'VSHEET_CFO')) {

@@ -78,11 +78,29 @@
       "label": "V-Sheet CFO",
       "path": {
         "env": "CFO_TEMPLATE_PATH",
-        "fallback": ""
+        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx"
       },
       "mappings": {
         "cfoSheets": []
       }
+    },
+    "NAM_20250323": {
+      "label": "NAM 2025-03-23",
+      "path": {
+        "env": "NAM_TEMPLATE_PATH",
+        "fallback": ""
+      },
+      "sheets": {},
+      "mappings": {}
+    },
+    "PSP_CFO_2567_2025_04_03": {
+      "label": "PSP CFO 2567-2025-04-03",
+      "path": {
+        "env": "PSP_TEMPLATE_PATH",
+        "fallback": ""
+      },
+      "sheets": {},
+      "mappings": {}
     }
   }
 }

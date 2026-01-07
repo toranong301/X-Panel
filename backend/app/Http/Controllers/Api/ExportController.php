@@ -32,6 +32,14 @@ class ExportController extends Controller
 
         try {
             $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+            $profileId = isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== ''
+                ? strtolower(trim($cycle->template_id))
+                : 'mbax';
+            $profile = $registry->getProfile($profileId);
+            if ($profile) {
+                $this->assertRequiredSheets($spreadsheet, $profile['requiredSheets'] ?? []);
+                $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
+            }
             $mbax->applyData($spreadsheet, $cycle->data_json ?? [], $cycle->attachments()->get()->all(), null, null, $templateId);
 
             $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
@@ -80,16 +88,58 @@ class ExportController extends Controller
         ]);
     }
 
+    private function assertRequiredSheets(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, array $requiredSheets): void
+    {
+        foreach ($requiredSheets as $sheetName) {
+            if (!is_string($sheetName) || trim($sheetName) === '') {
+                continue;
+            }
+            if (!$spreadsheet->getSheetByName($sheetName)) {
+                throw new \RuntimeException("Missing required sheet: {$sheetName}");
+            }
+        }
+    }
+
+    private function assertHiddenTables(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, array $hiddenTables): void
+    {
+        if (!is_array($hiddenTables)) return;
+        foreach ($hiddenTables as $table) {
+            if (!is_array($table)) continue;
+            $sheetName = $table['sheet'] ?? '';
+            $tableName = $table['tableName'] ?? '';
+            if (!is_string($sheetName) || !is_string($tableName) || $sheetName === '' || $tableName === '') {
+                continue;
+            }
+            $sheet = $spreadsheet->getSheetByName($sheetName);
+            if (!$sheet) {
+                throw new \RuntimeException("Missing required sheet: {$sheetName}");
+            }
+            $found = false;
+            foreach ($sheet->getTableCollection() as $tbl) {
+                if (strcasecmp($tbl->getName(), $tableName) === 0) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                throw new \RuntimeException("Missing required table: {$tableName} on sheet {$sheetName}");
+            }
+        }
+    }
+
     private function resolveTemplateId(Cycle $cycle, TemplateRegistry $registry): string
     {
+        if (isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== '') {
+            $resolved = $registry->resolveTemplateIdForProfile($cycle->template_id);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
         $data = $cycle->data_json ?? [];
         $fromData = is_array($data) ? ($data['templateId'] ?? $data['template_id'] ?? null) : null;
         if (is_string($fromData) && trim($fromData) !== '') {
             return trim($fromData);
-        }
-
-        if (isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== '') {
-            return trim($cycle->template_id);
         }
 
         if ($this->templateExists($registry, 'VSHEET_CFO')) {

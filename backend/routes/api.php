@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\Scope11ExportController;
+use App\Http\Controllers\Api\TemplateController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -18,8 +19,10 @@ $publicCycleRoutes = function () {
     Route::get('/cycles', [CycleController::class, 'index']);
     Route::post('/cycles', [CycleController::class, 'store']);
     Route::put('/cycles/{cycle}/data', [CycleController::class, 'updateData']);
+    Route::put('/cycles/{cycle}/template', [CycleController::class, 'updateTemplate']);
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
+    Route::get('/templates', [TemplateController::class, 'index']);
 };
 
 $publicScope11ExportRoutes = function () {

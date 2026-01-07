@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 
 import { ApiClient } from './api-client.service';
 import { CanonicalCycleData } from '../../models/canonical-cycle.model';
@@ -12,6 +12,16 @@ export interface Cycle {
   id: number;
   year?: number;
   name?: string;
+  template_id?: string;
+}
+
+export interface TemplateInfo {
+  id: string;
+  label: string;
+}
+
+export interface TemplatesResponse {
+  templates: TemplateInfo[];
 }
 
 export type CycleDto = {
@@ -19,6 +29,7 @@ export type CycleDto = {
   year: number;
   name: string;
   data_json?: any;
+  template_id?: string;
 };
 
 export type ExportDownload = {
@@ -72,6 +83,11 @@ export type CycleUpdateResult = {
   previewVersion?: string | null;
 };
 
+export type TemplateProfile = TemplateInfo & {
+  uiFlags?: Record<string, any>;
+  previewRanges?: Record<string, any>;
+};
+
 /* =======================
  * Service
  * ======================= */
@@ -91,6 +107,15 @@ export class CycleApiService {
     );
   }
 
+  getTemplates(): Promise<TemplateInfo[]> {
+    const request = this.api.get<TemplatesResponse>('templates') as unknown as Observable<TemplatesResponse>;
+    return firstValueFrom(request).then((resp: TemplatesResponse | undefined) => resp?.templates ?? []);
+  }
+
+  listTemplates(): Promise<TemplateProfile[]> {
+    return this.getTemplates().then(resp => resp as TemplateProfile[]);
+  }
+
   createCycle(payload: { year: number; name: string }): Promise<CycleDto> {
     return firstValueFrom(
       this.api.post<CycleDto>('cycles', payload)
@@ -100,6 +125,12 @@ export class CycleApiService {
   getCycle(id: number): Promise<CycleDto> {
     return firstValueFrom(
       this.api.get<CycleDto>(`cycles/${id}`)
+    );
+  }
+
+  updateCycleTemplate(id: number, templateId: string): Promise<{ updated: boolean; templateId: string }> {
+    return firstValueFrom(
+      this.api.put<{ updated: boolean; templateId: string }>(`cycles/${id}/template`, { templateId })
     );
   }
 

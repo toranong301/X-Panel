@@ -243,3 +243,13 @@
 button mat-progress-spinner {
   margin-right: 6px;
 }
+
+.card--compact {
+  border-left: 4px solid #0d47a1;
+  background: #f6f8ff;
+}
+
+.card--standard {
+  border-left: 4px solid #1b5e20;
+  background: #f7fbf5;
+}

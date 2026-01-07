@@ -27,7 +27,7 @@
   </div>
 </div>
 
-<mat-card class="card">
+<mat-card class="card" [ngClass]="templateStyleClass">
   <div class="form-header">
     <div class="form-title">
       <div class="form-code">FR-04.1</div>
@@ -56,15 +56,15 @@
 
   <div class="grid">
     <mat-form-field appearance="outline" class="w-320">
-      <mat-label>Export template</mat-label>
-      <mat-select [(ngModel)]="templateKey">
-        <mat-option *ngFor="let tpl of templateOptions" [value]="tpl.key">{{ tpl.label }}</mat-option>
+      <mat-label>Template</mat-label>
+      <mat-select
+        [value]="templateId"
+        (selectionChange)="changeTemplate($event.value)"
+        [disabled]="templateLoading"
+      >
+        <mat-option *ngFor="let tpl of templates" [value]="tpl.id">{{ tpl.label }}</mat-option>
       </mat-select>
     </mat-form-field>
-
-    <mat-slide-toggle [(ngModel)]="useModernExcel">
-      Modern Excel features (XLOOKUP/FILTER)
-    </mat-slide-toggle>
   </div>
 
   <div class="hint">
@@ -84,3 +84,4 @@
 <mat-card class="card" *ngIf="exportError">
   <div class="error">{{ exportError }}</div>
 </mat-card>
+

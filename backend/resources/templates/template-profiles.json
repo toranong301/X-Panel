@@ -1,0 +1,131 @@
+{
+  "profiles": {
+    "vsheet_cfo": {
+      "id": "vsheet_cfo",
+      "label": "V-Sheet CFO (Base)",
+      "templateId": "VSHEET_CFO",
+      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx",
+      "requiredSheets": [
+        "Fr-04.1",
+        "_DATA_SCOPE11"
+      ],
+      "hiddenTables": {
+        "scope11": {
+          "sheet": "_DATA_SCOPE11",
+          "tableName": "tblScope11Stationary",
+          "columns": [
+            "RowId",
+            "ItemLabel",
+            "FuelType",
+            "Evidence",
+            "Unit",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "M7",
+            "M8",
+            "M9",
+            "M10",
+            "M11",
+            "M12"
+          ]
+        }
+      },
+      "uiFlags": {
+        "supportsSplitSummary": false,
+        "compactSummaryStyle": "vsheet"
+      },
+      "previewRanges": {
+        "fr041": {
+          "blocks": [
+            { "id": "header", "range": "A1:K10" },
+            { "id": "main", "range": "A11:AO70" }
+          ]
+        }
+      }
+    },
+    "mbax": {
+      "id": "mbax",
+      "label": "MBAX-TGO-11102567",
+      "templateId": "MBAX_TGO_11102567",
+      "templateFilePath": "storage/app/templates/mbax/MBAX-TGO-11102567-Demo.xlsx",
+      "requiredSheets": [
+        "Fr-04.1",
+        "1.1 Stationary ",
+        "_DATA_SCOPE11"
+      ],
+      "hiddenTables": {
+        "scope11": {
+          "sheet": "_DATA_SCOPE11",
+          "tableName": "tblScope11Stationary",
+          "columns": [
+            "RowId",
+            "ItemLabel",
+            "FuelType",
+            "Evidence",
+            "Unit",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "M7",
+            "M8",
+            "M9",
+            "M10",
+            "M11",
+            "M12",
+            "OtherDieselPct",
+            "OtherBiodieselPct",
+            "OtherGasolinePct",
+            "OtherEthanolPct",
+            "OtherBiodieselDensityKgPerL",
+            "OtherEthanolDensityKgPerL"
+          ]
+        }
+      },
+      "uiFlags": {
+        "supportsSplitSummary": true,
+        "compactSummaryStyle": "mbax"
+      },
+      "previewRanges": {
+        "fr041": {
+          "blocks": [
+            { "id": "header", "range": "A1:K10" },
+            { "id": "main", "range": "A11:AO70" }
+          ]
+        }
+      }
+    },
+    "nam_20250323": {
+      "id": "nam_20250323",
+      "label": "NAM 2025-03-23",
+      "templateId": "NAM_20250323",
+      "templateFilePath": "",
+      "requiredSheets": [],
+      "hiddenTables": {},
+      "uiFlags": {
+        "supportsSplitSummary": false,
+        "compactSummaryStyle": "default"
+      },
+      "previewRanges": {}
+    },
+    "psp_cfo_2567_2025_04_03": {
+      "id": "psp_cfo_2567_2025_04_03",
+      "label": "PSP CFO 2567-2025-04-03",
+      "templateId": "PSP_CFO_2567_2025_04_03",
+      "templateFilePath": "",
+      "requiredSheets": [],
+      "hiddenTables": {},
+      "uiFlags": {
+        "supportsSplitSummary": false,
+        "compactSummaryStyle": "default"
+      },
+      "previewRanges": {}
+    }
+  }
+}
