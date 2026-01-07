@@ -13,9 +13,68 @@ use App\Exceptions\TemplateNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 
 class CycleController extends Controller
 {
+    /**
+     * Prefer base workbook to avoid demo/customer templates missing hidden tables.
+     */
+    private function resolveTemplateBasePath(string $templateId, TemplateRegistry $registry): string
+    {
+        $mapping = $registry->getTemplate($templateId);
+        $envKey = $mapping['path']['env'] ?? null;
+        if (is_string($envKey) && $envKey !== '') {
+            $envPath = env($envKey);
+            if (is_string($envPath) && $envPath !== '' && is_file($envPath)) {
+                return $envPath;
+            }
+        }
+
+        $fallbackRel = $mapping['path']['fallback'] ?? null;
+        if (is_string($fallbackRel) && $fallbackRel !== '') {
+            $fallback = base_path($fallbackRel);
+            if (is_file($fallback)) return $fallback;
+        }
+
+        throw new \RuntimeException("Template workbook not found for templateId={$templateId}");
+    }
+
+    /**
+     * Load spreadsheet with explicit sheet list to prevent missing required hidden sheets.
+     */
+    private function loadSpreadsheet(string $path, array $loadSheetsOnly = []): \PhpOffice\PhpSpreadsheet\Spreadsheet
+    {
+        if (!$loadSheetsOnly) {
+            return IOFactory::load($path);
+        }
+
+        $reader = new Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setLoadSheetsOnly(array_values(array_unique($loadSheetsOnly)));
+        return $reader->load($path);
+    }
+
+    /**
+     * Default preview sheets (visible + references) — extend as needed.
+     */
+    private function defaultPreviewSheets(): array
+    {
+        return [
+            'Fr-01',
+            'Fr-02',
+            'Fr-03.1',
+            'Fr-03.2',
+            'Fr-04.1',
+            'Fr-04.2',
+            'Fr-05',
+            'EF TGO AR4',
+            'EF TGO AR5',
+            'บันทึกการปรับปรุง',
+            '_FR041_SEL',
+        ];
+    }
     public function index()
     {
         return response()->json(Cycle::query()->orderByDesc('id')->get());
@@ -125,6 +184,9 @@ class CycleController extends Controller
             if ($templateKey !== '') {
                 $templateId = $this->normalizeTemplateKey($templateKey, $registry) ?? $templateId;
             }
+            if ($sheetKey === 'fr041' && $this->templateExists($registry, 'VSHEET_CFO')) {
+                $templateId = 'VSHEET_CFO';
+            }
             $template = $registry->getTemplate($templateId);
             if (!$template) {
                 return response()->json([
@@ -193,28 +255,13 @@ class CycleController extends Controller
                 ]);
             }
 
-            try {
-                $resolvedPath = $mbax->resolveTemplatePath($templateId);
-            } catch (TemplateNotFoundException $e) {
-                if ($sheetKey === 'fr041') {
-                    Log::warning('Template missing, fallback to MBAX for FR-04.1 preview', [
-                        'cycleId' => $cycle->id,
-                        'templateId' => $templateId,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
-                } else {
-                    $attempted = $e->attemptedPaths ? implode(', ', $e->attemptedPaths) : 'unknown';
-                    throw new \RuntimeException("Template not found: {$attempted}");
-                }
-            }
-
             $requiredSheets = $this->resolveRequiredSheets($profile['requiredSheets'] ?? [], $sheetKey);
             $requiredTables = $this->resolveRequiredTables($profile['hiddenTables'] ?? [], $sheetKey);
 
             try {
-                $resolvedPath = $mbax->resolveTemplatePath($templateId);
-                $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+                $resolvedPath = $this->resolveTemplateBasePath($templateId, $registry);
+                $loadSheetsOnly = array_merge($this->defaultPreviewSheets(), $requiredSheets);
+                $spreadsheet = $this->loadSpreadsheet($resolvedPath, $loadSheetsOnly);
                 $this->assertRequiredSheets($spreadsheet, $requiredSheets);
                 $this->assertHiddenTables($spreadsheet, $requiredTables);
             } catch (\RuntimeException $e) {
@@ -225,8 +272,9 @@ class CycleController extends Controller
                         'error' => $e->getMessage(),
                     ]);
                     $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
-                    $resolvedPath = $mbax->resolveTemplatePath($templateId);
-                    $spreadsheet = $mbax->loadTemplate(null, null, $templateId);
+                    $resolvedPath = $this->resolveTemplateBasePath($templateId, $registry);
+                    $loadSheetsOnly = array_merge($this->defaultPreviewSheets(), $requiredSheets);
+                    $spreadsheet = $this->loadSpreadsheet($resolvedPath, $loadSheetsOnly);
                     $this->assertRequiredSheets($spreadsheet, $requiredSheets);
                     $this->assertHiddenTables($spreadsheet, $requiredTables);
                 } else {
@@ -241,6 +289,7 @@ class CycleController extends Controller
                     'templateId' => $templateId,
                     'templatePath' => $resolvedPath,
                     'sheetNames' => array_map(fn ($s) => $s->getTitle(), $spreadsheet->getAllSheets()),
+                    'loadSheetsOnly' => $loadSheetsOnly ?? [],
                 ]);
             }
             $mbax->applyData(
