@@ -82,7 +82,6 @@ export class Fr041Component implements OnInit {
   scope11HeaderMonths: Record<string, number | null> | null = null;
   selectedRowIds = new Set<string>();
   selectionSaving = false;
-  showSplitSummary = false;
   previewKey = 0;
 
   selectedScope3: any[] = [];
@@ -260,11 +259,13 @@ export class Fr041Component implements OnInit {
 
   toggleSelection(item: Scope11StationaryItem, checked: boolean) {
     if (!item?.rowId) return;
+    const next = new Set(this.selectedRowIds);
     if (checked) {
-      this.selectedRowIds.add(item.rowId);
+      next.add(item.rowId);
     } else {
-      this.selectedRowIds.delete(item.rowId);
+      next.delete(item.rowId);
     }
+    this.selectedRowIds = next;
     void this.saveFr041Config();
   }
 
@@ -277,30 +278,42 @@ export class Fr041Component implements OnInit {
     return this.scope11Items.filter(item => this.selectedRowIds.has(item.rowId));
   }
 
-  get splitRows() {
+  get selectedSummaryRows() {
     const allowed: FuelBlendKey[] = ['B7', 'B10', '91/95', 'E20'];
-    return this.selectedItems
-      .filter(item => String(item.unit || '').toLowerCase() === 'l')
-      .map(item => {
-        const fuelKey = String(item.fuelKey || '').toUpperCase() as FuelBlendKey;
-        if (!allowed.includes(fuelKey)) return null;
-        const totalL = this.sumMonths(item.months);
-        if (totalL === null) return null;
-        const blend = computeBlendFromAnnualL(totalL, fuelKey);
-        return {
-          itemLabel: item.itemLabel,
-          fuelKey,
-          unit: item.unit,
-          total: totalL,
-          dieselL: blend.dieselL,
-          biodieselL: blend.biodieselL,
-          biodieselKg: blend.biodieselKg,
-          gasolineL: blend.gasolineL,
-          ethanolL: blend.ethanolL,
-          ethanolKg: blend.ethanolKg,
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    return this.selectedItems.map(item => {
+      const fuelKeyRaw = String(item.fuelKey || '').toUpperCase();
+      const fuelKey = fuelKeyRaw || '-';
+      const unit = item.unit || '-';
+      const total = this.resolveTotal(item);
+      const row = {
+        itemLabel: item.itemLabel || item.rowId,
+        fuelKey,
+        otherType: item.otherType,
+        evidence: item.evidence || '-',
+        unit,
+        total,
+        dieselL: null as number | null,
+        biodieselL: null as number | null,
+        biodieselKg: null as number | null,
+        gasolineL: null as number | null,
+        ethanolL: null as number | null,
+        ethanolKg: null as number | null,
+      };
+
+      if (String(unit).toLowerCase() !== 'l' || total === null) return row;
+      if (!allowed.includes(fuelKeyRaw as FuelBlendKey)) return row;
+
+      const blend = computeBlendFromAnnualL(total, fuelKeyRaw as FuelBlendKey);
+      return {
+        ...row,
+        dieselL: blend.dieselL,
+        biodieselL: blend.biodieselL,
+        biodieselKg: blend.biodieselKg,
+        gasolineL: blend.gasolineL,
+        ethanolL: blend.ethanolL,
+        ethanolKg: blend.ethanolKg,
+      };
+    });
   }
 
   sumMonths(months: Record<string, number | null> | undefined): number | null {
@@ -315,6 +328,13 @@ export class Fr041Component implements OnInit {
       }
     }
     return hasValue ? total : null;
+  }
+
+  private resolveTotal(item: Scope11StationaryItem): number | null {
+    if (Number.isFinite(Number(item.total))) {
+      return Number(item.total);
+    }
+    return this.sumMonths(item.months);
   }
 
   formatFixed2(value: number | string | null | undefined): string {

@@ -834,12 +834,8 @@ class Scope11HiddenTableExportService
     private function findTable(Spreadsheet $spreadsheet, Worksheet $sheet, string $tableName): Table
     {
         $sheetName = $sheet->getTitle();
-        foreach ($spreadsheet->getTableCollection() as $table) {
+        foreach ($sheet->getTableCollection() as $table) {
             if (strcasecmp($table->getName(), $tableName) !== 0) {
-                continue;
-            }
-            $tableSheet = method_exists($table, 'getWorksheet') ? $table->getWorksheet() : null;
-            if ($tableSheet && $tableSheet->getTitle() !== $sheetName) {
                 continue;
             }
             return $table;

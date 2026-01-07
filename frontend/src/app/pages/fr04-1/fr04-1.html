@@ -117,53 +117,52 @@
     </div>
   </div>
 
-  <div class="section-title" *ngIf="selectedItems.length">Selected Items (Monthly)</div>
-  <div class="payload-table" *ngIf="selectedItems.length">
-    <div class="payload-header">
-      <div>รายการ</div>
-      <div>หน่วย</div>
-      <div>รวม</div>
-      <div *ngFor="let m of monthsHeader">{{ m }}</div>
-    </div>
-    <div *ngFor="let row of selectedItems" class="payload-row">
-      <div class="payload-key">{{ row.itemLabel || row.rowId }}</div>
-      <div>{{ row.unit }}</div>
-      <div class="payload-value">{{ formatFixed2(sumMonths(row.months)) }}</div>
-      <div *ngFor="let m of monthsHeader">{{ formatFixed2(row.months['M' + m]) }}</div>
-    </div>
-  </div>
-
-  <div *ngIf="splitRows.length" class="split-section">
-    <div class="section-title">Split Summary</div>
-    <button mat-stroked-button type="button" (click)="showSplitSummary = !showSplitSummary">
-      {{ showSplitSummary ? 'Hide split summary' : 'Show split summary' }}
-    </button>
-    <div class="payload-table" *ngIf="showSplitSummary">
-      <div class="payload-header split-header">
-        <div>รายการ</div>
-        <div>ชนิด</div>
-        <div>หน่วย</div>
-        <div>ปริมาณน้ำมัน</div>
-        <div>Diesel(L)</div>
-        <div>Biodiesel(L)</div>
-        <div>Biodiesel(kg)</div>
-        <div>Gasoline(L)</div>
-        <div>Ethanol(L)</div>
-        <div>Ethanol(kg)</div>
-      </div>
-      <div *ngFor="let row of splitRows" class="payload-row split-row">
-        <div class="payload-key">{{ row.itemLabel || '-' }}</div>
-        <div>{{ row.fuelKey }}</div>
-        <div>{{ row.unit }}</div>
-        <div class="payload-value">{{ formatFixed2(row.total) }}</div>
-        <div>{{ formatFixed2(row.dieselL) }}</div>
-        <div>{{ formatFixed2(row.biodieselL) }}</div>
-        <div>{{ formatFixed2(row.biodieselKg) }}</div>
-        <div>{{ formatFixed2(row.gasolineL) }}</div>
-        <div>{{ formatFixed2(row.ethanolL) }}</div>
-        <div>{{ formatFixed2(row.ethanolKg) }}</div>
-      </div>
-    </div>
+  <div class="section-title" *ngIf="selectedItems.length">Selected Items</div>
+  <div class="selected-table" *ngIf="selectedItems.length">
+    <table>
+      <thead>
+        <tr>
+          <th rowspan="2">รายการ</th>
+          <th rowspan="2">ชนิด</th>
+          <th rowspan="2">หลักฐาน</th>
+          <th rowspan="2">หน่วย</th>
+          <th rowspan="2" class="num">ปริมาณน้ำมัน</th>
+          <th colspan="1">Diesel (Stationary combustion)</th>
+          <th colspan="2">Biodiesel (Stationary combustion)</th>
+          <th colspan="1">Gasoline (Stationary combustion)</th>
+          <th colspan="2">Ethanol (Stationary combustion)</th>
+        </tr>
+        <tr>
+          <th>L</th>
+          <th>L</th>
+          <th>kg</th>
+          <th>L</th>
+          <th>L</th>
+          <th>kg</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of selectedSummaryRows">
+          <td class="payload-key">{{ row.itemLabel || '-' }}</td>
+          <td>
+            <span>{{ row.fuelKey }}</span>
+            <span *ngIf="row.otherType"> (Other: {{ row.otherType }})</span>
+          </td>
+          <td class="truncate">{{ row.evidence }}</td>
+          <td>{{ row.unit }}</td>
+          <td class="num">{{ formatFixed2(row.total) }}</td>
+          <td class="num">{{ formatFixed2(row.dieselL) }}</td>
+          <td class="num">{{ formatFixed2(row.biodieselL) }}</td>
+          <td class="num">{{ formatFixed2(row.biodieselKg) }}</td>
+          <td class="num">{{ formatFixed2(row.gasolineL) }}</td>
+          <td class="num">{{ formatFixed2(row.ethanolL) }}</td>
+          <td class="num">{{ formatFixed2(row.ethanolKg) }}</td>
+        </tr>
+        <tr class="empty" *ngIf="!selectedSummaryRows.length">
+          <td colspan="11">ยังไม่ได้เลือกรายการ (ติ๊ก Include ด้านบน)</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="hint">
