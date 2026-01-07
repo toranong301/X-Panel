@@ -37,6 +37,17 @@ if (!$wsSel) {
     $wsSel->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
 }
 
+// Ensure EF mapping sheet (hidden)
+$efMapSheetName = '_EF_AR5_MAP';
+$wsEf = $spreadsheet->getSheetByName($efMapSheetName);
+if (!$wsEf) {
+    $wsEf = new Worksheet($spreadsheet, $efMapSheetName);
+    $wsEf->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+    $spreadsheet->addSheet($wsEf);
+} else {
+    $wsEf->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+}
+
 // Build table headers
 $headers = [
     'RowId',
@@ -105,6 +116,44 @@ if (!$selTable) {
     $selTable->setRange($selRange);
 }
 
+// Build EF map table (fuelKey -> EF AR5)
+$efHeaders = ['FuelKey', 'CO2', 'FossilCH4', 'CH4', 'N2O'];
+foreach ($efHeaders as $idx => $label) {
+    $col = Coordinate::stringFromColumnIndex($idx + 1);
+    $wsEf->setCellValue($col . '1', $label);
+}
+
+// Map keys to EF TGO AR5 rows (based on MBAX demo layout)
+$efRows = [
+    2 => ['B7', 'EF TGO AR5', 'D11', 'E11', 'F11', 'G11'],
+    3 => ['B10', 'EF TGO AR5', 'D11', 'E11', 'F11', 'G11'],
+    4 => ['91/95', 'EF TGO AR5', 'D17', 'E17', 'F17', 'G17'],
+    5 => ['E20', 'EF TGO AR5', 'D17', 'E17', 'F17', 'G17'],
+];
+
+foreach ($efRows as $row => $def) {
+    [$key, $sheetName, $co2Cell, $fossilCell, $ch4Cell, $n2oCell] = $def;
+    $wsEf->setCellValue('A' . $row, $key);
+    $wsEf->setCellValue('B' . $row, "='{$sheetName}'!{$co2Cell}");
+    $wsEf->setCellValue('C' . $row, "='{$sheetName}'!{$fossilCell}");
+    $wsEf->setCellValue('D' . $row, "='{$sheetName}'!{$ch4Cell}");
+    $wsEf->setCellValue('E' . $row, "='{$sheetName}'!{$n2oCell}");
+}
+
+$efRange = 'A1:E50';
+$efTable = null;
+foreach ($wsEf->getTableCollection() as $table) {
+    if (strcasecmp($table->getName(), 'tblEfAr5') === 0) {
+        $efTable = $table;
+        break;
+    }
+}
+if (!$efTable) {
+    $wsEf->addTable(new Table($efRange, 'tblEfAr5'));
+} else {
+    $efTable->setRange($efRange);
+}
+
 // Update FR-04.1 formulas for Scope 1 Stationary (rows 11-24)
 $wsFr = $spreadsheet->getSheetByName('Fr-04.1');
 if ($wsFr) {
@@ -119,7 +168,12 @@ if ($wsFr) {
 
         $wsFr->setCellValue('B' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblScope11Stationary[RowId],tblScope11Stationary[ItemLabel],""))');
         $wsFr->setCellValue('C' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblScope11Stationary[RowId],tblScope11Stationary[Unit],""))');
-        $wsFr->setCellValue('D' . $row, '=IF($' . $helperCol . $row . '="","",SUM(INDEX(tblScope11Stationary[[M1]:[M12]],MATCH($' . $helperCol . $row . ',tblScope11Stationary[RowId],0),0)))');
+        $totalFormula = 'SUM(INDEX(tblScope11Stationary[[M1]:[M12]],MATCH($' . $helperCol . $row . ',tblScope11Stationary[RowId],0),0))';
+        $wsFr->setCellValue('D' . $row, '=IF($' . $helperCol . $row . '="","",IF($' . $helperCol . $row . '="B7",' . $totalFormula . '*0.93,IF($' . $helperCol . $row . '="B10",' . $totalFormula . '*0.90,IF($' . $helperCol . $row . '="91/95",' . $totalFormula . '*0.90,IF($' . $helperCol . $row . '="E20",' . $totalFormula . '*0.80,' . $totalFormula . ')))))');
+        $wsFr->setCellValue('E' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblEfAr5[FuelKey],tblEfAr5[CO2],""))');
+        $wsFr->setCellValue('F' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblEfAr5[FuelKey],tblEfAr5[FossilCH4],""))');
+        $wsFr->setCellValue('G' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblEfAr5[FuelKey],tblEfAr5[CH4],""))');
+        $wsFr->setCellValue('H' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblEfAr5[FuelKey],tblEfAr5[N2O],""))');
     }
 }
 
@@ -156,6 +210,8 @@ if ($wsScope11) {
 }
 
 $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-$writer->save($path);
+$tmpPath = $path . '.tmp';
+$writer->save($tmpPath);
+@rename($tmpPath, $path);
 
 echo "Updated template: {$path}\n";

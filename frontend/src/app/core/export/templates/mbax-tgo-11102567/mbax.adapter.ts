@@ -9,6 +9,7 @@ import {
   getFixedBlocks,
 } from '../../../vsheet/vsheet.schema';
 import { ExportContext, TemplateAdapter } from '../../engine/excel-export.engine';
+import { Fr041SelRow } from '../../../services/canonical-ghg.service';
 
 /**
  * Company-specific adapter for MBAX v-sheet (MBAX-TGO-11102567 demo).
@@ -38,6 +39,7 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
     this.writeScope11Stationary(ctx);
     this.writeScope12Mobile(ctx);
+    this.writeFr041SelectionTable(ctx);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
     this.writeScope144Fertilizer(ctx);
@@ -578,6 +580,60 @@ const screenRow =
     }
     return String(value).trim();
   }
+
+  private writeFr041SelectionTable(ctx: ExportContext): void {
+    const ws = ctx.workbook.getWorksheet('_FR041_SEL');
+    if (!ws) return;
+
+    const tableName = 'T_FR041_SEL';
+    const table = typeof ws.getTable === 'function' ? ws.getTable(tableName) : (ws as any)?.tables?.[tableName];
+    if (!table) {
+      throw new Error(`Missing table: ${tableName}`);
+    }
+
+    const rawRows =
+      (ctx.canonical as any)?.fr041Selection ??
+      ctx.selections?.['fr041Selection'] ??
+      ctx.selections?.['fr041Selections'] ??
+      [];
+    const inputRows: any[] = Array.isArray(rawRows) ? rawRows : [];
+    const startRowNo = 11;
+
+    const normalized: Fr041SelRow[] = inputRows
+      .map((r, idx) => {
+        if (!r || typeof r !== 'object') return null;
+        const rowNoRaw = Number((r as any).rowNo);
+        const rowNo = Number.isFinite(rowNoRaw) ? rowNoRaw : startRowNo + idx;
+        return {
+          rowNo,
+          itemId: String((r as any).itemId ?? (r as any).rowId ?? (r as any).id ?? ''),
+          itemName: String((r as any).itemName ?? (r as any).itemLabel ?? (r as any).label ?? ''),
+          fuelKey: String((r as any).fuelKey ?? (r as any).fuelType ?? ''),
+          evidence: String((r as any).evidence ?? (r as any).dataEvidence ?? ''),
+          unit: String((r as any).unit ?? ''),
+          qty: this.parseNumberOrNull((r as any).qty ?? (r as any).total ?? (r as any).quantity),
+          efId: String((r as any).efId ?? ''),
+        };
+      })
+      .filter((r): r is Fr041SelRow => Boolean(r));
+
+    if (typeof table.removeRows === 'function' && table.rowCount > 0) {
+      table.removeRows(0, table.rowCount);
+    }
+
+    if (!normalized.length) return;
+
+    const columns = ['rowNo', 'itemId', 'itemName', 'fuelKey', 'evidence', 'unit', 'qty', 'efId'] as const;
+    const values = normalized.map(row => columns.map(col => (row as any)[col] ?? null));
+
+    if (typeof table.addRows === 'function') {
+      table.addRows(values);
+      return;
+    }
+
+    throw new Error(`Table API addRows not available for ${tableName}`);
+  }
+
   private writeScope11Stationary(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string }> {
     const totals: Record<string, { sheetName: string; totalCell: string }> = {};
     const sheetName = ctx.spec.sheets['scope11']?.name;
