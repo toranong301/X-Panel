@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-$path = $argv[1] ?? (__DIR__ . '/../shared/templates/mbax/VSheetCFO_BASE.xlsx');
+$path = $argv[1] ?? (__DIR__ . '/../backend/storage/app/templates/mbax/VSheetCFO_BASE.xlsx');
 if (!is_file($path)) {
     fwrite(STDERR, "Missing template: {$path}\n");
     exit(1);
@@ -120,6 +120,38 @@ if ($wsFr) {
         $wsFr->setCellValue('B' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblScope11Stationary[RowId],tblScope11Stationary[ItemLabel],""))');
         $wsFr->setCellValue('C' . $row, '=IF($' . $helperCol . $row . '="","",XLOOKUP($' . $helperCol . $row . ',tblScope11Stationary[RowId],tblScope11Stationary[Unit],""))');
         $wsFr->setCellValue('D' . $row, '=IF($' . $helperCol . $row . '="","",SUM(INDEX(tblScope11Stationary[[M1]:[M12]],MATCH($' . $helperCol . $row . ',tblScope11Stationary[RowId],0),0)))');
+    }
+}
+
+// Ensure 1.1 Stationary pulls values from hidden table (no legacy values)
+$wsScope11 = $spreadsheet->getSheetByName('1.1 Stationary ');
+if ($wsScope11) {
+    $rowIds = [
+        9 => 'DIESEL_B7_STATIONARY',
+        10 => 'GASOHOL_9195_STATIONARY',
+        12 => 'ACETYLENE_TANK5_MAINT_2',
+        14 => 'ACETYLENE_TANK5_MAINT_3',
+    ];
+    $monthCols = ['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
+    $monthKeys = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12'];
+
+    foreach ($rowIds as $row => $rowId) {
+        $wsScope11->setCellValue(
+            'B' . $row,
+            "=IFERROR(XLOOKUP(\"{$rowId}\",tblScope11Stationary[RowId],tblScope11Stationary[Evidence],\"\"),\"\")"
+        );
+        $wsScope11->setCellValue(
+            'C' . $row,
+            "=IFERROR(XLOOKUP(\"{$rowId}\",tblScope11Stationary[RowId],tblScope11Stationary[Unit],\"\"),\"\")"
+        );
+
+        foreach ($monthCols as $idx => $col) {
+            $monthKey = $monthKeys[$idx];
+            $wsScope11->setCellValue(
+                $col . $row,
+                "=IFERROR(XLOOKUP(\"{$rowId}\",tblScope11Stationary[RowId],tblScope11Stationary[{$monthKey}],\"\"),\"\")"
+            );
+        }
     }
 }
 

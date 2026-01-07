@@ -3,4 +3,6 @@
 !public/
 !templates/
 !templates/VSheetCFO_BASE.xlsx
+!templates/mbax/
+!templates/mbax/VSheetCFO_BASE.xlsx
 !.gitignore

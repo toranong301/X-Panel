@@ -156,16 +156,24 @@ class CycleController extends Controller
         try {
             $cycle->refresh();
             $payload = $request->validate([
-                'sheetId' => ['required', 'string', 'max:200'],
+                'sheetId' => ['nullable', 'string', 'max:200'],
                 'templateKey' => ['nullable', 'string', 'max:200'],
             ]);
 
-            $rawSheetId = trim((string) ($payload['sheetId'] ?? ''));
+            $rawSheetId = trim((string) (
+                $request->query('sheetKey')
+                ?? $request->input('sheetKey')
+                ?? ($payload['sheetId'] ?? null)
+                ?? $request->query('sheetId')
+                ?? $request->input('sheetId')
+                ?? 'fr041'
+            ));
             if ($rawSheetId === '') {
-                return response()->json([
-                    'code' => 'INVALID_SHEET_ID',
-                    'message' => 'sheetId is required.',
-                ], 422);
+                $rawSheetId = 'fr041';
+            }
+            $sheetKey = strtolower($rawSheetId);
+            if ($sheetKey === 'fr-04.1') {
+                $sheetKey = 'fr041';
             }
 
             $profileId = isset($cycle->template_id) && is_string($cycle->template_id) && trim($cycle->template_id) !== ''
@@ -199,14 +207,32 @@ class CycleController extends Controller
                 'fr041' => ['sheetId' => 'FR041', 'sheetName' => 'Fr-04.1'],
                 'scope11_stationary' => ['sheetId' => 'SCOPE11_STATIONARY', 'sheetName' => '1.1 Stationary '],
             ];
-            $sheetKey = strtolower($rawSheetId);
             $normalizedSheetId = $sheetIdMap[$sheetKey]['sheetId'] ?? $sheetRegistry->normalizeSheetId($rawSheetId);
+            $requiredSheets = $this->resolveRequiredSheets($profile['requiredSheets'] ?? [], $sheetKey);
+            $requiredTables = $this->resolveRequiredTables($profile['hiddenTables'] ?? [], $sheetKey);
             $allowedSheetIds = $sheetRegistry->listSheetIds($templateId);
+            $workbookSheetNames = [];
+            if (!$allowedSheetIds) {
+                try {
+                    $pathForAllowed = $this->resolveTemplateBasePath($templateId, $registry);
+                    $previewSheetNames = $this->defaultPreviewSheets();
+                    $requiredForAllowed = array_unique(array_merge($previewSheetNames, $requiredSheets ?? []));
+                    $probe = $this->loadSpreadsheet($pathForAllowed, $requiredForAllowed);
+                    $workbookSheetNames = $probe->getSheetNames();
+                    $allowedSheetIds = array_values(array_unique(array_map(
+                        fn ($name) => $sheetRegistry->normalizeSheetId($name),
+                        $workbookSheetNames
+                    )));
+                } catch (\Throwable $e) {
+                    $workbookSheetNames = [];
+                }
+            }
             if (!in_array($normalizedSheetId, $allowedSheetIds, true)) {
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => 'Invalid sheetId.',
                     'allowed' => $allowedSheetIds,
+                    'workbookSheets' => $workbookSheetNames,
                 ], 422);
             }
 
@@ -255,9 +281,6 @@ class CycleController extends Controller
                 ]);
             }
 
-            $requiredSheets = $this->resolveRequiredSheets($profile['requiredSheets'] ?? [], $sheetKey);
-            $requiredTables = $this->resolveRequiredTables($profile['hiddenTables'] ?? [], $sheetKey);
-
             try {
                 $resolvedPath = $this->resolveTemplateBasePath($templateId, $registry);
                 $loadSheetsOnly = array_merge($this->defaultPreviewSheets(), $requiredSheets);
@@ -291,6 +314,14 @@ class CycleController extends Controller
                     'sheetNames' => array_map(fn ($s) => $s->getTitle(), $spreadsheet->getAllSheets()),
                     'loadSheetsOnly' => $loadSheetsOnly ?? [],
                 ]);
+            }
+
+            if (!$spreadsheet->getSheetByName($sheet)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => "Sheet not found: {$sheet}",
+                    'availableSheets' => $spreadsheet->getSheetNames(),
+                ], 422);
             }
             $mbax->applyData(
                 $spreadsheet,

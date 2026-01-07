@@ -21,6 +21,8 @@
 /vendor
 !/storage/app/templates/
 !/storage/app/templates/VSheetCFO_BASE.xlsx
+!/storage/app/templates/mbax/
+!/storage/app/templates/mbax/VSheetCFO_BASE.xlsx
 Homestead.json
 Homestead.yaml
 Thumbs.db

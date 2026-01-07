@@ -78,7 +78,17 @@
       "label": "V-Sheet CFO",
       "path": {
         "env": "CFO_TEMPLATE_PATH",
-        "fallback": "storage/app/templates/VSheetCFO_BASE.xlsx"
+        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx"
+      },
+      "sheets": {
+        "SCOPE11_STATIONARY": {
+          "name": "1.1 Stationary ",
+          "previewRange": "A1:P60"
+        },
+        "FR041": {
+          "name": "Fr-04.1",
+          "previewRange": "A1:AO70"
+        }
       },
       "mappings": {
         "cfoSheets": []
