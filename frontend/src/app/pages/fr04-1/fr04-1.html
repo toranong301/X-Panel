@@ -156,7 +156,7 @@
                 (ngModelChange)="onEfChangeByRowId(row.itemId, $event)"
               >
                 <mat-option value="">-- เลือก EF --</mat-option>
-                <mat-option *ngFor="let ef of efOptions" [value]="ef.efId">
+                <mat-option *ngFor="let ef of (efOptions || [])" [value]="ef.efId">
                   {{ ef.efId }} — {{ ef.Name }} ({{ ef.Unit }})
                 </mat-option>
               </mat-select>

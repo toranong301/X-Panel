@@ -433,7 +433,8 @@ export class Fr041Component implements OnInit {
 
   async loadEfOptions() {
     try {
-      this.efOptions = await this.cycleApi.getEfAr5Options(this.templateKey, 'stationary');
+      const options = await this.cycleApi.getEfAr5Options(this.templateKey, 'stationary');
+      this.efOptions = Array.isArray(options) ? options : [];
     } catch (error: any) {
       console.error('Load EF options failed', error);
       this.efOptions = [];
