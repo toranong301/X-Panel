@@ -49,8 +49,14 @@ class ExportController extends Controller
                 $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
             }
             $mbax->applyData($spreadsheet, $cycle->data_json ?? [], $cycle->attachments()->get()->all(), null, null, $templateId);
-            $selection = $this->loadFr041SelectionRowIds($cycle->id);
-            $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+            $data = $cycle->data_json ?? [];
+            $selectionRows = $this->loadFr041SelectionRowsFromData($data);
+            if ($selectionRows) {
+                $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
+            } else {
+                $selection = $this->loadFr041SelectionRowIds($cycle->id);
+                $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+            }
 
             $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $tmpFile = tempnam(sys_get_temp_dir(), 'xpanel_export_');
@@ -190,6 +196,12 @@ class ExportController extends Controller
             ->first();
 
         $rows = $config?->selected_row_ids ?? [];
+        return is_array($rows) ? $rows : [];
+    }
+
+    private function loadFr041SelectionRowsFromData(array $data): array
+    {
+        $rows = $data['fr041Selection'] ?? $data['fr041Selections'] ?? null;
         return is_array($rows) ? $rows : [];
     }
 }

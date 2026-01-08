@@ -13,6 +13,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { CycleApiService } from '../../core/services/cycle-api.service';
 import { Scope3SummaryService } from '../../core/services/scope3-summary.service';
 import { Scope3ItemRow } from '../../models/scope3-summary.model';
 
@@ -45,6 +46,7 @@ export class Fr032Component implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
+  private cycleApi = inject(CycleApiService);
   private scope3Svc = inject(Scope3SummaryService);
   private fr032Svc = inject(Fr032Service);
 
@@ -264,7 +266,7 @@ export class Fr032Component implements OnInit {
   // =========================
   // Save
   // =========================
-  saveDraft() {
+  async saveDraft() {
     const map: Fr032SavedMap = {};
 
     for (const r of this.rows) {
@@ -282,6 +284,16 @@ export class Fr032Component implements OnInit {
     }
 
     this.fr032Svc.save(this.cycleId, map);
+    try {
+      const selections = this.buildSelectionsForApi();
+      await Promise.all(
+        Array.from(selections.entries()).map(([sectionId, rows]) =>
+          this.cycleApi.saveFr032Selection(this.cycleId, sectionId, rows)
+        )
+      );
+    } catch (error) {
+      console.warn('Save FR-03.2 selection failed', error);
+    }
     alert('Saved FR-03.2 (local)');
   }
 
@@ -300,6 +312,22 @@ export class Fr032Component implements OnInit {
 
   private round2(n: number) {
     return Math.round((n + Number.EPSILON) * 100) / 100;
+  }
+
+  private buildSelectionsForApi() {
+    const map = new Map<string, { itemId?: string; itemName?: string; include: boolean }[]>();
+    for (const r of this.rows) {
+      if (r.type !== 'eval' || r.isCategoryRow) continue;
+      const sectionId = String(r.tgoNo || '').trim();
+      if (!sectionId) continue;
+      const include = r.selection === 'เลือกประเมิน';
+      const itemName = String(r.category || '').trim();
+      if (!itemName) continue;
+      const list = map.get(sectionId) ?? [];
+      list.push({ itemName, include });
+      map.set(sectionId, list);
+    }
+    return map;
   }
 
   isGroup = (_: number, row: Fr032ScreenRow) => row.type === 'group';

@@ -3,10 +3,15 @@
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\EfCatalogController;
 use App\Http\Controllers\Api\EfAr5Controller;
 use App\Http\Controllers\Api\Fr041ConfigController;
+use App\Http\Controllers\Api\Fr041SourcesController;
+use App\Http\Controllers\Api\Fr041SelectionController;
+use App\Http\Controllers\Api\Fr032SelectionController;
 use App\Http\Controllers\Api\Scope11ExportController;
 use App\Http\Controllers\Api\Scope11StationaryController;
+use App\Http\Controllers\Api\Scope3Controller;
 use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\Api\TemplateSetController;
 use Illuminate\Support\Facades\Route;
@@ -29,9 +34,16 @@ $publicCycleRoutes = function () {
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/template-sets', [TemplateSetController::class, 'index']);
     Route::get('/cycles/{cycle}/scope11/stationary/items', [Scope11StationaryController::class, 'items']);
+    Route::get('/cycles/{cycle}/scope3/summary', [Scope3Controller::class, 'summary']);
+    Route::get('/cycles/{cycle}/scope3/{sectionId}/items', [Scope3Controller::class, 'items']);
+    Route::get('/cycles/{cycle}/fr041/sources', [Fr041SourcesController::class, 'index']);
     Route::get('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'show']);
     Route::put('/cycles/{cycle}/fr041/config', [Fr041ConfigController::class, 'update']);
+    Route::post('/cycles/{cycle}/fr041/selection', [Fr041SelectionController::class, 'store']);
+    Route::get('/cycles/{cycle}/fr032/selection', [Fr032SelectionController::class, 'show']);
+    Route::post('/cycles/{cycle}/fr032/selection', [Fr032SelectionController::class, 'store']);
     Route::get('/ef/ar5', [EfAr5Controller::class, 'index']);
+    Route::get('/ef/catalog', [EfCatalogController::class, 'index']);
 };
 
 $publicScope11ExportRoutes = function () {

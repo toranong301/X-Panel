@@ -78,12 +78,16 @@
     </mat-form-field>
   </div>
 
-  <div class="section-title">Scope 1 → Stationary combustion (จาก 1.1 Stationary)</div>
-  <div class="hint">เลือกเฉพาะรายการที่ต้องการแสดงบน FR-04.1 (ใช้ข้อมูลที่บันทึกไว้จาก UI)</div>
+  <div class="section-title">รายการให้เลือก (จากทุกขอบเขตที่มีข้อมูล)</div>
+  <div class="hint">ติ๊กเลือกเฉพาะรายการที่ต้องการแสดงบน FR-04.1</div>
 
   <div class="loading-row" *ngIf="scope11Loading">
     <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
     <span>กำลังโหลดรายการ...</span>
+  </div>
+
+  <div class="error" *ngIf="!scope11Loading && scope11LoadError">
+    โหลดรายการไม่สำเร็จ: {{ scope11LoadError }}
   </div>
 
   <div class="items-table" *ngIf="!scope11Loading">
@@ -93,9 +97,9 @@
       <div>หน่วย</div>
       <div>รวม</div>
       <div>หลักฐาน</div>
-      <div>ชนิดเชื้อเพลิง</div>
+      <div>Scope/Section</div>
     </div>
-    <div class="items-row" *ngFor="let item of scope11Items">
+    <div class="items-row" *ngFor="let item of availableItems">
       <div>
         <mat-checkbox
           [checked]="isSelected(item)"
@@ -108,12 +112,12 @@
       <div class="num">{{ formatFixed2(item.total ?? sumMonths(item.months)) }}</div>
       <div class="truncate">{{ item.evidence || '-' }}</div>
       <div class="truncate">
-        <span>{{ item.fuelKey || '-' }}</span>
-        <span *ngIf="item.otherType"> (Other: {{ item.otherType }})</span>
+        <span>Scope {{ (item.sectionId || '').split('.')[0] || '-' }}</span>
+        <span *ngIf="item.sectionId"> / {{ item.sectionId }}</span>
       </div>
     </div>
-    <div class="empty" *ngIf="!scope11Items.length">
-      ยังไม่มีรายการจาก Scope 1.1 Stationary
+    <div class="empty" *ngIf="!availableItems.length">
+      ยังไม่มีรายการให้เลือก
     </div>
   </div>
 

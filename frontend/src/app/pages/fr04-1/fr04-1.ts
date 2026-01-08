@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
@@ -13,11 +13,13 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { CanonicalGhgService } from '../../core/services/canonical-ghg.service';
+import { CanonicalGhgService, SplitSummaryRow } from '../../core/services/canonical-ghg.service';
 import {
   CycleApiService,
   EfAr5Option,
+  EfCatalogOption,
   Fr041Config,
+  Fr041Source,
   Scope11StationaryItem,
   TemplateInfo,
   TemplateProfile,
@@ -26,12 +28,16 @@ import {
 import { CycleStateService } from '../../core/services/cycle-state.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
-import { Fr01Data } from '../../models/fr01.model';
 import { SHEET_REGISTRY } from '../../core/sheet.registry';
-import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 import { computeBlendFromAnnualL, FuelBlendKey } from '../../core/sheets/fuel-blend.registry';
-import { SplitSummaryRow } from '../../core/services/canonical-ghg.service';
+import { Fr01Data } from '../../models/fr01.model';
+import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 
+type Fr041AvailableItem = Scope11StationaryItem & {
+   sectionId?: string;
+   sectionTitle?: string;
+   scope?: string;
+ };
 @Component({
   selector: 'app-fr04-1',
   standalone: true,
@@ -77,8 +83,14 @@ export class Fr041Component implements OnInit {
   templateSetId = 'vsheet_base';
   templateSetLoading = false;
 
+  sources: Fr041Source[] = [];
+  sourcesLoading = false;
+
+  availableItems: Fr041AvailableItem[] = [];
+
   scope11Items: Scope11StationaryItem[] = [];
   scope11Loading = false;
+  scope11LoadError: string | null = null;
   scope11SplitEnabled = false;
   scope11PeriodYear: number | null = null;
   scope11HeaderMonths: Record<string, number | null> | null = null;
@@ -107,6 +119,8 @@ export class Fr041Component implements OnInit {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
     this.cycleId = await this.cycleState.resolveCycleId(routeId);
     await this.loadTemplateState();
+    await this.loadSources();
+    await this.loadEfOptions();
     await this.loadFr041Data();
     this.reloadPreview();
   }
@@ -118,7 +132,6 @@ export class Fr041Component implements OnInit {
       this.templateId = String(cycle?.template_id || 'mbax');
       this.templateKey = this.templateId;
       this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
-      await this.loadEfOptions();
     } catch (error: any) {
       console.error('Load template state failed', error);
       this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
@@ -149,24 +162,101 @@ export class Fr041Component implements OnInit {
     }
   }
 
+  private async loadSources() {
+    if (!this.cycleId) return;
+    this.sourcesLoading = true;
+    try {
+      this.sources = await this.cycleApi.getFr041Sources(this.cycleId);
+    } catch (error: any) {
+      console.error('Load FR-04.1 sources failed', error);
+      this.sources = [];
+    } finally {
+      this.sourcesLoading = false;
+    }
+  }
+
   private async loadFr041Data() {
     this.scope11Loading = true;
+    this.scope11LoadError = null;
     try {
-      const [config, itemsResp] = await Promise.all([
-        this.cycleApi.getFr041Config(this.cycleId),
-        this.cycleApi.getScope11StationaryItems(this.cycleId),
-      ]);
+      const endpoints = (this.sources || []).filter(src => !!src.endpoint);
+      if (!endpoints.length) {
+        this.availableItems = [];
+        this.scope11Items = [];
+        this.scope11SplitEnabled = false;
+        this.scope11PeriodYear = null;
+        this.scope11HeaderMonths = null;
+        return;
+      }
 
-      this.scope11Items = itemsResp?.items ?? [];
-      this.scope11SplitEnabled = Boolean(itemsResp?.splitEnabled);
-      this.scope11PeriodYear = itemsResp?.periodYear ?? null;
-      this.scope11HeaderMonths = itemsResp?.headerMonths ?? null;
+      const configResult = await this.cycleApi.getFr041Config(this.cycleId).catch(error => {
+        console.error('Load FR-04.1 config failed', error);
+        return null;
+      });
 
-      this.applySelectionConfig(config, this.scope11Items);
+      const itemResults = await Promise.all(endpoints.map(async source => {
+        try {
+          const resp = await this.cycleApi.getFr041SourceItems(source.endpoint);
+          return { source, resp };
+        } catch (error: any) {
+          console.error('Load source items failed', source, error);
+          return { source, resp: null, error };
+        }
+      }));
+
+      const merged: Fr041AvailableItem[] = [];
+      let scope11Resp: any = null;
+      let hasItemError = false;
+
+      for (const result of itemResults) {
+        if (!result?.resp?.items) {
+          hasItemError = true;
+          continue;
+        }
+        if (result.source?.sectionId === '1.1') {
+          scope11Resp = result.resp;
+        }
+        for (const it of result.resp.items) {
+          merged.push({
+            ...it,
+            sectionId: result.source?.sectionId,
+            sectionTitle: result.source?.sectionTitle,
+            scope: result.source?.scope,
+          } as any);
+        }
+      }
+
+        if (hasItemError) {
+          const msg = 'โหลดรายการบางรายการไม่สำเร็จ';
+          this.scope11LoadError = msg;
+          this.snackBar.open(msg, 'ปิด', { duration: 6000 });
+        }
+
+        if (!merged.length && scope11Resp?.items?.length) {
+          const fallbackSource = this.sources.find(src => src.sectionId === '1.1');
+          for (const it of scope11Resp.items) {
+            merged.push({
+              ...it,
+              sectionId: fallbackSource?.sectionId ?? '1.1',
+              sectionTitle: fallbackSource?.sectionTitle ?? '1.1 Stationary combustion',
+              scope: fallbackSource?.scope ?? 'stationary',
+            } as any);
+          }
+        }
+
+        this.availableItems = merged;
+      this.scope11Items = scope11Resp?.items ?? [];
+      this.scope11SplitEnabled = Boolean(scope11Resp?.splitEnabled);
+      this.scope11PeriodYear = scope11Resp?.periodYear ?? null;
+      this.scope11HeaderMonths = scope11Resp?.headerMonths ?? null;
+
+      this.applySelectionConfig(configResult, this.availableItems);
       this.syncFr041SelectionLocal();
     } catch (error: any) {
       console.error('Load FR-04.1 data failed', error);
-      this.snackBar.open(error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ', 'ปิด', { duration: 6000 });
+      const msg = error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ';
+      this.scope11LoadError = msg;
+      this.snackBar.open(msg, 'ปิด', { duration: 6000 });
     } finally {
       this.scope11Loading = false;
     }
@@ -264,7 +354,7 @@ export class Fr041Component implements OnInit {
     await this.saveFr041Config();
   }
 
-  toggleSelection(item: Scope11StationaryItem, checked: boolean) {
+  toggleSelection(item: Fr041AvailableItem, checked: boolean) {
     if (!item?.rowId) return;
     const next = new Set(this.selectedRowIds);
     if (checked) {
@@ -282,13 +372,13 @@ export class Fr041Component implements OnInit {
     void this.saveFr041Config();
   }
 
-  isSelected(item: Scope11StationaryItem): boolean {
+  isSelected(item: Fr041AvailableItem): boolean {
     return Boolean(item?.rowId && this.selectedRowIds.has(item.rowId));
   }
 
-  get selectedItems(): Scope11StationaryItem[] {
-    if (!this.scope11Items.length) return [];
-    return this.scope11Items.filter(item => this.selectedRowIds.has(item.rowId));
+  get selectedItems(): Fr041AvailableItem[] {
+    if (!this.availableItems.length) return [];
+    return this.availableItems.filter(item => this.selectedRowIds.has(item.rowId));
   }
 
   get selectedSummaryRows() {
@@ -382,7 +472,7 @@ export class Fr041Component implements OnInit {
     return style || 'default';
   }
 
-  private applySelectionConfig(config: Fr041Config | null, items: Scope11StationaryItem[]) {
+  private applySelectionConfig(config: Fr041Config | null, items: Fr041AvailableItem[]) {
     const rowIds = new Set(items.map(item => item.rowId));
     const selected = (config?.selectedRowIds ?? []).filter(rowId => rowIds.has(rowId));
     this.selectedRowIds = new Set(selected);
@@ -433,8 +523,13 @@ export class Fr041Component implements OnInit {
 
   async loadEfOptions() {
     try {
-      const options = await this.cycleApi.getEfAr5Options(this.templateKey, 'stationary');
-      this.efOptions = Array.isArray(options) ? options : [];
+      const ar5 = await this.cycleApi.getEfCatalog(this.templateKey, 'AR5', 'stationary');
+      if (Array.isArray(ar5) && ar5.length) {
+        this.efOptions = ar5 as EfCatalogOption[];
+        return;
+      }
+      const other = await this.cycleApi.getEfCatalog(this.templateKey, 'OTHER', 'stationary');
+      this.efOptions = Array.isArray(other) ? other : [];
     } catch (error: any) {
       console.error('Load EF options failed', error);
       this.efOptions = [];
@@ -457,6 +552,7 @@ export class Fr041Component implements OnInit {
     const key = String(fuelKey || '').trim().toUpperCase();
     if (key === 'B7' || key === 'B10') return 'SC_GAS_DIESEL_OIL_L';
     if (key === '91/95' || key === 'E20') return 'SC_MOTOR_GASOLINE_L';
+    if (key === 'LPG') return 'SC_LPG_L';
     return '';
   }
 

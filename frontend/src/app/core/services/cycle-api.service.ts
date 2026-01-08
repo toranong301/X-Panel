@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { firstValueFrom, Observable } from 'rxjs';
 
-import { ApiClient } from './api-client.service';
 import { CanonicalCycleData } from '../../models/canonical-cycle.model';
+import { ApiClient } from './api-client.service';
 
 /* =======================
  * Types
@@ -43,7 +43,13 @@ export type Scope11StationaryItem = {
   otherType?: string | null;
   months: Record<string, number | null>;
   total?: number | null;
+
+  // ✅ add these (because FR-04.1 merges them in)
+  sectionId?: string;
+  sectionTitle?: string;
+  scope?: string | null;
 };
+
 
 export type Scope11StationaryItemsResponse = {
   ok: boolean;
@@ -54,6 +60,7 @@ export type Scope11StationaryItemsResponse = {
 };
 
 export type EfAr5Option = {
+  efCatalog?: 'AR5' | 'OTHER';
   efId: string;
   Name?: string;
   Unit?: string;
@@ -69,6 +76,73 @@ export type EfAr5Option = {
 type EfAr5Response = {
   ok: boolean;
   options: EfAr5Option[];
+};
+
+export type EfCatalogOption = EfAr5Option & {
+  efCatalog?: 'AR5' | 'OTHER';
+};
+
+type EfCatalogResponse = {
+  ok: boolean;
+  catalog?: string;
+  options: EfCatalogOption[];
+};
+
+export type Fr041Source = {
+  sectionId: string;
+  sectionTitle: string;
+  sheetName: string;
+  endpoint: string;
+  scope?: string | null;
+  sourceType?: string | null;
+  itemCountIncluded?: number | null;
+};
+
+type Fr041SourcesResponse = {
+  ok: boolean;
+  sources: Fr041Source[];
+};
+
+export type Scope3SummaryCategory = {
+  sectionId: string;
+  title: string;
+  hasData: boolean;
+  itemCount: number;
+  totalQty?: number | null;
+  unitHint?: string | null;
+};
+
+type Scope3SummaryResponse = {
+  ok: boolean;
+  categories: Scope3SummaryCategory[];
+};
+
+export type Scope3ItemsResponse = {
+  ok: boolean;
+  sectionId: string;
+  items: Array<{
+    itemId: string;
+    itemName: string;
+    evidence: string;
+    unit: string;
+    qty: number | null;
+    activityKey?: string;
+  }>;
+};
+
+export type Fr032SelectionRow = {
+  itemId?: string;
+  itemName?: string;
+  include: boolean;
+  reason?: string;
+  efCatalog?: string;
+  efId?: string;
+};
+
+type Fr032SelectionResponse = {
+  ok: boolean;
+  sectionId: string;
+  selections: Fr032SelectionRow[];
 };
 
 export type Fr041Config = {
@@ -149,6 +223,20 @@ export type TemplateProfile = TemplateInfo & {
 
 @Injectable({ providedIn: 'root' })
 export class CycleApiService {
+  private normalizeApiEndpoint(endpoint: string): string {
+  const ep = String(endpoint || '').trim();
+  if (!ep) return '/api';
+
+  // already absolute api path
+  if (ep.startsWith('/api/')) return ep;
+
+  // "api/..." -> "/api/..."
+  if (ep.startsWith('api/')) return '/' + ep;
+
+  // strip leading slashes then prefix
+  return '/api/' + ep.replace(/^\/+/, '');
+}
+
   /** map กันกรณี id เดิมหาย (404) แล้วถูกสร้างใหม่ */
   private missingIdMap = new Map<number, number>();
 
@@ -200,10 +288,51 @@ export class CycleApiService {
     );
   }
 
+  async getFr041SourceItems(endpoint: string): Promise<any> {
+  const url = this.normalizeApiEndpoint(endpoint);
+
+  // ApiClient expects relative paths WITHOUT leading '/api/'
+  // so strip it to keep behavior consistent with other calls
+  const path = url.replace(/^\/api\//, '');
+
+  return firstValueFrom(this.api.get<any>(path));
+}
+
+
+  getScope3Summary(cycleId: number): Promise<Scope3SummaryCategory[]> {
+    const request = this.api.get<Scope3SummaryResponse>(`cycles/${cycleId}/scope3/summary`) as Observable<Scope3SummaryResponse>;
+    return firstValueFrom(request).then(resp => resp?.categories ?? []);
+  }
+
+  getScope3Items(cycleId: number, sectionId: string): Promise<Scope3ItemsResponse> {
+    return firstValueFrom(
+      this.api.get<Scope3ItemsResponse>(`cycles/${cycleId}/scope3/${sectionId}/items`)
+    );
+  }
+
+  getFr032Selection(cycleId: number, sectionId: string): Promise<Fr032SelectionRow[]> {
+    const request = this.api.get<Fr032SelectionResponse>(
+      `cycles/${cycleId}/fr032/selection`,
+      { params: { sectionId } }
+    ) as Observable<Fr032SelectionResponse>;
+    return firstValueFrom(request).then(resp => resp?.selections ?? []);
+  }
+
+  saveFr032Selection(cycleId: number, sectionId: string, selections: Fr032SelectionRow[]): Promise<Fr032SelectionRow[]> {
+    const payload = { sectionId, selections };
+    const request = this.api.post<Fr032SelectionResponse>(`cycles/${cycleId}/fr032/selection`, payload) as Observable<Fr032SelectionResponse>;
+    return firstValueFrom(request).then(resp => resp?.selections ?? []);
+  }
+
   getFr041Config(cycleId: number): Promise<Fr041Config> {
     return firstValueFrom(
       this.api.get<Fr041Config>(`cycles/${cycleId}/fr041/config`)
     );
+  }
+
+  getFr041Sources(cycleId: number): Promise<Fr041Source[]> {
+    const request = this.api.get<Fr041SourcesResponse>(`cycles/${cycleId}/fr041/sources`) as Observable<Fr041SourcesResponse>;
+    return firstValueFrom(request).then(resp => resp?.sources ?? []);
   }
 
   updateFr041Config(cycleId: number, payload: { selectedRowIds: string[]; options?: Record<string, any> }): Promise<Fr041Config> {
@@ -215,6 +344,12 @@ export class CycleApiService {
   getEfAr5Options(templateKey: string, section = 'stationary'): Promise<EfAr5Option[]> {
     const params = { templateKey, section };
     const request = this.api.get<EfAr5Response>('ef/ar5', { params }) as Observable<EfAr5Response>;
+    return firstValueFrom(request).then(resp => resp?.options ?? []);
+  }
+
+  getEfCatalog(templateKey: string, catalog: 'AR5' | 'OTHER', scope = 'stationary'): Promise<EfCatalogOption[]> {
+    const params = { templateKey, catalog, scope };
+    const request = this.api.get<EfCatalogResponse>('ef/catalog', { params }) as Observable<EfCatalogResponse>;
     return firstValueFrom(request).then(resp => resp?.options ?? []);
   }
 

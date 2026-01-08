@@ -334,8 +334,13 @@ class CycleController extends Controller
             if ($sheetKey === 'fr041') {
                 $payload = $this->buildScope11PayloadFromCycleData($data);
                 $scope11Export->writeToSpreadsheet($spreadsheet, $payload);
-                $selection = $this->loadFr041SelectionRowIds($cycle->id);
-                $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+                $selectionRows = $this->loadFr041SelectionRowsFromData($data);
+                if ($selectionRows) {
+                    $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
+                } else {
+                    $selection = $this->loadFr041SelectionRowIds($cycle->id);
+                    $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+                }
             }
             if ($sheetKey === 'fr041') {
                 $blocksDef = $this->normalizePreviewBlocks(
@@ -726,6 +731,12 @@ class CycleController extends Controller
             ->first();
 
         $rows = $config?->selected_row_ids ?? [];
+        return is_array($rows) ? $rows : [];
+    }
+
+    private function loadFr041SelectionRowsFromData(array $data): array
+    {
+        $rows = $data['fr041Selection'] ?? $data['fr041Selections'] ?? null;
         return is_array($rows) ? $rows : [];
     }
 

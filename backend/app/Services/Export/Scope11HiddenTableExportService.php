@@ -129,6 +129,48 @@ class Scope11HiddenTableExportService
         }
     }
 
+    public function writeFr041SelectionRows(Spreadsheet $spreadsheet, array $rows): void
+    {
+        $ws = $spreadsheet->getSheetByName(self::FR041_SEL_SHEET_NAME);
+        if (!$ws) {
+            throw new \RuntimeException('Missing worksheet: ' . self::FR041_SEL_SHEET_NAME);
+        }
+
+        $tableRange = $this->resolveSelectionTableRange($ws);
+        $headerMap = $this->buildHeaderMap($ws, $tableRange['headerRow'], $tableRange['startCol'], $tableRange['endCol']);
+
+        for ($r = $tableRange['startRow']; $r <= $tableRange['endRow']; $r++) {
+            for ($c = $tableRange['startCol']; $c <= $tableRange['endCol']; $c++) {
+                $cellRef = Coordinate::stringFromColumnIndex($c) . $r;
+                $this->writeValue($ws, $cellRef, null);
+            }
+        }
+
+        $normalized = $this->normalizeFr041SelectionRows($rows);
+        if (!$normalized) {
+            return;
+        }
+
+        $maxRows = $tableRange['endRow'] - $tableRange['startRow'] + 1;
+        for ($i = 0; $i < count($normalized) && $i < $maxRows; $i++) {
+            $excelRow = $tableRange['startRow'] + $i;
+            $row = $normalized[$i];
+
+            $this->writeIfColumn($ws, $headerMap, 'ROWNO', $excelRow, $row['rowNo'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'ROWID', $excelRow, $row['rowId'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'ITEMID', $excelRow, $row['itemId'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'ITEMNAME', $excelRow, $row['itemName'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'SECTIONID', $excelRow, $row['sectionId'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'FUELKEY', $excelRow, $row['fuelKey'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'EVIDENCE', $excelRow, $row['evidence'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'UNIT', $excelRow, $row['unit'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'QTY', $excelRow, $row['qty'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'EFCATALOG', $excelRow, $row['efCatalog'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'EFID', $excelRow, $row['efId'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'INCLUDE', $excelRow, 1);
+        }
+    }
+
     /**
      * @return array{0: array<string,int>, 1: int, 2?: string[]}
      */
@@ -183,6 +225,13 @@ class Scope11HiddenTableExportService
         }
 
         $ws->setCellValueExplicit($cell, (string) $value, DataType::TYPE_STRING);
+    }
+
+    private function writeIfColumn($ws, array $headerMap, string $key, int $row, $value): void
+    {
+        $col = $headerMap[$key] ?? null;
+        if (!$col) return;
+        $this->writeValue($ws, $col . $row, $value);
     }
 
     /**
@@ -417,6 +466,39 @@ class Scope11HiddenTableExportService
             $map[$value] = Coordinate::stringFromColumnIndex($c);
         }
         return $map;
+    }
+
+    private function normalizeFr041SelectionRows(array $rows): array
+    {
+        $out = [];
+        $rowNo = 11;
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $itemId = (string) ($row['itemId'] ?? $row['rowId'] ?? '');
+            $itemName = (string) ($row['itemName'] ?? $row['itemLabel'] ?? '');
+            if ($itemId === '' && $itemName === '') continue;
+
+            $rowNoRaw = $row['rowNo'] ?? null;
+            $rowNoValue = (is_numeric($rowNoRaw) ? (int) $rowNoRaw : $rowNo);
+
+            $out[] = [
+                'rowNo' => $rowNoValue,
+                'rowId' => (string) ($row['rowId'] ?? $row['itemId'] ?? ''),
+                'itemId' => $itemId,
+                'itemName' => $itemName,
+                'sectionId' => (string) ($row['sectionId'] ?? ''),
+                'fuelKey' => (string) ($row['fuelKey'] ?? ''),
+                'evidence' => (string) ($row['evidence'] ?? ''),
+                'unit' => (string) ($row['unit'] ?? ''),
+                'qty' => $this->normalizeValue($row['qty'] ?? $row['total'] ?? null),
+                'efCatalog' => (string) ($row['efCatalog'] ?? ''),
+                'efId' => (string) ($row['efId'] ?? ''),
+            ];
+
+            $rowNo += 1;
+        }
+
+        return $out;
     }
 
     private function resolveTableRange($ws): array

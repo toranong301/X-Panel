@@ -1,8 +1,8 @@
 export function safeLocalStorageGet(key: string): string | null {
   try {
-    if (typeof window === 'undefined') return null;
-    if (!('localStorage' in window)) return null;
-    return window.localStorage.getItem(key);
+    const canUseStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    if (!canUseStorage) return null;
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
@@ -10,9 +10,9 @@ export function safeLocalStorageGet(key: string): string | null {
 
 export function safeLocalStorageSet(key: string, value: string): void {
   try {
-    if (typeof window === 'undefined') return;
-    if (!('localStorage' in window)) return;
-    window.localStorage.setItem(key, value);
+    const canUseStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    if (!canUseStorage) return;
+    localStorage.setItem(key, value);
   } catch {
     // ignore
   }
@@ -20,9 +20,9 @@ export function safeLocalStorageSet(key: string, value: string): void {
 
 export function safeLocalStorageRemove(key: string): void {
   try {
-    if (typeof window === 'undefined') return;
-    if (!('localStorage' in window)) return;
-    window.localStorage.removeItem(key);
+    const canUseStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    if (!canUseStorage) return;
+    localStorage.removeItem(key);
   } catch {
     // ignore
   }
