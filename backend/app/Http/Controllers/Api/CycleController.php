@@ -400,6 +400,45 @@ class CycleController extends Controller
         }
     }
 
+    public function dashboardSections(Cycle $cycle)
+    {
+        $sections = array_values(array_map(function (array $entry) {
+            return [
+                'sectionId' => $entry['sectionId'],
+                'title' => $entry['title'],
+                'scope' => $entry['scope'],
+            ];
+        }, [
+            ['sectionId' => '1.1', 'title' => '1.1 Stationary Combustion', 'scope' => 'Scope 1'],
+            ['sectionId' => '1.2', 'title' => '1.2 Mobile Combustion', 'scope' => 'Scope 1'],
+            ['sectionId' => '1.3', 'title' => '1.3 Process Emission', 'scope' => 'Scope 1'],
+            ['sectionId' => '1.4', 'title' => '1.4 Fugitive Emission', 'scope' => 'Scope 1'],
+            ['sectionId' => '1.5', 'title' => '1.5 Biomass Emission', 'scope' => 'Scope 1'],
+            ['sectionId' => '2.1', 'title' => '2.1 Purchased Electricity', 'scope' => 'Scope 2'],
+            ['sectionId' => '2.2', 'title' => '2.2 Purchased Energy', 'scope' => 'Scope 2'],
+            ['sectionId' => '3.1', 'title' => '3.1 Purchased Goods & Services', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.2', 'title' => '3.2 Capital goods', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.3', 'title' => '3.3 Fuel- and energy-related activities', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.4', 'title' => '3.4 Upstream transportation and distribution', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.5', 'title' => '3.5 Waste generated in operations', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.6', 'title' => '3.6 Business travel', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.7', 'title' => '3.7 Employee commuting', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.8', 'title' => '3.8 Upstream leased assets', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.9', 'title' => '3.9 Downstream transportation and distribution', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.10', 'title' => '3.10 Processing of sold products', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.11', 'title' => '3.11 Use of sold products', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.12', 'title' => '3.12 End-of-life treatment of sold products', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.13', 'title' => '3.13 Downstream leased assets', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.14', 'title' => '3.14 Franchises', 'scope' => 'Scope 3'],
+            ['sectionId' => '3.15', 'title' => '3.15 Investments', 'scope' => 'Scope 3'],
+        ]));
+
+        return response()->json([
+            'ok' => true,
+            'sections' => $sections,
+        ]);
+    }
+
     private function buildScope11PayloadFromCycleData(array $data): array
     {
         $items = [];

@@ -1,0 +1,22 @@
+.reference-card {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.warning {
+  color: #b45309;
+  font-size: 0.95rem;
+}
+
+.ef-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.empty {
+  padding: 1rem;
+  text-align: center;
+  color: #475569;
+}

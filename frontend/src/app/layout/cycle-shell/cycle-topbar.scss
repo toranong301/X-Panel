@@ -1,0 +1,27 @@
+.cycle-topbar {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 2rem;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.tab {
+  font-weight: 600;
+  color: #444;
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.tab.active {
+  background: #1c4eed;
+  color: #fff;
+}
+
+.tab.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}

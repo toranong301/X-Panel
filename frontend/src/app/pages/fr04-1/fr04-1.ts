@@ -108,6 +108,7 @@ export class Fr041Component implements OnInit {
   previewKey = 0;
   efOptions: EfAr5Option[] = [];
   efSelectionByRowId: Record<string, string> = {};
+  efCatalogWarning: string | null = null;
 
   selectedScope3: any[] = [];
   fr01Meta: Fr01Data | null = null;
@@ -623,13 +624,17 @@ export class Fr041Component implements OnInit {
 
   async loadEfOptions() {
     try {
-      const ar5 = await this.cycleApi.getEfCatalog(this.templateKey, 'AR5', 'stationary');
-      if (Array.isArray(ar5) && ar5.length) {
-        this.efOptions = ar5 as EfCatalogOption[];
+      const ar5Response = await this.cycleApi.getEfCatalog(this.templateKey, 'AR5', 'stationary');
+      const ar5Options = Array.isArray(ar5Response?.options) ? ar5Response.options : [];
+      if (ar5Options.length) {
+        this.efOptions = ar5Options;
+        this.efCatalogWarning = ar5Response?.warning ?? null;
         return;
       }
-      const other = await this.cycleApi.getEfCatalog(this.templateKey, 'OTHER', 'stationary');
-      this.efOptions = Array.isArray(other) ? other : [];
+      const otherResponse = await this.cycleApi.getEfCatalog(this.templateKey, 'OTHER', 'stationary');
+      const otherOptions = Array.isArray(otherResponse?.options) ? otherResponse.options : [];
+      this.efOptions = otherOptions;
+      this.efCatalogWarning = otherResponse?.warning ?? ar5Response?.warning ?? null;
     } catch (error: any) {
       console.error('Load EF options failed', error);
       this.efOptions = [];

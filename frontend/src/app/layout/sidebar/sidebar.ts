@@ -1,10 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
-import { filter } from 'rxjs/operators';
-import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safe-storage';
+import { Component, computed } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
-type NavItem = { label: string; path: string };
+import { MenuItem, SIDEBAR_MENU } from '../cycle-shell/navigation-config';
+import { CycleNavigationService } from '../cycle-shell/cycle-navigation.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -14,45 +13,21 @@ type NavItem = { label: string; path: string };
   styleUrls: ['./sidebar.scss'],
 })
 export class Sidebar {
-  readonly currentCycleId = signal<number | null>(null);
-
-  readonly cycleLinks = computed<NavItem[]>(() => {
-    const id = this.currentCycleId();
-    if (!id) return [];
-    return [
-      { label: 'Data Entry (Scope 1)', path: `/cycles/${id}/data-entry` },
-      { label: 'FR-01 ข้อมูลองค์กร', path: `/cycles/${id}/fr01` },
-      { label: 'FR-02 แผนผังองค์กร', path: `/cycles/${id}/fr02` },
-      { label: 'FR-03.1 โครงสร้างองค์กร', path: `/cycles/${id}/fr03-1` },
-      { label: 'Screen Scope 3', path: `/cycles/${id}/scope3-screen` },
-      { label: 'FR-03.2 วิเคราะห์สาระสำคัญ', path: `/cycles/${id}/fr03-2` },
-      { label: 'FR-04.1 สรุปผล', path: `/cycles/${id}/fr04-1` },
-      { label: 'V-Sheet', path: `/cycles/${id}/vsheet-editor` },
-    ];
+  readonly menuItems = computed<MenuItem[]>(() => {
+    const section = this.nav.getActiveTopbar();
+    return SIDEBAR_MENU[section] ?? [];
   });
 
-  constructor(private router: Router) {
-    this.syncFromUrl(router.url);
+  constructor(private nav: CycleNavigationService) {}
 
-    router.events
-      .pipe(filter(e => e instanceof NavigationEnd))
-      .subscribe((e: any) => this.syncFromUrl(e?.urlAfterRedirects ?? e?.url ?? ''));
+  hasCycle(): boolean {
+    return this.nav.hasCycleId();
   }
 
-  private syncFromUrl(url: string) {
-    const m = String(url || '').match(/\/cycles\/(\d+)\b/);
-    if (m?.[1]) {
-      const id = Number(m[1]);
-      this.currentCycleId.set(Number.isFinite(id) ? id : null);
-      safeLocalStorageSet('xpanel:lastCycleId', String(id));
-      return;
+  linkPath(path?: string): Array<string | number> {
+    if (!path) {
+      return ['/cycles', this.nav.getCycleId() ?? ''];
     }
-
-    // fallback: last cycle
-    const saved = safeLocalStorageGet('xpanel:lastCycleId');
-    if (saved) {
-      const id = Number(saved);
-      this.currentCycleId.set(Number.isFinite(id) ? id : null);
-    }
+    return this.nav.buildLink(path);
   }
 }

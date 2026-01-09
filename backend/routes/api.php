@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
     return response()->json([
-        'status' => 'ok',
+        'ok' => true,
         'time' => now()->toIso8601String(),
         'version' => config('app.version') ?? config('app.env'),
     ], 200);
@@ -30,6 +30,7 @@ $publicCycleRoutes = function () {
     Route::put('/cycles/{cycle}/data', [CycleController::class, 'updateData']);
     Route::put('/cycles/{cycle}/template', [CycleController::class, 'updateTemplate']);
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
+    Route::get('/cycles/{cycle}/dashboard/sections', [CycleController::class, 'dashboardSections']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/template-sets', [TemplateSetController::class, 'index']);

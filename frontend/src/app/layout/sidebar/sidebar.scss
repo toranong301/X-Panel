@@ -1,55 +1,52 @@
 .sidebar {
   width: 260px;
-  min-height: calc(100vh - 56px);
   padding: 16px 12px;
   border-right: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   background: #fff;
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 18px;
-  padding: 6px 8px 12px;
-}
-
-.sidebar a {
-  text-decoration: none;
-  padding: 8px 10px;
-  border-radius: 10px;
-  color: #111827;
-  display: block;
-}
-
-.sidebar a.active {
-  background: #eef2ff;
-}
-
-.section {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #f1f5f9;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
-.section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  padding: 0 8px 6px;
+.group-label {
   text-transform: uppercase;
+  font-size: 11px;
   letter-spacing: 0.06em;
+  color: #6b7280;
+  padding: 4px 8px 2px;
+  font-weight: 600;
 }
 
-.hint {
-  margin-top: 12px;
-  padding: 10px;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #475569;
+.group-label--nested {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.sidebar-link {
+  display: block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: #1f2937;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+  background: #f3f4ff;
+  color: #111827;
+}
+
+.sidebar-link--nested {
+  padding-left: 24px;
+  font-weight: 400;
+}
+
+.sidebar--empty {
+  width: 220px;
+  padding: 1rem;
   font-size: 13px;
+  color: #475569;
 }

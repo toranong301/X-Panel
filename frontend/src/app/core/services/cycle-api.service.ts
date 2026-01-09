@@ -83,10 +83,11 @@ export type EfCatalogOption = EfAr5Option & {
   efCatalog?: 'AR5' | 'OTHER';
 };
 
-type EfCatalogResponse = {
+export type EfCatalogResponse = {
   ok: boolean;
   catalog?: string;
   options: EfCatalogOption[];
+  warning?: string;
 };
 
 export type Fr041Source = {
@@ -340,10 +341,14 @@ export class CycleApiService {
     return firstValueFrom(request).then(resp => resp?.options ?? []);
   }
 
-  getEfCatalog(templateKey: string, catalog: 'AR5' | 'OTHER', scope = 'stationary'): Promise<EfCatalogOption[]> {
+  getEfCatalog(
+    templateKey: string,
+    catalog: 'AR5' | 'OTHER',
+    scope = 'stationary'
+  ): Promise<EfCatalogResponse> {
     const params = { templateKey, catalog, scope };
     const request = this.api.get<EfCatalogResponse>('ef/catalog', { params }) as Observable<EfCatalogResponse>;
-    return firstValueFrom(request).then(resp => resp?.options ?? []);
+    return firstValueFrom(request);
   }
 
   /* ---------- update data (auto-create + retry) ---------- */

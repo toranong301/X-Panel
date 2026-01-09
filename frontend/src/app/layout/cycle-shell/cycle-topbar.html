@@ -1,0 +1,14 @@
+<nav class="cycle-topbar">
+  <ng-container *ngFor="let item of items">
+    <a
+      class="tab"
+      [class.active]="isActive(item.key)"
+      [class.disabled]="!nav.hasCycleId()"
+      [routerLink]="buildLink(item.path)"
+      routerLinkActive="active"
+      (click)="handleClick()"
+    >
+      {{ item.label }}
+    </a>
+  </ng-container>
+</nav>

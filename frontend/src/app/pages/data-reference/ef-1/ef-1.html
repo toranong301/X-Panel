@@ -1,0 +1,19 @@
+<mat-card class="reference-card">
+  <div class="warning" *ngIf="warning">{{ warning }}</div>
+
+  <mat-progress-spinner *ngIf="loading" diameter="28" mode="indeterminate"></mat-progress-spinner>
+
+  <table mat-table [dataSource]="options" class="ef-table" *ngIf="!loading && options.length">
+    <ng-container *ngFor="let column of columns" [matColumnDef]="column">
+      <th mat-header-cell *matHeaderCellDef>{{ column }}</th>
+      <td mat-cell *matCellDef="let element">{{ element[column] ?? '-' }}</td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns;"></tr>
+  </table>
+
+  <div class="empty" *ngIf="!loading && options.length === 0">
+    ยังไม่มี EF (1) ใน template ปัจจุบัน
+  </div>
+</mat-card>

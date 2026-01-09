@@ -587,7 +587,8 @@ export class CanonicalGhgService {
   private normalizeTemplateId(templateKey?: string, fallback?: string): string | undefined {
     const raw = String(templateKey || fallback || '').trim();
     if (!raw) return 'MBAX_TGO_11102567';
-    return raw.split('::')[0].trim() || 'MBAX_TGO_11102567';
+    const normalized = raw.split('::')[0].trim().toUpperCase();
+    return normalized || 'MBAX_TGO_11102567';
   }
 }
 

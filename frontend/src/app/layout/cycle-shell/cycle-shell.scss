@@ -1,0 +1,18 @@
+.cycle-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px);
+}
+
+.cycle-body {
+  display: flex;
+  flex: 1;
+  min-height: calc(100vh - 64px);
+  background: #f7f8fb;
+}
+
+.cycle-content {
+  flex: 1;
+  padding: 1rem 2rem;
+  overflow: auto;
+}
