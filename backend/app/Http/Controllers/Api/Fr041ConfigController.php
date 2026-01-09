@@ -19,6 +19,9 @@ class Fr041ConfigController extends Controller
             return response()->json($this->defaultConfig());
         }
 
+        $data = is_array($cycle->data_json ?? null) ? $cycle->data_json : [];
+        $fr041 = is_array($data['fr041Config'] ?? null) ? $data['fr041Config'] : [];
+
         $config = Fr041Config::query()
             ->where('cycle_id', $cycle->id)
             ->where('sheet_id', self::SHEET_ID)
@@ -29,8 +32,8 @@ class Fr041ConfigController extends Controller
             'ok' => true,
             'sheetId' => self::SHEET_ID,
             'section' => self::SECTION_SCOPE11,
-            'selectedRowIds' => $config?->selected_row_ids ?? [],
-            'options' => $config?->options ?? new \stdClass(),
+            'selectedRowIds' => $fr041['selectedRowIds'] ?? $config?->selected_row_ids ?? [],
+            'options' => $fr041['options'] ?? $config?->options ?? new \stdClass(),
         ]);
     }
 
@@ -50,7 +53,20 @@ class Fr041ConfigController extends Controller
             $payload['selectedRowIds'] ?? [],
             fn ($value) => is_string($value) && trim($value) !== ''
         )));
-        $options = is_array($payload['options'] ?? null) ? $payload['options'] : null;
+        $optionsInput = $request->input('options');
+        $options = is_array($optionsInput) ? $optionsInput : [];
+        if (!$options) {
+            $rawPayload = json_decode($request->getContent(), true);
+            $options = is_array($rawPayload['options'] ?? null) ? $rawPayload['options'] : [];
+        }
+
+        $existing = Fr041Config::query()
+            ->where('cycle_id', $cycle->id)
+            ->where('sheet_id', self::SHEET_ID)
+            ->where('section', self::SECTION_SCOPE11)
+            ->first();
+        $existingOptions = is_array($existing?->options ?? null) ? $existing->options : [];
+        $mergedOptions = array_merge($existingOptions, $options);
 
         $config = Fr041Config::updateOrCreate(
             [
@@ -60,16 +76,24 @@ class Fr041ConfigController extends Controller
             ],
             [
                 'selected_row_ids' => $selected,
-                'options' => $options,
+                'options' => $mergedOptions,
             ]
         );
+
+        $data = is_array($cycle->data_json ?? null) ? $cycle->data_json : [];
+        $fr041 = is_array($data['fr041Config'] ?? null) ? $data['fr041Config'] : [];
+        $fr041['selectedRowIds'] = $selected;
+        $fr041['options'] = $mergedOptions;
+        $data['fr041Config'] = $fr041;
+        $cycle->data_json = $data;
+        $cycle->save();
 
         return response()->json([
             'ok' => true,
             'sheetId' => $config->sheet_id,
             'section' => $config->section,
             'selectedRowIds' => $config->selected_row_ids ?? [],
-            'options' => $config->options ?? new \stdClass(),
+            'options' => $mergedOptions ?: ($config->options ?? new \stdClass()),
         ]);
     }
 

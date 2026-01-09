@@ -170,38 +170,42 @@ export class Fr041Component implements OnInit {
   }
 
   private async loadSources() {
-  if (!this.cycleId) return;
+    if (!this.cycleId) return;
+    this.sourcesLoading = true;
+    try {
+      const s = await this.cycleApi.getFr041Sources(this.cycleId);
+      this.sources = Array.isArray(s) ? s : [];
 
-  this.sourcesLoading = true;
-  // เคลียร์ error เก่า
-  this.scope11LoadError = null;
-
-  try {
-    const sources = await this.cycleApi.getFr041Sources(this.cycleId);
-
-    // กันเคส resp แปลก/ไม่เป็น array
-    this.sources = Array.isArray(sources) ? sources : [];
-
-    if (!this.sources.length) {
-      const msg = 'ไม่พบ Sources สำหรับ FR-04.1 (fr041/sources ว่าง)';
-      this.scope11LoadError = msg;
-      this.snackBar.open(msg, 'ปิด', { duration: 8000 });
+      if (!this.sources.length) {
+        // fallback so page never blocks on empty sources
+        this.sources = [{
+          sectionId: '1.1',
+          sectionTitle: '1.1 Stationary combustion',
+          sheetName: '1.1 Stationary',
+          endpoint: `/api/cycles/${this.cycleId}/scope11/stationary/items`,
+          scope: 'stationary',
+          sourceType: 'scope11',
+          itemCountIncluded: 0,
+        }];
+        console.warn('FR-04.1 sources empty; using fallback 1.1 source');
+      }
+    } catch (error: any) {
+      console.error('Load FR-04.1 sources failed', error);
+      // fallback on error as well
+      this.sources = [{
+        sectionId: '1.1',
+        sectionTitle: '1.1 Stationary combustion',
+        sheetName: '1.1 Stationary',
+        endpoint: `/api/cycles/${this.cycleId}/scope11/stationary/items`,
+        scope: 'stationary',
+        sourceType: 'scope11',
+        itemCountIncluded: 0,
+      }];
+      console.warn('FR-04.1 sources failed; using fallback 1.1 source');
+    } finally {
+      this.sourcesLoading = false;
     }
-  } catch (error: any) {
-    console.error('Load FR-04.1 sources failed', error);
-
-    const msg =
-      error?.error?.message || // กรณี HttpErrorResponse จาก backend
-      error?.message ||
-      'โหลด FR-04.1 sources ไม่สำเร็จ';
-
-    this.sources = [];
-    this.scope11LoadError = msg;
-    this.snackBar.open(msg, 'ปิด', { duration: 8000 });
-  } finally {
-    this.sourcesLoading = false;
   }
-}
 
 
   private async loadFr041Data() {
@@ -209,12 +213,14 @@ export class Fr041Component implements OnInit {
     this.scope11LoadError = null;
     try {
       const endpoints = (this.sources || []).filter(src => !!src.endpoint);
+      console.log('FR-04.1 loading endpoints', endpoints.map(src => src.endpoint));
       if (!endpoints.length) {
         this.availableItems = [];
         this.scope11Items = [];
         this.scope11SplitEnabled = false;
         this.scope11PeriodYear = null;
         this.scope11HeaderMonths = null;
+        this.scope11LoadError = 'ไม่พบ Sources สำหรับ FR-04.1 (fr041/sources ว่าง)';
         return;
       }
 
@@ -236,6 +242,7 @@ export class Fr041Component implements OnInit {
       const merged: Fr041AvailableItem[] = [];
       let scope11Resp: any = null;
       let hasItemError = false;
+      const allItemFailed = itemResults.every(result => !result?.resp);
 
       for (const result of itemResults) {
         if (!result?.resp) {
@@ -259,7 +266,11 @@ export class Fr041Component implements OnInit {
         }
       }
 
-        if (hasItemError) {
+        if (allItemFailed) {
+          const msg = 'โหลดรายการไม่สำเร็จ (endpoint error)';
+          this.scope11LoadError = msg;
+          this.snackBar.open(msg, 'ปิด', { duration: 6000 });
+        } else if (hasItemError) {
           const msg = 'โหลดรายการบางรายการไม่สำเร็จ';
           this.scope11LoadError = msg;
           this.snackBar.open(msg, 'ปิด', { duration: 6000 });
@@ -292,6 +303,10 @@ export class Fr041Component implements OnInit {
 
       this.applySelectionConfig(configResult, this.availableItems);
       this.syncFr041SelectionLocal();
+      console.log('FR-04.1 load done', {
+        availableItems: this.availableItems.length,
+        scope11LoadError: this.scope11LoadError,
+      });
     } catch (error: any) {
       console.error('Load FR-04.1 data failed', error);
       const msg = error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ';
@@ -396,9 +411,13 @@ export class Fr041Component implements OnInit {
   }
 
   async changeTemplateSet(templateSetId: string) {
-    if (!templateSetId) return;
+    if (!templateSetId || templateSetId === this.templateSetId) return;
     this.templateSetId = templateSetId;
-    await this.saveFr041Config();
+
+    // ให้ mat-select ปิด overlay ก่อน แล้วค่อย save (กันค้าง)
+    setTimeout(() => {
+      void this.saveFr041Config();
+    }, 0);
   }
 
   toggleSelection(item: Fr041AvailableItem, checked: boolean) {
@@ -546,9 +565,11 @@ export class Fr041Component implements OnInit {
     }
   }
 
-  private async saveFr041Config() {
+  private async saveFr041Config(options?: { reloadPreview?: boolean }) {
     if (!this.cycleId) return;
     this.selectionSaving = true;
+    const reloadPreview = options?.reloadPreview !== false;
+    let slowSaveTimer: ReturnType<typeof setTimeout> | null = null;
     try {
       this.syncFr041SelectionLocal();
       const payload = {
@@ -558,12 +579,18 @@ export class Fr041Component implements OnInit {
           efSelectionByRowId: this.efSelectionByRowId,
         },
       };
+      slowSaveTimer = setTimeout(() => {
+        console.log('FR-04.1 save config taking >2s', payload);
+      }, 2000);
       await this.withTimeout(this.cycleApi.updateFr041Config(this.cycleId, payload), 12000);
-      this.previewKey += 1;
+      if (reloadPreview) {
+        this.previewKey += 1;
+      }
     } catch (error: any) {
       console.error('Save FR-04.1 config failed', error);
       this.snackBar.open(error?.message || 'บันทึกการเลือกไม่สำเร็จ', 'ปิด', { duration: 6000 });
     } finally {
+      if (slowSaveTimer) clearTimeout(slowSaveTimer);
       this.selectionSaving = false;
     }
   }

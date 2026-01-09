@@ -1,0 +1,16 @@
+[1m[33mNG02801: Angular detected that `HttpClient` is not configured to use `fetch` APIs. It's strongly recommended to enable `fetch` for applications that use Server-Side Rendering for better performance and compatibility. To enable `fetch`, add the `withFetch()` to the `provideHttpClient()` call at the root of the application.[39m[22m
+[1m[31m(node:3352) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)[39m[22m
+[1m[31mERROR RuntimeError: NG0100: ExpressionChangedAfterItHasBeenCheckedError: Expression has changed after it was checked. Previous value: 'card--standard'. Current value: 'card--compact'. Expression location: _Fr041Component component. Find more at https://v21.angular.dev/errors/NG0100
+    at throwErrorIfNoChangesMode (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:6807:9)
+    at bindingUpdated (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:11114:9)
+    at Module.ɵɵproperty (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:17229:7)
+    at Fr041Component_Template (D:\ECC\dev\X-Panel\frontend\src\app\pages\fr04-1\fr04-1.html:30:24)
+    at executeTemplate (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8146:5)
+    at refreshView (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8806:7)
+    at detectChangesInView (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8946:5)
+    at detectChangesInViewIfAttached (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8929:3)
+    at detectChangesInComponent (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8920:5)
+    at detectChangesInChildComponents (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8968:5) {
+  code: -100
+}[39m[22m

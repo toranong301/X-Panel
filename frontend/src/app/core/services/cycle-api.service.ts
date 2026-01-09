@@ -224,21 +224,17 @@ export type TemplateProfile = TemplateInfo & {
 
 @Injectable({ providedIn: 'root' })
 export class CycleApiService {
-  private normalizeApiEndpoint(endpoint: string): string {
-  let ep = String(endpoint || '').trim();
-  if (!ep) return '';
-
-  // drop host if someone passed full URL
-  ep = ep.replace(/^https?:\/\/[^/]+/i, '');
-
-  // remove leading slashes
-  ep = ep.replace(/^\/+/, '');
-
-  // "/api/xxx" or "api/xxx" -> "xxx" (ApiClient already targets /api)
-  if (ep.startsWith('api/')) ep = ep.substring(4);
-
-  return ep;
-}
+  private toApiClientPath(endpoint: string): string {
+    const ep = String(endpoint || '').trim();
+    if (!ep) return '';
+    // strip origin (http(s)://host)
+    const noOrigin = ep.replace(/^https?:\/\/[^/]+/i, '');
+    // ensure leading slash for parsing then strip /api/
+    const path = noOrigin.startsWith('/') ? noOrigin : '/' + noOrigin;
+    const stripped = path.replace(/^\/api\//i, '/');
+    // ApiClient expects relative like "cycles/.."
+    return stripped.replace(/^\/+/, '');
+  }
 
   /** map กันกรณี id เดิมหาย (404) แล้วถูกสร้างใหม่ */
   private missingIdMap = new Map<number, number>();
@@ -292,10 +288,9 @@ export class CycleApiService {
   }
 
   async getFr041SourceItems(endpoint: string): Promise<any> {
-  const path = this.normalizeApiEndpoint(endpoint);
-  if (!path) throw new Error('Missing endpoint');
-  return await firstValueFrom(this.api.get<any>(path));
-}
+    const path = this.toApiClientPath(endpoint);
+    return await firstValueFrom(this.api.get<any>(path));
+  }
 
   getScope3Summary(cycleId: number): Promise<Scope3SummaryCategory[]> {
     const request = this.api.get<Scope3SummaryResponse>(`cycles/${cycleId}/scope3/summary`) as Observable<Scope3SummaryResponse>;
