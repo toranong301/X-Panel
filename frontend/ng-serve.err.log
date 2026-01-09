@@ -14,3 +14,29 @@
     at detectChangesInChildComponents (D:\ECC\dev\X-Panel\frontend\.angular\cache\21.0.5\frontend\vite\deps_ssr\chunk-X76P46GW.js:8968:5) {
   code: -100
 }[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2551: Property 'queueSaveFr041Config' does not exist on type 'Fr041Component'. Did you mean 'saveFr041Config'?[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/pages/fr04-1/fr04-1.ts:440:9:
+[37m      440 │     this.[32mqueueSaveFr041Config[37m();
+          ╵          [32m~~~~~~~~~~~~~~~~~~~~[0m
+
+  'saveFr041Config' is declared here.
+
+    src/app/pages/fr04-1/fr04-1.ts:570:16:
+[37m      570 │   private async [32msaveFr041Config[37m(options?: { reloadPreview?: boole...
+          ╵                 [32m~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2551: Property 'queueSaveFr041Config' does not exist on type 'Fr041Component'. Did you mean 'saveFr041Config'?[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/pages/fr04-1/fr04-1.ts:618:9:
+[37m      618 │     this.[32mqueueSaveFr041Config[37m();
+          ╵          [32m~~~~~~~~~~~~~~~~~~~~[0m
+
+  'saveFr041Config' is declared here.
+
+    src/app/pages/fr04-1/fr04-1.ts:570:16:
+[37m      570 │   private async [32msaveFr041Config[37m(options?: { reloadPreview?: boole...
+          ╵                 [32m~~~~~~~~~~~~~~~[0m
+
+[39m[22m

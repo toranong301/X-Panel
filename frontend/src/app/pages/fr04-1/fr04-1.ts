@@ -68,6 +68,8 @@ export class Fr041Component implements OnInit {
   private cycleApi = inject(CycleApiService);
   private cycleState = inject(CycleStateService);
   private snackBar = inject(MatSnackBar);
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private saveQueued = false;
   private withTimeout<T>(p: Promise<T>, ms = 12000): Promise<T> {
   return Promise.race([
     p,
@@ -435,7 +437,7 @@ export class Fr041Component implements OnInit {
       next.delete(item.rowId);
     }
     this.selectedRowIds = next;
-    void this.saveFr041Config();
+    this.queueSaveFr041Config();
   }
 
   isSelected(item: Fr041AvailableItem): boolean {
@@ -565,11 +567,27 @@ export class Fr041Component implements OnInit {
     }
   }
 
+  private queueSaveFr041Config() {
+    this.saveQueued = true;
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => void this.flushSaveFr041Config(), 150);
+  }
+
+  private async flushSaveFr041Config() {
+    if (!this.saveQueued) return;
+    if (this.selectionSaving) return;
+    this.saveQueued = false;
+    await this.saveFr041Config();
+    if (this.saveQueued) await this.flushSaveFr041Config();
+  }
+
   private async saveFr041Config(options?: { reloadPreview?: boolean }) {
     if (!this.cycleId) return;
     this.selectionSaving = true;
     const reloadPreview = options?.reloadPreview !== false;
     let slowSaveTimer: ReturnType<typeof setTimeout> | null = null;
+    let timerStarted = false;
+    const timerLabel = 'FR041 PUT config';
     try {
       this.syncFr041SelectionLocal();
       const payload = {
@@ -582,14 +600,22 @@ export class Fr041Component implements OnInit {
       slowSaveTimer = setTimeout(() => {
         console.log('FR-04.1 save config taking >2s', payload);
       }, 2000);
-      await this.withTimeout(this.cycleApi.updateFr041Config(this.cycleId, payload), 12000);
+      console.time(timerLabel);
+      timerStarted = true;
+      await Promise.race([
+        this.cycleApi.updateFr041Config(this.cycleId, payload),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Save timeout (10s)')), 10000)),
+      ]);
       if (reloadPreview) {
         this.previewKey += 1;
       }
     } catch (error: any) {
       console.error('Save FR-04.1 config failed', error);
-      this.snackBar.open(error?.message || 'บันทึกการเลือกไม่สำเร็จ', 'ปิด', { duration: 6000 });
+      const msg = error?.message || 'บันทึกการเลือกไม่สำเร็จ';
+      this.scope11LoadError = msg;
+      this.snackBar.open(msg, 'ปิด', { duration: 6000 });
     } finally {
+      if (timerStarted) console.timeEnd(timerLabel);
       if (slowSaveTimer) clearTimeout(slowSaveTimer);
       this.selectionSaving = false;
     }
@@ -613,7 +639,7 @@ export class Fr041Component implements OnInit {
   onEfChangeByRowId(rowId: string, efId: string): void {
     if (!rowId) return;
     this.efSelectionByRowId = { ...this.efSelectionByRowId, [rowId]: efId };
-    void this.saveFr041Config();
+    this.queueSaveFr041Config();
   }
 
   getEfIdForItem(item: Scope11StationaryItem): string {

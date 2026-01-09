@@ -80,6 +80,7 @@
 
   <div class="section-title">รายการให้เลือก (จากทุกขอบเขตที่มีข้อมูล)</div>
   <div class="hint">ติ๊กเลือกเฉพาะรายการที่ต้องการแสดงบน FR-04.1</div>
+  <div class="hint" *ngIf="selectionSaving">กำลังบันทึก...</div>
 
   <div class="loading-row" *ngIf="scope11Loading">
     <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
@@ -104,7 +105,6 @@
         <mat-checkbox
           [checked]="isSelected(item)"
           (change)="toggleSelection(item, $event.checked)"
-          [disabled]="selectionSaving"
         ></mat-checkbox>
       </div>
       <div class="truncate">{{ item.itemLabel || item.rowId }}</div>
@@ -202,4 +202,3 @@
 <mat-card class="card" *ngIf="exportError">
   <div class="error">{{ exportError }}</div>
 </mat-card>
-
