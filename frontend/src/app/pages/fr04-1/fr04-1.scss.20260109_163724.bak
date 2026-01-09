@@ -1,4 +1,4 @@
-﻿.page-header {
+.page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -372,18 +372,4 @@ button mat-progress-spinner {
   padding: 8px 6px;
   color: rgba(0, 0, 0, 0.6);
   font-size: 13px;
-}
-
-.table-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }

@@ -1,4 +1,4 @@
-﻿<div class="page-header">
+<div class="page-header">
   <div>
     <h2>FR-04.1 (Current year) – บัญชีรายการก๊าซเรือนกระจก</h2>
     <div class="sub">Cycle ID: {{ cycleId }}</div>
@@ -189,22 +189,9 @@
 
   <mat-divider></mat-divider>
 
-  <div class="table-title-row">
   <div class="table-title">FR-04.1 Preview (Excel-like)</div>
-  <div class="preview-actions">
-    <button mat-stroked-button (click)="refreshPreview()">
-      <mat-icon>refresh</mat-icon>
-      Refresh Preview
-    </button>
-    <button mat-stroked-button (click)="togglePreview()">
-      <mat-icon>{{ previewEnabled ? 'visibility_off' : 'visibility' }}</mat-icon>
-      {{ previewEnabled ? 'ซ่อน Preview' : 'แสดง Preview' }}
-    </button>
-  </div>
-</div>
 
   <app-excel-sheet-preview
-    *ngIf="previewEnabled"
     [cycleId]="cycleId"
     [sheetId]="sheetId"
     [cacheKey]="previewKey"

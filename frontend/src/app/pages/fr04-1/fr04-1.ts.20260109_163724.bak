@@ -1,4 +1,4 @@
-﻿import { CommonModule } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -106,7 +106,6 @@ export class Fr041Component implements OnInit {
   selectedRowIds = new Set<string>();
   selectionSaving = false;
   previewKey = 0;
-  previewEnabled = true;
   efOptions: EfAr5Option[] = [];
   efSelectionByRowId: Record<string, string> = {};
   efCatalogWarning: string | null = null;
@@ -609,7 +608,8 @@ export class Fr041Component implements OnInit {
         new Promise((_, rej) => setTimeout(() => rej(new Error('Save timeout (10s)')), 10000)),
       ]);
       if (reloadPreview) {
-}
+        this.previewKey += 1;
+      }
     } catch (error: any) {
       console.error('Save FR-04.1 config failed', error);
       const msg = error?.message || 'บันทึกการเลือกไม่สำเร็จ';
@@ -659,14 +659,7 @@ export class Fr041Component implements OnInit {
     if (key === '91/95' || key === 'E20') return 'SC_MOTOR_GASOLINE_L';
     if (key === 'LPG') return 'SC_LPG_L';
     return '';
-  }  togglePreview(): void {
-    this.previewEnabled = !this.previewEnabled;
   }
-
-  refreshPreview(): void {
-}
-
-
 
   private syncFr041SelectionLocal(): void {
     if (!this.cycleId) return;
