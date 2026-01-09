@@ -209,14 +209,18 @@ export class Fr041Component implements OnInit {
       let hasItemError = false;
 
       for (const result of itemResults) {
-        if (!result?.resp?.items) {
+        if (!result?.resp) {
           hasItemError = true;
           continue;
         }
         if (result.source?.sectionId === '1.1') {
           scope11Resp = result.resp;
         }
-        for (const it of result.resp.items) {
+        const items = this.extractSourceItems(result.resp);
+        if (!items.length) {
+          continue;
+        }
+        for (const it of items) {
           merged.push({
             ...it,
             sectionId: result.source?.sectionId,
@@ -232,20 +236,27 @@ export class Fr041Component implements OnInit {
           this.snackBar.open(msg, 'ปิด', { duration: 6000 });
         }
 
-        if (!merged.length && scope11Resp?.items?.length) {
-          const fallbackSource = this.sources.find(src => src.sectionId === '1.1');
-          for (const it of scope11Resp.items) {
-            merged.push({
-              ...it,
-              sectionId: fallbackSource?.sectionId ?? '1.1',
-              sectionTitle: fallbackSource?.sectionTitle ?? '1.1 Stationary combustion',
-              scope: fallbackSource?.scope ?? 'stationary',
-            } as any);
+        if (!merged.length) {
+          const scope11Items = this.extractSourceItems(scope11Resp);
+          if (!scope11Items.length) {
+            scope11Resp = await this.cycleApi.getScope11StationaryItems(this.cycleId).catch(() => null);
+          }
+          const fallbackItems = this.extractSourceItems(scope11Resp);
+          if (fallbackItems.length) {
+            const fallbackSource = this.sources.find(src => src.sectionId === '1.1');
+            for (const it of fallbackItems) {
+              merged.push({
+                ...it,
+                sectionId: fallbackSource?.sectionId ?? '1.1',
+                sectionTitle: fallbackSource?.sectionTitle ?? '1.1 Stationary combustion',
+                scope: fallbackSource?.scope ?? 'stationary',
+              } as any);
+            }
           }
         }
 
         this.availableItems = merged;
-      this.scope11Items = scope11Resp?.items ?? [];
+      this.scope11Items = this.extractSourceItems(scope11Resp);
       this.scope11SplitEnabled = Boolean(scope11Resp?.splitEnabled);
       this.scope11PeriodYear = scope11Resp?.periodYear ?? null;
       this.scope11HeaderMonths = scope11Resp?.headerMonths ?? null;
@@ -260,6 +271,13 @@ export class Fr041Component implements OnInit {
     } finally {
       this.scope11Loading = false;
     }
+  }
+
+  private extractSourceItems(resp: any): Scope11StationaryItem[] {
+    if (Array.isArray(resp)) return resp as Scope11StationaryItem[];
+    if (Array.isArray(resp?.items)) return resp.items as Scope11StationaryItem[];
+    if (Array.isArray(resp?.data?.items)) return resp.data.items as Scope11StationaryItem[];
+    return [];
   }
 
   reloadPreview() {
