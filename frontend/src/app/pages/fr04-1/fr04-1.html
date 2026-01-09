@@ -60,7 +60,7 @@
       <mat-select
         [value]="templateSetId"
         (selectionChange)="changeTemplateSet($event.value)"
-        [disabled]="templateSetLoading || selectionSaving"
+        [disabled]="templateSetLoading"
       >
         <mat-option *ngFor="let set of templateSets" [value]="set.id">{{ set.label }}</mat-option>
       </mat-select>

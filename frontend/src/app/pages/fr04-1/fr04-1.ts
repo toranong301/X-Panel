@@ -68,6 +68,13 @@ export class Fr041Component implements OnInit {
   private cycleApi = inject(CycleApiService);
   private cycleState = inject(CycleStateService);
   private snackBar = inject(MatSnackBar);
+  private withTimeout<T>(p: Promise<T>, ms = 12000): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`Request timeout after ${ms}ms`)), ms)),
+  ]);
+}
+
 
   cycleId = 0;
   readonly sheetId = SHEET_REGISTRY['FR041'].sheetId;
@@ -163,17 +170,39 @@ export class Fr041Component implements OnInit {
   }
 
   private async loadSources() {
-    if (!this.cycleId) return;
-    this.sourcesLoading = true;
-    try {
-      this.sources = await this.cycleApi.getFr041Sources(this.cycleId);
-    } catch (error: any) {
-      console.error('Load FR-04.1 sources failed', error);
-      this.sources = [];
-    } finally {
-      this.sourcesLoading = false;
+  if (!this.cycleId) return;
+
+  this.sourcesLoading = true;
+  // เคลียร์ error เก่า
+  this.scope11LoadError = null;
+
+  try {
+    const sources = await this.cycleApi.getFr041Sources(this.cycleId);
+
+    // กันเคส resp แปลก/ไม่เป็น array
+    this.sources = Array.isArray(sources) ? sources : [];
+
+    if (!this.sources.length) {
+      const msg = 'ไม่พบ Sources สำหรับ FR-04.1 (fr041/sources ว่าง)';
+      this.scope11LoadError = msg;
+      this.snackBar.open(msg, 'ปิด', { duration: 8000 });
     }
+  } catch (error: any) {
+    console.error('Load FR-04.1 sources failed', error);
+
+    const msg =
+      error?.error?.message || // กรณี HttpErrorResponse จาก backend
+      error?.message ||
+      'โหลด FR-04.1 sources ไม่สำเร็จ';
+
+    this.sources = [];
+    this.scope11LoadError = msg;
+    this.snackBar.open(msg, 'ปิด', { duration: 8000 });
+  } finally {
+    this.sourcesLoading = false;
   }
+}
+
 
   private async loadFr041Data() {
     this.scope11Loading = true;
@@ -529,7 +558,7 @@ export class Fr041Component implements OnInit {
           efSelectionByRowId: this.efSelectionByRowId,
         },
       };
-      await this.cycleApi.updateFr041Config(this.cycleId, payload);
+      await this.withTimeout(this.cycleApi.updateFr041Config(this.cycleId, payload), 12000);
       this.previewKey += 1;
     } catch (error: any) {
       console.error('Save FR-04.1 config failed', error);

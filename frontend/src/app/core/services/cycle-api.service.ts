@@ -44,11 +44,12 @@ export type Scope11StationaryItem = {
   months: Record<string, number | null>;
   total?: number | null;
 
-  // ✅ add these (because FR-04.1 merges them in)
+  // added for FR-04.1 merged sources display
   sectionId?: string;
   sectionTitle?: string;
   scope?: string | null;
 };
+
 
 
 export type Scope11StationaryItemsResponse = {
@@ -224,17 +225,19 @@ export type TemplateProfile = TemplateInfo & {
 @Injectable({ providedIn: 'root' })
 export class CycleApiService {
   private normalizeApiEndpoint(endpoint: string): string {
-  const ep = String(endpoint || '').trim();
-  if (!ep) return '/api';
+  let ep = String(endpoint || '').trim();
+  if (!ep) return '';
 
-  // already absolute api path
-  if (ep.startsWith('/api/')) return ep;
+  // drop host if someone passed full URL
+  ep = ep.replace(/^https?:\/\/[^/]+/i, '');
 
-  // "api/..." -> "/api/..."
-  if (ep.startsWith('api/')) return '/' + ep;
+  // remove leading slashes
+  ep = ep.replace(/^\/+/, '');
 
-  // strip leading slashes then prefix
-  return '/api/' + ep.replace(/^\/+/, '');
+  // "/api/xxx" or "api/xxx" -> "xxx" (ApiClient already targets /api)
+  if (ep.startsWith('api/')) ep = ep.substring(4);
+
+  return ep;
 }
 
   /** map กันกรณี id เดิมหาย (404) แล้วถูกสร้างใหม่ */
@@ -289,15 +292,10 @@ export class CycleApiService {
   }
 
   async getFr041SourceItems(endpoint: string): Promise<any> {
-  const url = this.normalizeApiEndpoint(endpoint);
-
-  // ApiClient expects relative paths WITHOUT leading '/api/'
-  // so strip it to keep behavior consistent with other calls
-  const path = url.replace(/^\/api\//, '');
-
-  return firstValueFrom(this.api.get<any>(path));
+  const path = this.normalizeApiEndpoint(endpoint);
+  if (!path) throw new Error('Missing endpoint');
+  return await firstValueFrom(this.api.get<any>(path));
 }
-
 
   getScope3Summary(cycleId: number): Promise<Scope3SummaryCategory[]> {
     const request = this.api.get<Scope3SummaryResponse>(`cycles/${cycleId}/scope3/summary`) as Observable<Scope3SummaryResponse>;
