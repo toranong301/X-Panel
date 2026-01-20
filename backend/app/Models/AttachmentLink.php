@@ -4,17 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Attachment extends Model
+class AttachmentLink extends Model
 {
+    protected $table = 'attachment_links';
+
     protected $fillable = [
         'cycle_id',
-        'kind',
-        'path',
-        'original_name',
-        'mime',
-        'size',
+        'attachment_id',
+        'scope',
+        'record_id',
     ];
 
     public function cycle(): BelongsTo
@@ -22,8 +21,9 @@ class Attachment extends Model
         return $this->belongsTo(Cycle::class);
     }
 
-    public function links(): HasMany
+    public function attachment(): BelongsTo
     {
-        return $this->hasMany(AttachmentLink::class);
+        return $this->belongsTo(Attachment::class);
     }
 }
+

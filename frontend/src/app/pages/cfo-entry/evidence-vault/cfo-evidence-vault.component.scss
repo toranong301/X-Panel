@@ -1,0 +1,88 @@
+.vault {
+  padding: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h2 {
+    margin: 0;
+  }
+
+  .sub {
+    color: rgba(0, 0, 0, 0.65);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+}
+
+.upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.bulk-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.w-kind {
+  width: 220px;
+}
+
+.w-scope {
+  width: 360px;
+}
+
+.w-record {
+  width: 280px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.error {
+  color: #b00020;
+  padding: 10px 0;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+td.links {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

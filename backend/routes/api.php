@@ -75,6 +75,10 @@ if (app()->environment(['local', 'development', 'demo'])) {
 
 Route::middleware('api-key')->group(function () {
     Route::get('/cycles/{cycle}', [CycleController::class, 'show']);
+    Route::get('/cycles/{cycle}/attachments', [AttachmentController::class, 'index']);
     Route::post('/cycles/{cycle}/attachments', [AttachmentController::class, 'store']);
+    Route::post('/cycles/{cycle}/attachments/link', [AttachmentController::class, 'link']);
+    Route::post('/cycles/{cycle}/attachments/unlink', [AttachmentController::class, 'unlink']);
+    Route::get('/cycles/{cycle}/attachments/{attachment}/download', [AttachmentController::class, 'download']);
     Route::get('/exports/{export}', [ExportController::class, 'show']);
 });

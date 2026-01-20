@@ -49,6 +49,12 @@ class Scope11PayloadService
                     'evidence' => trim((string) ($row->evidence ?? '')),
                     'unit' => $unit === 'KG' ? 'kg' : 'L',
                     'otherType' => $row->other_type ?? null,
+                    'otherDieselPct' => $row->other_diesel_pct ?? null,
+                    'otherBiodieselPct' => $row->other_biodiesel_pct ?? null,
+                    'otherGasolinePct' => $row->other_gasoline_pct ?? null,
+                    'otherEthanolPct' => $row->other_ethanol_pct ?? null,
+                    'otherBiodieselDensityKgPerL' => $row->other_biodiesel_density_kg_per_l ?? null,
+                    'otherEthanolDensityKgPerL' => $row->other_ethanol_density_kg_per_l ?? null,
                     'months' => $months,
                     'includeFr041' => isset($selectedMap[$rowId]) ? true : null,
                 ];
@@ -200,4 +206,3 @@ class Scope11PayloadService
         return $out;
     }
 }
-

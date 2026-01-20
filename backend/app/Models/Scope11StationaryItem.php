@@ -19,6 +19,12 @@ class Scope11StationaryItem extends Model
         'unit',
         'fuel_key',
         'other_type',
+        'other_diesel_pct',
+        'other_biodiesel_pct',
+        'other_gasoline_pct',
+        'other_ethanol_pct',
+        'other_biodiesel_density_kg_per_l',
+        'other_ethanol_density_kg_per_l',
         'months_json',
         'total',
     ];
@@ -26,6 +32,12 @@ class Scope11StationaryItem extends Model
     protected $casts = [
         'months_json' => 'array',
         'total' => 'float',
+        'other_diesel_pct' => 'float',
+        'other_biodiesel_pct' => 'float',
+        'other_gasoline_pct' => 'float',
+        'other_ethanol_pct' => 'float',
+        'other_biodiesel_density_kg_per_l' => 'float',
+        'other_ethanol_density_kg_per_l' => 'float',
     ];
 
     public function cycle(): BelongsTo
@@ -33,4 +45,3 @@ class Scope11StationaryItem extends Model
         return $this->belongsTo(Cycle::class);
     }
 }
-

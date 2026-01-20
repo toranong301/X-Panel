@@ -1,0 +1,142 @@
+<mat-card class="vault">
+  <div class="header">
+    <div>
+      <h2>Evidence Vault</h2>
+      <div class="sub">Upload, download, and link evidence files to scopes / records.</div>
+    </div>
+    <div class="header-actions">
+      <div class="upload">
+        <mat-form-field appearance="outline" class="w-kind">
+          <mat-label>Kind</mat-label>
+          <input matInput [(ngModel)]="uploadKind" placeholder="e.g. evidence, invoice, photo" />
+        </mat-form-field>
+
+        <input type="file" (change)="onFileSelected($event)" />
+        <button mat-raised-button color="primary" (click)="upload()" [disabled]="saving || !uploadFile">
+          <mat-icon>upload</mat-icon>
+          Upload
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="filters">
+    <mat-form-field appearance="outline" class="w-kind">
+      <mat-label>Kind filter</mat-label>
+      <input matInput [(ngModel)]="kindFilter" placeholder="(optional)" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-scope">
+      <mat-label>Scope filter</mat-label>
+      <mat-select [(ngModel)]="scopeFilter">
+        <mat-option *ngFor="let opt of scopeOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="applyFilters()" [disabled]="saving">
+      <mat-icon>filter_alt</mat-icon>
+      Apply
+    </button>
+    <button mat-stroked-button (click)="clearFilters()" [disabled]="saving">
+      <mat-icon>clear</mat-icon>
+      Clear
+    </button>
+  </div>
+
+  <div class="bulk">
+    <div class="bulk-left">
+      <mat-form-field appearance="outline" class="w-scope">
+        <mat-label>Link scope</mat-label>
+        <mat-select [(ngModel)]="linkScope">
+          <mat-option *ngFor="let opt of scopeOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w-record">
+        <mat-label>Record ID (optional)</mat-label>
+        <input matInput [(ngModel)]="linkRecordId" placeholder="e.g. DIESEL_B7_STATIONARY" />
+      </mat-form-field>
+    </div>
+
+    <div class="bulk-actions">
+      <button mat-raised-button color="primary" (click)="linkSelected()" [disabled]="saving || !selected.size || !linkScope">
+        <mat-icon>link</mat-icon>
+        Link selected
+      </button>
+      <button mat-stroked-button (click)="unlinkSelected()" [disabled]="saving || !selected.size || !linkScope">
+        <mat-icon>link_off</mat-icon>
+        Unlink selected
+      </button>
+    </div>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="loading" *ngIf="loading">
+    <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
+    <span>Loading…</span>
+  </div>
+
+  <div class="error" *ngIf="!loading && error">{{ error }}</div>
+
+  <div class="table-wrap" *ngIf="!loading">
+    <table mat-table [dataSource]="attachments" class="mat-elevation-z0">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox
+            [checked]="allSelected()"
+            [indeterminate]="someSelected()"
+            (change)="toggleAll(!!$event.checked)"
+          ></mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let row">
+          <mat-checkbox
+            [checked]="selected.has(row.id)"
+            (change)="toggleOne(row.id, !!$event.checked)"
+          ></mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let row">{{ row.original_name }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="kind">
+        <th mat-header-cell *matHeaderCellDef>Kind</th>
+        <td mat-cell *matCellDef="let row">{{ row.kind }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="size">
+        <th mat-header-cell *matHeaderCellDef>Size</th>
+        <td mat-cell *matCellDef="let row">{{ formatBytes(row.size) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="links">
+        <th mat-header-cell *matHeaderCellDef>Links</th>
+        <td mat-cell *matCellDef="let row" class="links">{{ linkLabel(row) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="createdAt">
+        <th mat-header-cell *matHeaderCellDef>Created</th>
+        <td mat-cell *matCellDef="let row">{{ row.created_at || '-' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let row">
+          <button mat-stroked-button (click)="download(row.id, row.original_name)" [disabled]="saving">
+            <mat-icon>download</mat-icon>
+            Download
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  </div>
+</mat-card>
+
