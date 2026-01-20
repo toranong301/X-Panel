@@ -29,11 +29,14 @@ export class Sidebar {
   ) {
     effect(() => {
       const cycleId = this.nav.getCycleId();
-      if (!cycleId) {
-        this.dashboardSections.set([]);
-        return;
-      }
-      void this.loadDashboardSections(cycleId);
+      Promise.resolve().then(() => {
+        if (!cycleId) {
+          this.dashboardSections.set([]);
+          this.sectionsLoading.set(false);
+          return;
+        }
+        void this.loadDashboardSections(cycleId);
+      });
     });
   }
 

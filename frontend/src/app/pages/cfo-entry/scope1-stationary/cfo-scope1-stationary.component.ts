@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable, Subject, catchError, combineLatest, distinctUntilChanged, finalize, from, map, of, shareReplay, startWith, switchMap, tap } from 'rxjs';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -64,7 +66,12 @@ type SplitPreviewRow = {
   styleUrls: ['./cfo-scope1-stationary.component.scss'],
 })
 export class CfoScope1StationaryComponent implements OnInit {
-  cycleId = 0;
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly cycleId$: Observable<number>;
+
+  private readonly reload$ = new Subject<void>();
+
   templateId = '';
   year: number | null = null;
 
@@ -91,53 +98,84 @@ export class CfoScope1StationaryComponent implements OnInit {
     private router: Router,
     private cycleState: CycleStateService,
     private cycleApi: CycleApiService,
-  ) {}
+  ) {
+    this.cycleId$ = this.route.paramMap.pipe(
+      map(params => Number(params.get('cycleId') || 0)),
+      distinctUntilChanged(),
+      switchMap(routeId =>
+        from(this.cycleState.resolveCycleId(routeId)).pipe(
+          catchError(() => of(routeId)),
+          tap(resolvedId => {
+            if (routeId !== resolvedId) {
+              Promise.resolve().then(() => {
+                this.router.navigate(['/cycles', resolvedId, 'cfo', 'scope1-stationary'], { replaceUrl: true });
+              });
+            }
+          })
+        )
+      ),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
 
   ngOnInit(): void {
-    setTimeout(() => void this.init());
+    combineLatest([
+      this.cycleId$,
+      this.reload$.pipe(startWith(undefined)),
+    ])
+      .pipe(
+        switchMap(([cycleId]) => this.loadAll$(cycleId)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
-  private async init(): Promise<void> {
-    await this.resolveCycleId();
-    await this.loadAll();
+  reload(): void {
+    this.reload$.next();
   }
 
-  async loadAll(): Promise<void> {
-    if (!this.cycleId) {
+  private loadAll$(cycleId: number) {
+    if (!cycleId) {
       this.loading = false;
-      return;
+      return of(undefined);
     }
 
     this.loading = true;
     this.loadError = null;
 
-    try {
-      const [cycle, resp, fr041] = await Promise.all([
-        this.cycleApi.getCycle(this.cycleId).catch(() => null),
-        this.cycleApi.getScope11StationaryItems(this.cycleId),
-        this.cycleApi.getFr041Config(this.cycleId).catch(() => null),
-      ]);
+    return from(
+      Promise.all([
+        this.cycleApi.getCycle(cycleId).catch(() => null),
+        this.cycleApi.getScope11StationaryItems(cycleId),
+        this.cycleApi.getFr041Config(cycleId).catch(() => null),
+      ])
+    ).pipe(
+      tap(([cycle, resp, fr041]) => {
+        this.templateId = String((cycle as any)?.template_id ?? '');
+        this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any).year) : null;
 
-      this.templateId = String((cycle as any)?.template_id ?? '');
-      this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any).year) : null;
+        const selected = new Set<string>(
+          (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
+        );
+        this.selectedRowIds = selected;
 
-      const selected = new Set<string>(
-        (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
-      );
-      this.selectedRowIds = selected;
-
-      const data: Scope11StationaryItemsResponse = resp;
-      this.splitEnabled = Boolean(data?.splitEnabled);
-      this.rows = (data.items ?? []).map(item => this.normalizeRow(item, selected));
-      this.rebuildColumns();
-    } catch (e: any) {
-      console.error(e);
-      this.rows = [];
-      this.rebuildColumns();
-      this.loadError = e?.message || 'Load failed';
-    } finally {
-      this.loading = false;
-    }
+        const data: Scope11StationaryItemsResponse = resp as any;
+        this.splitEnabled = Boolean(data?.splitEnabled);
+        this.rows = (data.items ?? []).map(item => this.normalizeRow(item, selected));
+        this.rebuildColumns();
+      }),
+      catchError((e: any) => {
+        console.error(e);
+        this.rows = [];
+        this.rebuildColumns();
+        this.loadError = e?.message || 'Load failed';
+        return of(undefined);
+      }),
+      finalize(() => {
+        this.loading = false;
+      })
+    );
   }
 
   addRow(): void {
@@ -224,8 +262,8 @@ export class CfoScope1StationaryComponent implements OnInit {
     row.total = this.calcTotal(row.months ?? {});
   }
 
-  async save(): Promise<void> {
-    if (!this.cycleId) return;
+  async save(cycleId: number): Promise<void> {
+    if (!cycleId) return;
 
     this.saving = true;
     this.saveError = null;
@@ -250,14 +288,14 @@ export class CfoScope1StationaryComponent implements OnInit {
         total: row.total ?? null,
       }));
 
-      await this.cycleApi.saveScope11StationaryItems(this.cycleId, items);
+      await this.cycleApi.saveScope11StationaryItems(cycleId, items);
 
       // persist Include selection (FR-04.1) without touching Excel
-      await this.cycleApi.updateFr041Config(this.cycleId, {
+      await this.cycleApi.updateFr041Config(cycleId, {
         selectedRowIds: Array.from(this.selectedRowIds.values()),
       });
 
-      await this.loadAll();
+      this.reload();
     } catch (e: any) {
       console.error(e);
       this.saveError = e?.message || 'Save failed';
@@ -427,14 +465,5 @@ export class CfoScope1StationaryComponent implements OnInit {
     if (type === 'po') return 'ใบสั่งซื้อ';
     if (type === 'other') return String(otherText ?? '').trim();
     return '';
-  }
-
-  private async resolveCycleId(): Promise<void> {
-    const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
-    const resolvedId = await this.cycleState.resolveCycleId(routeId);
-    this.cycleId = resolvedId;
-    if (routeId !== resolvedId) {
-      this.router.navigate(['/cycles', resolvedId, 'cfo', 'scope1-stationary'], { replaceUrl: true });
-    }
   }
 }
