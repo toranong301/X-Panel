@@ -209,6 +209,36 @@ if ($wsScope11) {
     }
 }
 
+// MBAX-specific: make Screen scope 3 writable (no cross-sheet formulas)
+$wsScreenScope3 = $spreadsheet->getSheetByName('Screen scope 3');
+if ($wsScreenScope3) {
+    $startRow = 2;
+    $endRow = 45;
+    $groupCol = 'A';
+
+    for ($row = $startRow; $row <= $endRow; $row++) {
+        $groupVal = trim((string) $wsScreenScope3->getCell($groupCol . $row)->getValue());
+        $isGroup = preg_match('/^Scope\\s*3\\./i', $groupVal) === 1;
+        if ($isGroup) {
+            continue;
+        }
+
+        foreach (['C', 'D', 'E', 'F', 'G', 'H', 'K'] as $col) {
+            $wsScreenScope3->setCellValue($col . $row, null);
+        }
+    }
+}
+
+// MBAX-specific: make FR-04.1 Scope 3 block writable (export writes selected rows)
+$wsFr041 = $spreadsheet->getSheetByName('Fr-04.1');
+if ($wsFr041) {
+    for ($row = 51; $row <= 56; $row++) {
+        foreach (['B', 'C', 'D'] as $col) {
+            $wsFr041->setCellValue($col . $row, null);
+        }
+    }
+}
+
 $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
 $tmpPath = $path . '.tmp';
 $writer->save($tmpPath);

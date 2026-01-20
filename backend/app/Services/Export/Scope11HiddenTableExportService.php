@@ -448,6 +448,36 @@ class Scope11HiddenTableExportService
                 $this->writeValue($ws, $includeFr041Col . $excelRow, $data['includeFr041'] ?? null);
             }
 
+            $otherDieselPctCol = $headerMap['OTHERDIESELPCT'] ?? null;
+            if ($otherDieselPctCol && array_key_exists('otherDieselPct', $data)) {
+                $this->writeValue($ws, $otherDieselPctCol . $excelRow, $data['otherDieselPct'] ?? null);
+            }
+
+            $otherBiodieselPctCol = $headerMap['OTHERBIODIESELPCT'] ?? null;
+            if ($otherBiodieselPctCol && array_key_exists('otherBiodieselPct', $data)) {
+                $this->writeValue($ws, $otherBiodieselPctCol . $excelRow, $data['otherBiodieselPct'] ?? null);
+            }
+
+            $otherGasolinePctCol = $headerMap['OTHERGASOLINEPCT'] ?? null;
+            if ($otherGasolinePctCol && array_key_exists('otherGasolinePct', $data)) {
+                $this->writeValue($ws, $otherGasolinePctCol . $excelRow, $data['otherGasolinePct'] ?? null);
+            }
+
+            $otherEthanolPctCol = $headerMap['OTHERETHANOLPCT'] ?? null;
+            if ($otherEthanolPctCol && array_key_exists('otherEthanolPct', $data)) {
+                $this->writeValue($ws, $otherEthanolPctCol . $excelRow, $data['otherEthanolPct'] ?? null);
+            }
+
+            $otherBiodieselDensityCol = $headerMap['OTHERBIODIESELDENSITYKGPERL'] ?? null;
+            if ($otherBiodieselDensityCol && array_key_exists('otherBiodieselDensityKgPerL', $data)) {
+                $this->writeValue($ws, $otherBiodieselDensityCol . $excelRow, $data['otherBiodieselDensityKgPerL'] ?? null);
+            }
+
+            $otherEthanolDensityCol = $headerMap['OTHERETHANOLDENSITYKGPERL'] ?? null;
+            if ($otherEthanolDensityCol && array_key_exists('otherEthanolDensityKgPerL', $data)) {
+                $this->writeValue($ws, $otherEthanolDensityCol . $excelRow, $data['otherEthanolDensityKgPerL'] ?? null);
+            }
+
             $months = is_array($data['months'] ?? null) ? $data['months'] : [];
             for ($m = 1; $m <= 12; $m++) {
                 $field = 'M' . $m;

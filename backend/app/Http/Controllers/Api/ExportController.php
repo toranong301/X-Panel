@@ -7,10 +7,12 @@ use App\Models\Cycle;
 use App\Models\Export;
 use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
+use App\Services\Export\FullWorkbookExportService;
 use App\Services\Export\Scope11HiddenTableExportService;
 use App\Services\MbaxTemplateService;
 use App\Services\Scope11PayloadService;
 use App\Services\TemplateRegistry;
+use App\Services\ValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -22,8 +24,10 @@ class ExportController extends Controller
         Cycle $cycle,
         MbaxTemplateService $mbax,
         TemplateRegistry $registry,
+        FullWorkbookExportService $fullExport,
         Scope11HiddenTableExportService $scope11Export,
-        Scope11PayloadService $scope11Payload
+        Scope11PayloadService $scope11Payload,
+        ValidationService $validation
     )
     {
         $payload = $request->validate([
@@ -54,32 +58,26 @@ class ExportController extends Controller
             $warnings = [];
 
             $spreadsheet = $mbax->loadTemplate(null, null, $templateIdUsed);
-            if (!$spreadsheet->getSheetByName('_DATA_SCOPE11')) {
-                $year = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
-                $fallbackCandidates = [];
-                if ($year !== null && $year >= 2026) {
-                    $fallbackCandidates[] = 'VSHEET_CFO_2026';
-                }
-                $fallbackCandidates[] = 'VSHEET_CFO_2025';
-                $fallbackCandidates[] = 'VSHEET_CFO';
-
-                foreach ($fallbackCandidates as $fallbackTemplateId) {
-                    if ($fallbackTemplateId === $templateIdUsed) continue;
-                    if (!$this->templateExists($registry, $fallbackTemplateId)) continue;
-                    $templateIdUsed = $fallbackTemplateId;
-                    $warnings[] = [
-                        'code' => 'TEMPLATE_FALLBACK',
-                        'message' => "Template {$templateIdRequested} missing _DATA_SCOPE11; exported with {$templateIdUsed} instead.",
-                    ];
-                    $spreadsheet = $mbax->loadTemplate(null, null, $templateIdUsed);
-                    break;
-                }
-            }
 
             $profile = $this->resolveProfileForTemplateId($cycle, $templateIdUsed, $registry);
             if ($profile) {
                 $this->assertRequiredSheets($spreadsheet, $profile['requiredSheets'] ?? []);
                 $this->assertHiddenTables($spreadsheet, $profile['hiddenTables'] ?? []);
+            }
+
+            $validationResult = $validation->validateCycle($cycle);
+            if (!($validationResult['ok'] ?? false)) {
+                $export->status = 'failed';
+                $export->error_message = 'Validation failed; cannot export.';
+                $export->save();
+
+                return response()->json([
+                    'ok' => false,
+                    'code' => 'VALIDATION_FAILED',
+                    'message' => 'Validation failed; cannot export.',
+                    'errors' => $validationResult['errors'] ?? [],
+                    'warnings' => $validationResult['warnings'] ?? [],
+                ], 422);
             }
 
             $selectedRowIds = $this->loadFr041SelectionRowIds($cycle->id);
@@ -98,6 +96,11 @@ class ExportController extends Controller
                 }
             }
             $trace = $scope11Export->endTrace();
+
+            $fullResult = $fullExport->apply($cycle, $spreadsheet, $templateIdUsed);
+            if (!empty($fullResult['warnings'] ?? [])) {
+                $warnings = array_merge($warnings, $fullResult['warnings']);
+            }
 
             $formulaRefs = $this->collectFormulaReferences($spreadsheet, [
                 '_DATA_SCOPE11',

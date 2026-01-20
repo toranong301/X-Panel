@@ -1,0 +1,134 @@
+{
+  "templateId": "MBAX_TGO_11102567",
+  "writers": {
+    "fr01": {
+      "sheet": "Fr-01",
+      "cells": {
+        "orgName": "B6",
+        "preparedBy": "G4",
+        "preparedDate": "J4",
+        "periodText": "H36",
+        "baseYearText": "H38",
+        "productionValue": "H37",
+        "productionUnit": "J37",
+        "baseYearProductionValue": "H39",
+        "contactAddress": "I46",
+        "registrationDate": "I47",
+        "orgInfoStartRow": 41,
+        "orgInfoColumn": "G",
+        "orgInfoMaxLines": 5
+      }
+    },
+    "scope12": {
+      "sheet": "1.2 Mobile",
+      "monthColumns": ["G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"],
+      "slots": {
+        "DIESEL_B7_ONROAD": { "rows": [15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41] },
+        "DIESEL_B10_ONROAD": { "rows": [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42] },
+        "GASOHOL_9195": { "rows": [45, 47, 49, 51, 53, 55] },
+        "GASOHOL_E20": { "rows": [46, 48, 50, 52, 54, 56] }
+      },
+      "single": {
+        "DIESEL_B7_OFFROAD": 58
+      }
+    },
+    "scope141": {
+      "sheet": "1.4.1 สารทำความเย็น",
+      "monthColumns": ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"],
+      "columns": { "itemLabel": "A", "location": "B", "evidence": "C" },
+      "rows": {
+        "REFRIG_R22_KG": 5,
+        "REFRIG_R22_TANK": 6,
+        "REFRIG_R32": 7,
+        "REFRIG_R410A": 8,
+        "REFRIG_R134A": 9,
+        "REFRIG_R407C": 10
+      }
+    },
+    "scope142": {
+      "sheet": "1.4.2 สารดับเพลิง",
+      "startRow": 4,
+      "maxRows": 10,
+      "monthColumns": ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"],
+      "columns": { "itemLabel": "A", "location": "B", "evidence": "C", "unit": "D" }
+    },
+    "scope143": {
+      "sheet": "1.4.3 Septic",
+      "monthLabel": "ม.ค.",
+      "monthLabelColumn": "A",
+      "peopleColumn": "B",
+      "daysOffColumn": "E",
+      "maxGroups": 4
+    },
+    "scope144": {
+      "sheet": "1.4.4 ปุ๋ย",
+      "startRow": 4,
+      "maxRows": 10,
+      "monthColumns": ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"],
+      "columns": { "itemLabel": "A", "evidence": "B", "unit": "C" }
+    },
+    "scope145": {
+      "sheet": "1.4.5 ระบบบำบัดน้ำเสีย WWTP",
+      "quality": {
+        "startRow": 4,
+        "maxRows": 10,
+        "monthColumns": ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"],
+        "columns": { "itemLabel": "A", "system": "B", "evidence": "C", "unit": "D", "standard": "E" }
+      },
+      "meter": {
+        "startRow": 13,
+        "maxRows": 20,
+        "monthColumns": ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"],
+        "columns": { "location": "A", "evidence": "B", "unit": "C" }
+      }
+    },
+    "scope21": {
+      "sheet": "Scope 2.1 Purchased Electricity",
+      "labelColumn": "A",
+      "sourceColumn": "B",
+      "evidenceColumn": "C",
+      "unitColumn": "D",
+      "totalColumn": "E",
+      "monthColumns": ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"],
+      "scanMaxRow": 250
+    },
+    "screenScope3": {
+      "sheet": "Screen scope 3",
+      "startRow": 2,
+      "endRow": 45,
+      "columns": {
+        "tgoNo": "A",
+        "isoScope": "B",
+        "itemLabel": "C",
+        "unit": "D",
+        "quantity": "E",
+        "remark": "F",
+        "dataEvidence": "G",
+        "ef": "H",
+        "efEvidence": "K"
+      }
+    },
+    "fr032": {
+      "sheet": "Fr-03.2",
+      "startRow": 21,
+      "endRow": 200,
+      "columns": {
+        "subScope": "A",
+        "isoNo": "B",
+        "categoryLabel": "C",
+        "assessment": "K",
+        "selection": "L",
+        "ghg": "M",
+        "sharePct": "N"
+      }
+    },
+    "fr041Scope3": {
+      "sheet": "Fr-04.1",
+      "startRow": 51,
+      "maxRows": 6,
+      "itemLabelColumn": "B",
+      "unitColumn": "C",
+      "qtyColumn": "D"
+    }
+  }
+}

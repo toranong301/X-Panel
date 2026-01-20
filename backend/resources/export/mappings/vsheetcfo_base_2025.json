@@ -1,0 +1,23 @@
+{
+  "templateId": "VSHEET_CFO_2025",
+  "writers": {
+    "fr01": {
+      "sheet": "Fr-01",
+      "cells": {
+        "orgName": "B6",
+        "preparedBy": "G4",
+        "preparedDate": "J4",
+        "periodText": "H36",
+        "baseYearText": "H38",
+        "productionValue": "H37",
+        "productionUnit": "J37",
+        "baseYearProductionValue": "H39",
+        "contactAddress": "I46",
+        "registrationDate": "I47",
+        "orgInfoStartRow": 41,
+        "orgInfoColumn": "G",
+        "orgInfoMaxLines": 5
+      }
+    }
+  }
+}
