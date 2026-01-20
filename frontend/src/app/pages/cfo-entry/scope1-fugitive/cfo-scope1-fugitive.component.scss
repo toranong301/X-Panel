@@ -1,0 +1,26 @@
+.card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sub {
+  color: #6b7280;
+}
+
+.empty {
+  color: #6b7280;
+}
+
+.evidence-groups {
+  margin-top: 16px;
+  padding: 8px 0;
+}
+

@@ -43,6 +43,12 @@ export type Scope11StationaryItem = {
   unit: string;
   fuelKey: string;
   otherType?: string | null;
+  otherDieselPct?: number | null;
+  otherBiodieselPct?: number | null;
+  otherGasolinePct?: number | null;
+  otherEthanolPct?: number | null;
+  otherBiodieselDensityKgPerL?: number | null;
+  otherEthanolDensityKgPerL?: number | null;
   months: Record<string, number | null>;
   total?: number | null;
 
@@ -167,9 +173,49 @@ export type CycleDto = {
   locked_reason?: string | null;
 };
 
+export type DashboardSectionStatus = {
+  hasData: boolean;
+  missingEvidenceCount: number;
+  missingEfCount: number;
+  ok?: boolean;
+};
+
+export type DashboardSection = {
+  sectionId: string;
+  title: string;
+  scope: string;
+  status?: DashboardSectionStatus;
+};
+
+type DashboardSectionsResponse = {
+  ok: boolean;
+  sections: DashboardSection[];
+};
+
 export type ExportDownload = {
   blob: Blob;
   filename: string;
+};
+
+export type AttachmentLinkDto = {
+  id: number;
+  scope: string;
+  recordId?: string | null;
+};
+
+export type AttachmentDto = {
+  id: number;
+  kind: string;
+  original_name: string;
+  mime: string;
+  size: number;
+  created_at?: string | null;
+  links: AttachmentLinkDto[];
+};
+
+export type ListAttachmentsResponse = {
+  ok: boolean;
+  attachments: AttachmentDto[];
 };
 
 export type Scope11PreviewResult = {
@@ -326,6 +372,11 @@ export class CycleApiService {
     );
   }
 
+  getDashboardSections(cycleId: number): Promise<DashboardSection[]> {
+    const request = this.api.get<DashboardSectionsResponse>(`cycles/${cycleId}/dashboard/sections`) as Observable<DashboardSectionsResponse>;
+    return firstValueFrom(request).then(resp => resp?.sections ?? []);
+  }
+
   updateCycleTemplate(id: number, templateId: string): Promise<{ updated: boolean; templateId: string }> {
     return firstValueFrom(
       this.api.put<{ updated: boolean; templateId: string }>(`cycles/${id}/template`, { templateId })
@@ -479,6 +530,44 @@ export class CycleApiService {
         form
       )
     );
+  }
+
+  listAttachments(cycleId: number, filter?: { kind?: string | null; scope?: string | null }): Promise<ListAttachmentsResponse> {
+    return firstValueFrom(
+      this.api.get<ListAttachmentsResponse>(`cycles/${cycleId}/attachments`, {
+        kind: filter?.kind ?? null,
+        scope: filter?.scope ?? null,
+      })
+    );
+  }
+
+  linkAttachments(cycleId: number, attachmentIds: number[], scope: string, recordId?: string | null): Promise<{ ok: boolean; linked: number }> {
+    return firstValueFrom(
+      this.api.post<{ ok: boolean; linked: number }>(`cycles/${cycleId}/attachments/link`, {
+        attachmentIds,
+        scope,
+        recordId: recordId ?? null,
+      })
+    );
+  }
+
+  unlinkAttachments(cycleId: number, attachmentIds: number[], scope: string, recordId?: string | null): Promise<{ ok: boolean; unlinked: number }> {
+    return firstValueFrom(
+      this.api.post<{ ok: boolean; unlinked: number }>(`cycles/${cycleId}/attachments/unlink`, {
+        attachmentIds,
+        scope,
+        recordId: recordId ?? null,
+      })
+    );
+  }
+
+  async downloadAttachment(cycleId: number, attachmentId: number): Promise<ExportDownload> {
+    const resp = await firstValueFrom(
+      this.api.getBlob(`cycles/${cycleId}/attachments/${attachmentId}/download`)
+    );
+    const disposition = resp.headers?.get('content-disposition') ?? '';
+    const filename = this.extractFilename(disposition) ?? `attachment_${attachmentId}`;
+    return { blob: resp.body ?? new Blob(), filename };
   }
 
   /* ---------- export ---------- */

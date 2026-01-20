@@ -280,6 +280,7 @@ export class CanonicalGhgService {
       .filter(r =>
         r.categoryCode === '1.1' ||
         r.categoryCode === '1.2' ||
+        r.categoryCode === '1.4.1' ||
         r.categoryCode === '1.4.2' ||
         r.categoryCode === '1.4.3' ||
         r.categoryCode === '1.4.4' ||
@@ -288,8 +289,13 @@ export class CanonicalGhgService {
       .map(r => this.mapEntryRowToInventory(r, 1));
   }
 
-  private buildScope2Inventory(_cycleId: number): InventoryItemRow[] {
-    return []; // ยังไม่ทำในงานนี้
+  private buildScope2Inventory(cycleId: number): InventoryItemRow[] {
+    const doc = this.entrySvc.load(cycleId);
+    const rows = (doc?.scope2 ?? []).filter(r => r.scope === 'S2');
+
+    return rows
+      .filter(r => r.categoryCode === '2.1')
+      .map(r => this.mapEntryRowToInventory(r, 2));
   }
 
   private buildScope11DerivedInventory(scope1Rows: EntryRow[]): InventoryItemRow[] {
@@ -360,6 +366,7 @@ export class CanonicalGhgService {
     const categoryLabel =
       r.categoryCode === '1.1' ? 'Stationary combustion' :
       r.categoryCode === '1.2' ? 'Mobile combustion' :
+      r.categoryCode === '2.1' ? 'Purchased electricity' :
       r.categoryCode;
     const standard = r.categoryCode === '1.4.5' ? String(r.remark ?? '').trim() : '';
     const remark =
@@ -367,6 +374,8 @@ export class CanonicalGhgService {
         ? [r.location ?? '', standard ? `standard=${standard}` : ''].filter(Boolean).join(' | ')
         : r.categoryCode === '1.4.4'
           ? (r.location ?? r.itemName ?? '')
+          : r.categoryCode === '2.1'
+            ? String(r.remark ?? '').trim()
           : (r.location ?? '');
 
     return {

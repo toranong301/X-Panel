@@ -105,37 +105,45 @@ export class Scope14FugitiveComponent {
     this.rowsChange.emit(this.rows);
   }
 
-  getMonthQty(code: string, month: number): number {
+  getMonthQty(code: string, month: number): number | null {
     const row = this.getRow(code);
-    if (!row) return 0;
-    const m = row.months.find(x => x.month === month);
-    return m ? m.qty : 0;
+    if (!row) return null;
+    const m = row.months.find(x => Number(x?.month) === month);
+    return m && Number.isFinite(Number(m.qty)) ? Number(m.qty) : null;
   }
 
   updateMonthQty(code: string, month: number, value: number | string) {
     const row = this.ensureRow(code);
     if (!row) return;
-    let m = row.months.find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months.push(m);
-    }
-    m.qty = Number(value) || 0;
+    const normalized = this.parseNumberOrNull(value);
+    const existing = Array.isArray(row.months) ? row.months : [];
+    const otherMonths = existing.filter(x => Number(x?.month) !== month);
+    row.months = normalized === null
+      ? otherMonths
+      : [...otherMonths, { month, qty: normalized }].sort((a, b) => a.month - b.month);
     this.rowsChange.emit(this.rows);
   }
 
-  totalForCode(code: string): number {
-    return this.monthlyForCode(code).reduce((sum, v) => sum + v, 0);
+  totalForCode(code: string): number | null {
+    const row = this.getRow(code);
+    if (!row) return null;
+
+    const values = (row.months ?? [])
+      .map(m => this.parseNumberOrNull(m?.qty))
+      .filter((v): v is number => v !== null);
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
   }
 
-  monthlyForCode(code: string): number[] {
+  monthlyForCode(code: string): Array<number | null> {
     const row = this.getRow(code);
     return this.toMonthlyArray(row);
   }
 
-  formatNumber(value: number, zeroAsDash = false, decimals = 2): string {
-    if (zeroAsDash && value === 0) return '-';
-    return value.toLocaleString('en-US', {
+  formatNumber(value: number | null, zeroAsDash = false, decimals = 2): string {
+    if (!Number.isFinite(Number(value))) return '';
+    if (zeroAsDash && Number(value) === 0) return '-';
+    return Number(value).toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: decimals,
     });
@@ -159,13 +167,22 @@ export class Scope14FugitiveComponent {
     return row;
   }
 
-  private toMonthlyArray(row?: EntryRow): number[] {
-    const out = Array.from({ length: 12 }, () => 0);
+  private toMonthlyArray(row?: EntryRow): Array<number | null> {
+    const out: Array<number | null> = Array.from({ length: 12 }, () => null);
     for (const m of row?.months ?? []) {
       const idx = Number(m.month) - 1;
-      if (idx >= 0 && idx < 12) out[idx] = Number(m.qty || 0);
+      if (idx >= 0 && idx < 12) out[idx] = this.parseNumberOrNull(m.qty);
     }
     return out;
+  }
+
+  private parseNumberOrNull(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 
   private downloadFile(blob: Blob, filename: string) {

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cycle;
 use App\Models\Fr041Config;
+use App\Models\Scope11StationaryItem;
+use App\Services\EfResolverService;
 use App\Services\MbaxTemplateService;
 use App\Services\Scope11PayloadService;
 use App\Services\SheetRegistry;
@@ -13,6 +15,7 @@ use App\Services\Export\Scope11HiddenTableExportService;
 use App\Exceptions\TemplateNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
@@ -450,15 +453,9 @@ class CycleController extends Controller
         }
     }
 
-    public function dashboardSections(Cycle $cycle)
+    public function dashboardSections(Cycle $cycle, EfResolverService $efResolver)
     {
-        $sections = array_values(array_map(function (array $entry) {
-            return [
-                'sectionId' => $entry['sectionId'],
-                'title' => $entry['title'],
-                'scope' => $entry['scope'],
-            ];
-        }, [
+        $defs = [
             ['sectionId' => '1.1', 'title' => '1.1 Stationary Combustion', 'scope' => 'Scope 1'],
             ['sectionId' => '1.2', 'title' => '1.2 Mobile Combustion', 'scope' => 'Scope 1'],
             ['sectionId' => '1.3', 'title' => '1.3 Process Emission', 'scope' => 'Scope 1'],
@@ -481,12 +478,170 @@ class CycleController extends Controller
             ['sectionId' => '3.13', 'title' => '3.13 Downstream leased assets', 'scope' => 'Scope 3'],
             ['sectionId' => '3.14', 'title' => '3.14 Franchises', 'scope' => 'Scope 3'],
             ['sectionId' => '3.15', 'title' => '3.15 Investments', 'scope' => 'Scope 3'],
-        ]));
+        ];
+
+        $data = $cycle->data_json ?? [];
+        $data = is_array($data) ? $data : [];
+        $inventory = is_array($data['inventory'] ?? null) ? $data['inventory'] : [];
+
+        $sections = array_values(array_map(function (array $entry) use ($cycle, $inventory, $efResolver) {
+            $sectionId = (string) ($entry['sectionId'] ?? '');
+            $status = [
+                'hasData' => false,
+                'missingEvidenceCount' => 0,
+                'missingEfCount' => 0,
+            ];
+
+            if ($sectionId === '1.1') {
+                $status = $this->buildScope11Status($cycle, $efResolver);
+            } elseif (str_starts_with($sectionId, '3.')) {
+                $status = $this->buildInventoryStatus($inventory, $sectionId, 3, true);
+            } elseif (str_starts_with($sectionId, '2.')) {
+                $status = $this->buildInventoryStatus($inventory, $sectionId, 2, false);
+            } elseif (str_starts_with($sectionId, '1.')) {
+                $status = $this->buildInventoryStatus($inventory, $sectionId, 1, false);
+            }
+
+            $status['ok'] = !($status['hasData'] ?? false) || (((int) ($status['missingEvidenceCount'] ?? 0)) === 0 && ((int) ($status['missingEfCount'] ?? 0)) === 0);
+
+            return [
+                'sectionId' => $sectionId,
+                'title' => $entry['title'],
+                'scope' => $entry['scope'],
+                'status' => $status,
+            ];
+        }, $defs));
 
         return response()->json([
             'ok' => true,
             'sections' => $sections,
         ]);
+    }
+
+    private function buildInventoryStatus(array $inventory, string $sectionId, int $scopeNo, bool $requireEf): array
+    {
+        $hasData = false;
+        $missingEvidence = 0;
+        $missingEf = 0;
+
+        foreach ($inventory as $row) {
+            if (!is_array($row)) continue;
+            if ((int) ($row['scope'] ?? 0) !== $scopeNo) continue;
+
+            $rowSectionId = $scopeNo === 3 ? $this->resolveScope3SectionId($row) : (string) ($row['subScope'] ?? '');
+            if ($rowSectionId !== $sectionId) continue;
+
+            $hasActivity = $this->inventoryRowHasActivity($row);
+            if (!$hasActivity) continue;
+
+            $hasData = true;
+
+            $evidence = trim((string) ($row['dataEvidence'] ?? $row['evidence'] ?? ''));
+            if ($evidence === '') {
+                $missingEvidence += 1;
+            }
+
+            if ($requireEf) {
+                $ef = $row['ef'] ?? null;
+                if (!is_numeric($ef)) {
+                    $missingEf += 1;
+                }
+            }
+        }
+
+        return [
+            'hasData' => $hasData,
+            'missingEvidenceCount' => $missingEvidence,
+            'missingEfCount' => $missingEf,
+        ];
+    }
+
+    private function inventoryRowHasActivity(array $row): bool
+    {
+        $monthly = is_array($row['quantityMonthly'] ?? null) ? $row['quantityMonthly'] : [];
+        $hasMonth = false;
+        foreach ($monthly as $value) {
+            if ($value === null || $value === '') continue;
+            if (!is_numeric($value)) continue;
+            if ((float) $value !== 0.0) {
+                $hasMonth = true;
+                break;
+            }
+        }
+
+        if ($hasMonth) {
+            return true;
+        }
+
+        $qty = $row['quantityPerYear'] ?? null;
+        return is_numeric($qty) && (float) $qty !== 0.0;
+    }
+
+    private function resolveScope3SectionId(array $row): string
+    {
+        $subScope = trim((string) ($row['subScope'] ?? ''));
+        if (str_starts_with($subScope, '3.')) return $subScope;
+
+        $tgoNo = (string) ($row['tgoNo'] ?? '');
+        if (preg_match('/3\\.(\\d+(?:\\.\\d+)?)/', $tgoNo, $m)) {
+            return '3.' . $m[1];
+        }
+        return '';
+    }
+
+    private function buildScope11Status(Cycle $cycle, EfResolverService $efResolver): array
+    {
+        $hasData = false;
+        $missingEvidence = 0;
+        $missingEf = 0;
+
+        if (!Schema::hasTable('scope11_stationary_items') || !Schema::hasTable('ef_profiles') || !Schema::hasTable('ef_library_entries')) {
+            return [
+                'hasData' => false,
+                'missingEvidenceCount' => 0,
+                'missingEfCount' => 0,
+            ];
+        }
+
+        $rows = Scope11StationaryItem::query()
+            ->where('cycle_id', $cycle->id)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($rows as $row) {
+            $rowId = trim((string) ($row->row_id ?? ''));
+            if ($rowId === '') continue;
+
+            $months = is_array($row->months_json ?? null) ? $row->months_json : [];
+            $hasActivity = $this->hasAnyMonthValue($months);
+            if (!$hasActivity) {
+                continue;
+            }
+
+            $hasData = true;
+
+            $evidence = trim((string) ($row->evidence ?? ''));
+            if ($evidence === '') {
+                $missingEvidence += 1;
+            }
+
+            $item = [
+                'rowId' => $rowId,
+                'fuelKey' => (string) ($row->fuel_key ?? ''),
+                'unit' => (string) ($row->unit ?? ''),
+                'label' => (string) ($row->item_label ?? ''),
+            ];
+            $resolved = $efResolver->resolveScope11($cycle, $item, null);
+            if (!($resolved['ok'] ?? false)) {
+                $missingEf += 1;
+            }
+        }
+
+        return [
+            'hasData' => $hasData,
+            'missingEvidenceCount' => $missingEvidence,
+            'missingEfCount' => $missingEf,
+        ];
     }
 
     private function buildScope11PayloadFromCycleData(array $data): array

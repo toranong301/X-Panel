@@ -232,27 +232,31 @@ export class Scope12MobileComponent {
     this.rowsChange.emit(this.rows);
   }
 
-  getMonthQty(row: EntryRow, month: number): number {
-    const m = row.months.find(x => x.month === month);
-    return m ? m.qty : 0;
+  getMonthQty(row: EntryRow, month: number): number | null {
+    const m = row.months.find(x => Number(x?.month) === month);
+    return m && Number.isFinite(Number(m.qty)) ? Number(m.qty) : null;
   }
 
   updateMonthQty(row: EntryRow, month: number, value: number | string) {
-    let m = row.months.find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months.push(m);
-    }
-    m.qty = Number(value) || 0;
+    const normalized = this.parseNumberOrNull(value);
+    const existing = Array.isArray(row.months) ? row.months : [];
+    const otherMonths = existing.filter(x => Number(x?.month) !== month);
+    row.months = normalized === null
+      ? otherMonths
+      : [...otherMonths, { month, qty: normalized }].sort((a, b) => a.month - b.month);
     this.rowsChange.emit(this.rows);
   }
 
-  total(row: EntryRow): number {
-    return row.months.reduce((sum, m) => sum + (m.qty || 0), 0);
+  total(row: EntryRow): number | null {
+    const values = (row.months ?? [])
+      .map(m => this.parseNumberOrNull(m?.qty))
+      .filter((v): v is number => v !== null);
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
   }
 
   totalAll(key: Exclude<FuelKey, 'DIESEL_B7_OFFROAD'>): number {
-    return this.groupRows(key).reduce((sum, row) => sum + this.total(row), 0);
+    return this.groupRows(key).reduce((sum, row) => sum + Number(this.total(row) || 0), 0);
   }
 
   getOffroadRow(): EntryRow | undefined {
@@ -334,5 +338,14 @@ export class Scope12MobileComponent {
     link.target = '_blank';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private parseNumberOrNull(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 }

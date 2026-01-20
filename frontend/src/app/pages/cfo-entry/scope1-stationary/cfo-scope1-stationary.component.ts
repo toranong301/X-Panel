@@ -153,6 +153,12 @@ export class CfoScope1StationaryComponent implements OnInit {
       unit: 'L',
       fuelKey: 'B7',
       otherType: null,
+      otherDieselPct: null,
+      otherBiodieselPct: null,
+      otherGasolinePct: null,
+      otherEthanolPct: null,
+      otherBiodieselDensityKgPerL: null,
+      otherEthanolDensityKgPerL: null,
       months,
       total: null,
       include: false,
@@ -234,6 +240,12 @@ export class CfoScope1StationaryComponent implements OnInit {
         unit: row.unit ?? 'L',
         fuelKey: row.fuelKey ?? '',
         otherType: row.fuelKey === 'OTHER' ? (row.otherType ?? null) : null,
+        otherDieselPct: row.fuelKey === 'OTHER' ? (row.otherDieselPct ?? null) : null,
+        otherBiodieselPct: row.fuelKey === 'OTHER' ? (row.otherBiodieselPct ?? null) : null,
+        otherGasolinePct: row.fuelKey === 'OTHER' ? (row.otherGasolinePct ?? null) : null,
+        otherEthanolPct: row.fuelKey === 'OTHER' ? (row.otherEthanolPct ?? null) : null,
+        otherBiodieselDensityKgPerL: row.fuelKey === 'OTHER' ? (row.otherBiodieselDensityKgPerL ?? null) : null,
+        otherEthanolDensityKgPerL: row.fuelKey === 'OTHER' ? (row.otherEthanolDensityKgPerL ?? null) : null,
         months: row.months ?? this.emptyMonths(),
         total: row.total ?? null,
       }));
@@ -275,6 +287,12 @@ export class CfoScope1StationaryComponent implements OnInit {
       unit: meta?.unit ?? (String(it.unit || '').toLowerCase() === 'kg' ? 'kg' : 'L'),
       fuelKey: meta?.fuelKey ?? String(it.fuelKey || '').trim().toUpperCase(),
       otherType: it.otherType ?? null,
+      otherDieselPct: this.normalizeNumber((it as any).otherDieselPct),
+      otherBiodieselPct: this.normalizeNumber((it as any).otherBiodieselPct),
+      otherGasolinePct: this.normalizeNumber((it as any).otherGasolinePct),
+      otherEthanolPct: this.normalizeNumber((it as any).otherEthanolPct),
+      otherBiodieselDensityKgPerL: this.normalizeNumber((it as any).otherBiodieselDensityKgPerL),
+      otherEthanolDensityKgPerL: this.normalizeNumber((it as any).otherEthanolDensityKgPerL),
       months,
       total: it.total ?? null,
       include: selected.has(it.rowId),
@@ -341,7 +359,25 @@ export class CfoScope1StationaryComponent implements OnInit {
     return this.splitEnabled || this.templateId.toLowerCase().includes('mbax');
   }
 
-  formatFixed2(value: number | null): string {
+  get otherBlendRows(): StationaryRow[] {
+    return (this.rows ?? []).filter(row => String(row.fuelKey || '').trim().toUpperCase() === 'OTHER');
+  }
+
+  setOtherBlendNumber(
+    row: StationaryRow,
+    field:
+      | 'otherDieselPct'
+      | 'otherBiodieselPct'
+      | 'otherGasolinePct'
+      | 'otherEthanolPct'
+      | 'otherBiodieselDensityKgPerL'
+      | 'otherEthanolDensityKgPerL',
+    raw: any
+  ): void {
+    (row as any)[field] = this.normalizeNumber(raw);
+  }
+
+  formatFixed2(value: number | null | undefined): string {
     if (!Number.isFinite(Number(value))) return '';
     return Number(value).toFixed(2);
   }

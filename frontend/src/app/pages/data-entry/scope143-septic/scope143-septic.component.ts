@@ -44,29 +44,28 @@ export class Scope143SepticComponent implements OnChanges {
     return this.findRow(groupNo, 'OFF');
   }
 
-  getMonthQty(row: EntryRow | undefined, month: number): number {
-    if (!row) return 0;
-    const m = (row.months ?? []).find(x => x.month === month);
-    return m ? Number(m.qty || 0) : 0;
+  getMonthQty(row: EntryRow | undefined, month: number): number | null {
+    if (!row) return null;
+    const m = (row.months ?? []).find(x => Number(x?.month) === month);
+    return m && Number.isFinite(Number(m.qty)) ? Number(m.qty) : null;
   }
 
   updateMonthQty(row: EntryRow | undefined, month: number, value: number | string): void {
     if (!row) return;
-    const qty = Number(value) || 0;
-    let m = (row.months ?? []).find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months = [...(row.months ?? []), m];
-    }
-    m.qty = qty;
+    const qty = this.parseNumberOrNull(value);
+    const existing = Array.isArray(row.months) ? row.months : [];
+    const otherMonths = existing.filter(x => Number(x?.month) !== month);
+    row.months = qty === null
+      ? otherMonths
+      : [...otherMonths, { month, qty }].sort((a, b) => a.month - b.month);
     this.rowsChange.emit([...this.rows]);
   }
 
-  workingDays(monthIndex: number, daysOff: number): number {
+  workingDays(monthIndex: number, daysOff: number | null): number {
     return Math.max(0, this.daysInMonth[monthIndex] - (Number(daysOff) || 0));
   }
 
-  manDay(people: number, workingDays: number): number {
+  manDay(people: number | null, workingDays: number): number {
     return (Number(people) || 0) * (Number(workingDays) || 0);
   }
 
@@ -129,5 +128,14 @@ export class Scope143SepticComponent implements OnChanges {
       months: createEmptyMonths(),
       dataSourceType: 'ORG',
     };
+  }
+
+  private parseNumberOrNull(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 }

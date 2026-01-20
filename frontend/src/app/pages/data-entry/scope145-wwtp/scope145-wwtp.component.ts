@@ -76,28 +76,32 @@ export class Scope145WwtpComponent {
     this.rowsChange.emit([...this.rows]);
   }
 
-  getMonthQty(row: EntryRow, month: number): number {
-    const m = (row.months ?? []).find(x => x.month === month);
-    return m ? Number(m.qty || 0) : 0;
+  getMonthQty(row: EntryRow, month: number): number | null {
+    const m = (row.months ?? []).find(x => Number(x?.month) === month);
+    return m && Number.isFinite(Number(m.qty)) ? Number(m.qty) : null;
   }
 
   updateMonthQty(row: EntryRow, month: number, value: number | string): void {
-    const qty = Number(value) || 0;
-    let m = (row.months ?? []).find(x => x.month === month);
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months = [...(row.months ?? []), m];
-    }
-    m.qty = qty;
+    const qty = this.parseNumberOrNull(value);
+    const existing = Array.isArray(row.months) ? row.months : [];
+    const otherMonths = existing.filter(x => Number(x?.month) !== month);
+    row.months = qty === null
+      ? otherMonths
+      : [...otherMonths, { month, qty }].sort((a, b) => a.month - b.month);
     this.rowsChange.emit([...this.rows]);
   }
 
-  total(row: EntryRow): number {
-    return this.toMonthlyArray(row).reduce((sum, v) => sum + v, 0);
+  total(row: EntryRow): number | null {
+    const values = (row.months ?? [])
+      .map(m => this.parseNumberOrNull(m?.qty))
+      .filter((v): v is number => v !== null);
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
   }
 
-  formatNumber(value: number, decimals = 2): string {
-    return Number(value || 0).toLocaleString('en-US', {
+  formatNumber(value: number | null, decimals = 2): string {
+    if (!Number.isFinite(Number(value))) return '';
+    return Number(value).toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: decimals,
     });
@@ -138,11 +142,11 @@ export class Scope145WwtpComponent {
       .sort((a, b) => (this.parseSlotNo(a.subCategoryCode) ?? 0) - (this.parseSlotNo(b.subCategoryCode) ?? 0));
   }
 
-  private toMonthlyArray(row?: EntryRow): number[] {
-    const out = Array.from({ length: 12 }, () => 0);
+  private toMonthlyArray(row?: EntryRow): Array<number | null> {
+    const out: Array<number | null> = Array.from({ length: 12 }, () => null);
     for (const m of row?.months ?? []) {
       const idx = Number(m.month) - 1;
-      if (idx >= 0 && idx < 12) out[idx] = Number(m.qty || 0);
+      if (idx >= 0 && idx < 12) out[idx] = this.parseNumberOrNull(m.qty);
     }
     return out;
   }
@@ -153,5 +157,14 @@ export class Scope145WwtpComponent {
     const [, slotRaw] = raw.split('#');
     const slotNo = slotRaw ? Number(slotRaw) : undefined;
     return Number.isFinite(slotNo) ? slotNo : undefined;
+  }
+
+  private parseNumberOrNull(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 }

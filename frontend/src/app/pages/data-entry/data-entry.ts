@@ -317,6 +317,27 @@ function mkRow(
   };
 }
 
+function parseNumberOrNull(raw: any): number | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  const s = String(raw).trim();
+  if (s === '') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function monthsFromMonthlyArray(monthly: any[]): EntryRow['months'] {
+  const out: EntryRow['months'] = [];
+  const src = Array.isArray(monthly) ? monthly : [];
+  for (let i = 0; i < 12; i++) {
+    if (!Object.prototype.hasOwnProperty.call(src, i)) continue;
+    const n = parseNumberOrNull(src[i]);
+    if (n === null) continue;
+    out.push({ month: i + 1, qty: n });
+  }
+  return out;
+}
+
 // Scope 1.1: ทำ 4 slot ให้ครบ (mapping ไป E9/P9, E10/P10, E12/P12, E14/P14 ที่ adapter)
 // เราใช้ slotNo = 1..4 ผ่าน subCategoryCode แบบ KEY#N
 function makeScope11Defaults(cycleId: number): EntryRow[] {
@@ -393,11 +414,8 @@ function buildScope11RowsFromInventory(cycleId: number, inventory: any[]): Entry
   if (!scope11.length) return [];
 
   return scope11.map(item => {
-    const months = createEmptyMonths();
     const monthly = Array.isArray(item?.quantityMonthly) ? item.quantityMonthly : [];
-    for (let i = 0; i < months.length; i++) {
-      months[i].qty = Number(monthly[i] ?? 0) || 0;
-    }
+    const months = monthsFromMonthlyArray(monthly);
     const fuelKey = String(item?.fuelKey ?? '').toUpperCase();
     const fuelType = String(item?.fuelType ?? '').toUpperCase();
     const isOther = fuelKey.includes('OTHER') || fuelType === 'OTHER';
@@ -547,8 +565,7 @@ function makeScope143Defaults(cycleId: number): EntryRow[] {
 }
 
 function makeScope144Defaults(cycleId: number): EntryRow[] {
-  const months = createEmptyMonths();
-  months[0].qty = 50;
+  const months = [{ month: 1, qty: 50 }];
   return [
     {
       cycleId: String(cycleId),
@@ -566,11 +583,7 @@ function makeScope144Defaults(cycleId: number): EntryRow[] {
 
 function makeScope145Defaults(cycleId: number): EntryRow[] {
   const makeMonths = (values: number[]): EntryRow['months'] => {
-    const months = createEmptyMonths();
-    months.forEach((m, idx) => {
-      m.qty = Number(values[idx] ?? 0);
-    });
-    return months;
+    return monthsFromMonthlyArray(values);
   };
 
   const makeQual = (

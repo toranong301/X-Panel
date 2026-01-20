@@ -1,0 +1,91 @@
+<mat-card class="card">
+  <div class="header">
+    <div>
+      <h2>Scope 1.4 Fugitive Emission</h2>
+      <div class="sub">Cycle ID: {{ cycleId }}</div>
+    </div>
+    <button mat-raised-button color="primary" type="button" (click)="saveAndSync()" [disabled]="loading || saving">
+      <mat-progress-spinner *ngIf="saving" diameter="18" mode="indeterminate"></mat-progress-spinner>
+      <span>{{ saving ? 'Saving...' : 'Save & Sync' }}</span>
+    </button>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="empty" *ngIf="loading">Loading...</div>
+  <div class="empty" *ngIf="!loading && error">{{ error }}</div>
+
+  <mat-tab-group *ngIf="!loading" [selectedIndex]="activeTab" (selectedIndexChange)="onTabChange($event)">
+    <mat-tab label="1.4.1 Refrigerant">
+      <app-scope14-fugitive [cycleId]="cycleId" [rows]="scope141Rows" (rowsChange)="onRowsChange('1.4.1', $event)"></app-scope14-fugitive>
+      <app-evidence-block
+        evidenceKey="S1::1.4.1"
+        [model]="evidenceFor('S1::1.4.1')"
+        (modelChange)="onEvidenceChange('S1::1.4.1', $event)"
+      ></app-evidence-block>
+    </mat-tab>
+
+    <mat-tab label="1.4.2 Fire Suppression">
+      <app-scope142-fire [cycleId]="cycleId" [rows]="scope142Rows" (rowsChange)="onRowsChange('1.4.2', $event)"></app-scope142-fire>
+      <app-evidence-block
+        evidenceKey="S1::1.4.2"
+        [model]="evidenceFor('S1::1.4.2')"
+        (modelChange)="onEvidenceChange('S1::1.4.2', $event)"
+      ></app-evidence-block>
+    </mat-tab>
+
+    <mat-tab label="1.4.3 Septic">
+      <app-scope143-septic [cycleId]="cycleId" [rows]="scope143Rows" (rowsChange)="onRowsChange('1.4.3', $event)"></app-scope143-septic>
+      <div class="evidence-groups">
+        <h4>#1 โรงงานแหลมฉบัง (6 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group1"
+          [model]="evidenceFor('S1::1.4.3::group1')"
+          (modelChange)="onEvidenceChange('S1::1.4.3::group1', $event)"
+        ></app-evidence-block>
+
+        <h4>#2 สำนักงานกรุงเทพ (5 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group2"
+          [model]="evidenceFor('S1::1.4.3::group2')"
+          (modelChange)="onEvidenceChange('S1::1.4.3::group2', $event)"
+        ></app-evidence-block>
+
+        <h4>#3 รปภ (7 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group3"
+          [model]="evidenceFor('S1::1.4.3::group3')"
+          (modelChange)="onEvidenceChange('S1::1.4.3::group3', $event)"
+        ></app-evidence-block>
+
+        <h4>#4 พยาบาล (7 วัน/สัปดาห์)</h4>
+        <app-evidence-block
+          evidenceKey="S1::1.4.3::group4"
+          [model]="evidenceFor('S1::1.4.3::group4')"
+          (modelChange)="onEvidenceChange('S1::1.4.3::group4', $event)"
+        ></app-evidence-block>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="1.4.4 Fertilizer">
+      <app-scope144-fertilizer
+        [cycleId]="cycleId"
+        [rows]="scope144Rows"
+        (rowsChange)="onRowsChange('1.4.4', $event)"
+        [evidenceModel]="evidenceFor('S1::1.4.4')"
+        (evidenceModelChange)="onEvidenceChange('S1::1.4.4', $event)"
+      ></app-scope144-fertilizer>
+    </mat-tab>
+
+    <mat-tab label="1.4.5 WWTP">
+      <app-scope145-wwtp
+        [cycleId]="cycleId"
+        [rows]="scope145Rows"
+        (rowsChange)="onRowsChange('1.4.5', $event)"
+        [evidenceModel]="evidenceFor('S1::1.4.5')"
+        (evidenceModelChange)="onEvidenceChange('S1::1.4.5', $event)"
+      ></app-scope145-wwtp>
+    </mat-tab>
+  </mat-tab-group>
+</mat-card>
+

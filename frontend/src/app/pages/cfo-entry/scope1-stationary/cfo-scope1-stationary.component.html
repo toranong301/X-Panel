@@ -197,4 +197,70 @@
       </tbody>
     </table>
   </div>
+
+  <div *ngIf="otherBlendRows.length > 0" class="other-blend">
+    <h3>Other fuel blend (MBAX)</h3>
+    <table class="split-table">
+      <thead>
+        <tr>
+          <th>รายการ</th>
+          <th class="num">ปริมาณน้ำมัน</th>
+          <th class="num">Diesel %</th>
+          <th class="num">Biodiesel %</th>
+          <th class="num">Gasoline %</th>
+          <th class="num">Ethanol %</th>
+          <th class="num">Biodiesel density (kg/L)</th>
+          <th class="num">Ethanol density (kg/L)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of otherBlendRows">
+          <td class="truncate">{{ row.itemLabel }}</td>
+          <td class="num">{{ formatFixed2(row.total) }}</td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherDieselPct"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherDieselPct', $event)"
+            />
+          </td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherBiodieselPct"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherBiodieselPct', $event)"
+            />
+          </td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherGasolinePct"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherGasolinePct', $event)"
+            />
+          </td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherEthanolPct"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherEthanolPct', $event)"
+            />
+          </td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherBiodieselDensityKgPerL"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherBiodieselDensityKgPerL', $event)"
+            />
+          </td>
+          <td class="num">
+            <input
+              type="number"
+              [ngModel]="row.otherEthanolDensityKgPerL"
+              (ngModelChange)="setOtherBlendNumber(row, 'otherEthanolDensityKgPerL', $event)"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </mat-card>

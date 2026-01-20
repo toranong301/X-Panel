@@ -17,8 +17,10 @@ import { VSheetEditorComponent } from './pages/vsheet-editor/vsheet-editor';
 import { ExcelSheetPageComponent } from './pages/excel-sheet-page/excel-sheet-page';
 import { CfoScope1StationaryComponent } from './pages/cfo-entry/scope1-stationary/cfo-scope1-stationary.component';
 import { CfoScope1MobileComponent } from './pages/cfo-entry/scope1-mobile/cfo-scope1-mobile.component';
+import { CfoScope1FugitiveComponent } from './pages/cfo-entry/scope1-fugitive/cfo-scope1-fugitive.component';
 import { CfoScope2ElectricityComponent } from './pages/cfo-entry/scope2-electricity/cfo-scope2-electricity.component';
 import { CfoScope3Component } from './pages/cfo-entry/scope3/cfo-scope3.component';
+import { CfoEvidenceVaultComponent } from './pages/cfo-entry/evidence-vault/cfo-evidence-vault.component';
 import { CfoReviewComponent } from './pages/cfo-review/cfo-review.component';
 import { ExportLock } from './pages/export-lock/export-lock';
 import { CycleSummaryComponent } from './pages/cycle-summary/cycle-summary';
@@ -165,8 +167,12 @@ export const routes: Routes = [
           { path: 'vsheet-editor', component: VSheetEditorComponent },
           { path: 'cfo/scope1-stationary', component: CfoScope1StationaryComponent },
           { path: 'cfo/scope1-mobile', component: CfoScope1MobileComponent },
+          { path: 'cfo/scope1-fugitive', component: CfoScope1FugitiveComponent },
+          { path: 'cfo/scope1-fugitive/:subScope', component: CfoScope1FugitiveComponent },
           { path: 'cfo/scope2-electricity', component: CfoScope2ElectricityComponent },
           { path: 'cfo/scope3', component: CfoScope3Component },
+          { path: 'cfo/scope3/:sectionId', component: CfoScope3Component },
+          { path: 'cfo/evidence', component: CfoEvidenceVaultComponent },
           { path: 'cfo/review', component: CfoReviewComponent },
           {
             path: 'data-reference',

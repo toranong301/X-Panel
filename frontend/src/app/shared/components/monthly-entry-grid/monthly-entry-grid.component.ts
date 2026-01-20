@@ -34,24 +34,35 @@ export class MonthlyEntryGridComponent implements OnInit {
     ];
   }
 
-  getQty(row: EntryRow, month: number): number {
-    const m = row.months.find(x => x.month === month);
-    return m ? m.qty : 0;
+  getQty(row: EntryRow, month: number): number | null {
+    const m = row.months.find(x => Number(x?.month) === month);
+    return m && Number.isFinite(Number(m.qty)) ? Number(m.qty) : null;
   }
 
-  updateQty(row: EntryRow, month: number, value: number) {
-    let m = row.months.find(x => x.month === month);
-
-    if (!m) {
-      m = { month, qty: 0 };
-      row.months.push(m);
-    }
-
-    m.qty = Number(value) || 0;
-    this.rowsChange.emit(this.rows);
+  updateQty(row: EntryRow, month: number, raw: any) {
+    const qty = this.parseNumberOrNull(raw);
+    const existing = Array.isArray(row.months) ? row.months : [];
+    const otherMonths = existing.filter(x => Number(x?.month) !== month);
+    row.months = qty === null
+      ? otherMonths
+      : [...otherMonths, { month, qty }].sort((a, b) => a.month - b.month);
+    this.rowsChange.emit(this.rows ?? []);
   }
 
-  total(row: EntryRow): number {
-    return row.months.reduce((sum, m) => sum + (m.qty || 0), 0);
+  total(row: EntryRow): number | null {
+    const values = (row.months ?? [])
+      .map(m => this.parseNumberOrNull(m?.qty))
+      .filter((v): v is number => v !== null);
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
+  }
+
+  private parseNumberOrNull(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 }

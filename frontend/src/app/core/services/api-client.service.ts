@@ -93,6 +93,16 @@ export class ApiClient {
     });
   }
 
+  getBlob(path: string, query?: Query, extraHeaders?: Record<string, string>) {
+    const url = this.makeUrl(path);
+    return this.http.get(url, {
+      headers: this.buildHeaders(extraHeaders),
+      observe: 'response',
+      responseType: 'blob',
+      params: this.buildParamsFromRecord(query as any),
+    });
+  }
+
   put<T>(path: string, body: any, extraHeaders?: Record<string, string>) {
     const url = this.makeUrl(path);
     return this.http.put<T>(url, body, { headers: this.buildHeaders(extraHeaders) });

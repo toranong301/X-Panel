@@ -81,13 +81,13 @@ const scope1Menu: MenuItem[] = [
   placeholderItem('scope1-3', '1.3 Process Emission'),
   {
     label: '1.4 Fugitive Emission',
-    path: placeholderPath('scope1-4'),
+    path: 'cfo/scope1-fugitive',
     children: [
-      placeholderItem('scope1-4-1', '1.4.1 Refrigerant'),
-      placeholderItem('scope1-4-2', '1.4.2 Fire suppression'),
-      placeholderItem('scope1-4-3', '1.4.3 Septic'),
-      placeholderItem('scope1-4-4', '1.4.4 Fertilizer'),
-      placeholderItem('scope1-4-5', '1.4.5 WWTP'),
+      { label: '1.4.1 Refrigerant', path: 'cfo/scope1-fugitive/1.4.1' },
+      { label: '1.4.2 Fire suppression', path: 'cfo/scope1-fugitive/1.4.2' },
+      { label: '1.4.3 Septic', path: 'cfo/scope1-fugitive/1.4.3' },
+      { label: '1.4.4 Fertilizer', path: 'cfo/scope1-fugitive/1.4.4' },
+      { label: '1.4.5 WWTP', path: 'cfo/scope1-fugitive/1.4.5' },
     ],
   },
   placeholderItem('scope1-5', '1.5 Biomass Emission'),
@@ -98,13 +98,17 @@ const scope2Menu: MenuItem[] = [
   placeholderItem('scope2-2', '2.2 Purchased Energy'),
 ];
 
-const scope3Menu: MenuItem[] = scope3Placeholders.map(section => placeholderItem(section.slug, section.title));
+const scope3Menu: MenuItem[] = scope3Placeholders.map(section => ({
+  label: section.title,
+  path: `cfo/scope3/${section.title.split(' ')[0]}`,
+}));
 
 export const SIDEBAR_MENU: Record<TopbarSection, MenuItem[]> = {
   dashboard: [
     { label: 'Dashboard', path: 'dashboard' },
     { label: 'Summary', path: 'summary' },
     { label: 'Review & Lock', path: 'review-lock' },
+    { label: 'Evidence Vault', path: 'cfo/evidence' },
     { label: 'Scope 1', children: scope1Menu },
     { label: 'Scope 2', children: scope2Menu },
     { label: 'Scope 3', children: scope3Menu },
@@ -118,6 +122,7 @@ export const SIDEBAR_MENU: Record<TopbarSection, MenuItem[]> = {
     { label: 'Fr-04.1', path: 'fr04-1' },
     { label: 'Fr-04.2', path: 'fr04-2' },
     { label: 'Fr-05', path: 'fr05' },
+    { label: 'Evidence Vault', path: 'cfo/evidence' },
     { label: 'Scope 1', children: scope1Menu },
     { label: 'Scope 2', children: scope2Menu },
     { label: 'Scope 3', children: scope3Menu },

@@ -1,79 +1,121 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatTableModule } from '@angular/material/table';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
+import { CanonicalGhgService } from '../../../core/services/canonical-ghg.service';
+import { CycleApiService } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
-
-type CfoEntryRow = {
-  id: number;
-  activity: string;
-  quantity: number | null;
-  unit: string;
-  evidence: string;
-  remark: string;
-};
+import { DataEntryDoc, DataEntryService } from '../../../core/services/data-entry.service';
+import { EntryRow } from '../../../models/entry-row.model';
+import { EvidenceModel } from '../../../models/evidence.model';
+import { EvidenceBlockComponent } from '../../../shared/components/evidence-block/evidence-block.component';
+import { Scope12MobileComponent } from '../../data-entry/scope12-mobile/scope12-mobile.component';
 
 @Component({
   selector: 'app-cfo-scope1-mobile',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     MatCardModule,
-    MatTableModule,
-    MatFormFieldModule,
-    MatInputModule,
+    MatDividerModule,
     MatButtonModule,
-    MatIconModule,
+    MatProgressSpinnerModule,
+    Scope12MobileComponent,
+    EvidenceBlockComponent,
   ],
   templateUrl: './cfo-scope1-mobile.component.html',
   styleUrls: ['./cfo-scope1-mobile.component.scss'],
 })
 export class CfoScope1MobileComponent implements OnInit {
   cycleId = 0;
-  rows: CfoEntryRow[] = [];
-  displayedColumns = ['activity', 'quantity', 'unit', 'evidence', 'remark', 'actions'];
+  loading = true;
+  saving = false;
+  error: string | null = null;
 
-  private nextId = 1;
+  rows: EntryRow[] = [];
+  evidenceModel: EvidenceModel = { notes: [], tables: [], images: [] };
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private cycleState: CycleStateService,
+    private entrySvc: DataEntryService,
+    private canonicalSvc: CanonicalGhgService,
+    private cycleApi: CycleApiService,
   ) {}
 
   ngOnInit(): void {
-    setTimeout(() => void this.resolveCycleId());
+    setTimeout(() => void this.init());
   }
 
-  addRow(): void {
-    this.rows = [
-      ...this.rows,
-      {
-        id: this.nextId++,
-        activity: '',
-        quantity: null,
-        unit: '',
-        evidence: '',
-        remark: '',
-      },
-    ];
+  onRowsChange(rows: EntryRow[]): void {
+    this.rows = rows ?? [];
+    this.persistDraft();
   }
 
-  removeRow(row: CfoEntryRow): void {
-    this.rows = this.rows.filter(r => r.id !== row.id);
+  onEvidenceChange(model: EvidenceModel): void {
+    this.evidenceModel = model ?? { notes: [], tables: [], images: [] };
+    this.persistDraft();
   }
 
-  trackRow(_index: number, row: CfoEntryRow): number {
-    return row.id;
+  async saveAndSync(): Promise<void> {
+    if (!this.cycleId) return;
+
+    this.saving = true;
+    this.error = null;
+    try {
+      this.persistDraft();
+      const canonical = this.canonicalSvc.build(this.cycleId);
+      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+      if (updateResult.cycleId !== this.cycleId) {
+        this.cycleId = updateResult.cycleId;
+        this.router.navigate(['/cycles', updateResult.cycleId, 'cfo', 'scope1-mobile'], { replaceUrl: true });
+      }
+      alert('Saved ✅ (synced to backend)');
+    } catch (error: any) {
+      console.error('Save sync failed', error);
+      this.error = error?.message || 'Sync failed';
+      alert('Saved locally แต่ sync ไป backend ไม่สำเร็จ');
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async init(): Promise<void> {
+    await this.resolveCycleId();
+    this.loadDraft();
+    this.loading = false;
+  }
+
+  private loadDraft(): void {
+    const doc = this.entrySvc.load(this.cycleId);
+    const scope1 = Array.isArray(doc?.scope1) ? doc?.scope1 : [];
+    this.rows = scope1.filter(r => r.categoryCode === '1.2');
+    this.evidenceModel = doc?.evidence?.['S1::1.2'] ?? { notes: [], tables: [], images: [] };
+  }
+
+  private persistDraft(): void {
+    const existing: DataEntryDoc = this.entrySvc.load(this.cycleId) ?? {
+      cycleId: this.cycleId,
+      scope1: [],
+      scope2: [],
+      scope3: [],
+    };
+
+    const otherScope1Rows = (existing.scope1 ?? []).filter(r => r.categoryCode !== '1.2');
+    const evidence = { ...(existing.evidence ?? {}), ['S1::1.2']: this.evidenceModel };
+
+    this.entrySvc.save(this.cycleId, {
+      ...existing,
+      cycleId: this.cycleId,
+      scope1: [...this.rows, ...otherScope1Rows],
+      evidence,
+    });
   }
 
   private async resolveCycleId(): Promise<void> {
