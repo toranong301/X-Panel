@@ -51,7 +51,7 @@ export class CfoScope3Component implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    void this.resolveCycleId();
+    setTimeout(() => void this.resolveCycleId());
   }
 
   addRow(): void {

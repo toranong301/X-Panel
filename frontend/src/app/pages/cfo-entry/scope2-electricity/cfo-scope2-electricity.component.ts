@@ -51,7 +51,7 @@ export class CfoScope2ElectricityComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    void this.resolveCycleId();
+    setTimeout(() => void this.resolveCycleId());
   }
 
   addRow(): void {

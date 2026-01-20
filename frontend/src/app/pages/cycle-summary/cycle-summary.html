@@ -1,0 +1,51 @@
+<mat-card class="card">
+  <div class="header">
+    <div>
+      <h2>Summary</h2>
+      <div class="sub">Cycle ID: {{ cycleId }}</div>
+      <div class="msg error" *ngIf="error">{{ error }}</div>
+    </div>
+
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading || busy">
+        <mat-icon>refresh</mat-icon>
+        Reload
+      </button>
+      <button mat-stroked-button type="button" (click)="recalcScope11()" [disabled]="loading || busy">
+        <mat-icon>calculate</mat-icon>
+        Recalc 1.1
+      </button>
+    </div>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span>Loading…</span>
+  </div>
+
+  <div *ngIf="!loading" class="summary">
+    <h3>Scope 1.1 (tCO2e)</h3>
+
+    <div *ngIf="scope11Summary as s" class="summary-table">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">M{{ m }}</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">
+              {{ s.tco2eMonths['M' + m] | number:'1.2-6' }}
+            </td>
+            <td class="total">{{ s.totalTco2e | number:'1.2-6' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!scope11Summary" class="msg warn">No data.</div>
+  </div>
+</mat-card>
+

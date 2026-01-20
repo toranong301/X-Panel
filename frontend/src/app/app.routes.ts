@@ -20,6 +20,8 @@ import { CfoScope1MobileComponent } from './pages/cfo-entry/scope1-mobile/cfo-sc
 import { CfoScope2ElectricityComponent } from './pages/cfo-entry/scope2-electricity/cfo-scope2-electricity.component';
 import { CfoScope3Component } from './pages/cfo-entry/scope3/cfo-scope3.component';
 import { CfoReviewComponent } from './pages/cfo-review/cfo-review.component';
+import { ExportLock } from './pages/export-lock/export-lock';
+import { CycleSummaryComponent } from './pages/cycle-summary/cycle-summary';
 
 const placeholderRoutes = PLACEHOLDER_SECTIONS.map(section => ({
   path: `placeholder/${section.slug}`,
@@ -49,9 +51,11 @@ export const routes: Routes = [
           },
           {
             path: 'scope-dashboard',
-            component: PlaceholderPageComponent,
-            data: { title: 'Scope Dashboard', description: 'Scope summary will appear here.' },
+            component: CycleSummaryComponent,
+            data: { title: 'Summary', description: 'Totals by scope/month.' },
           },
+          { path: 'review-lock', component: ExportLock },
+          { path: 'summary', component: CycleSummaryComponent },
           {
             path: 'data-entry',
             children: [

@@ -1,1 +1,95 @@
-<p>export-lock works!</p>
+<mat-card class="card">
+  <div class="header">
+    <div>
+      <h2>Review & Lock</h2>
+      <div class="sub">Cycle ID: {{ cycleId }}</div>
+      <div class="msg error" *ngIf="error">{{ error }}</div>
+      <div class="msg warn" *ngIf="cycle?.locked_at">
+        Locked at: {{ cycle?.locked_at }} <span *ngIf="cycle?.locked_reason">({{ cycle?.locked_reason }})</span>
+      </div>
+      <div class="msg ok" *ngIf="!cycle?.locked_at">Unlocked</div>
+    </div>
+
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="reloadAll()" [disabled]="loading || busy">
+        <mat-icon>refresh</mat-icon>
+        Reload
+      </button>
+      <button mat-stroked-button type="button" (click)="recalcScope11()" [disabled]="loading || busy">
+        <mat-icon>calculate</mat-icon>
+        Recalc 1.1
+      </button>
+    </div>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span>Loading…</span>
+  </div>
+
+  <div *ngIf="!loading" class="lock-panel">
+    <mat-form-field appearance="outline" class="reason">
+      <mat-label>Lock reason (optional)</mat-label>
+      <input matInput [(ngModel)]="lockReason" placeholder="e.g. Reviewed & approved" [disabled]="busy || isLocked" />
+    </mat-form-field>
+
+    <div class="lock-actions">
+      <button mat-raised-button color="primary" type="button" (click)="lock()" [disabled]="busy || isLocked || hasErrors">
+        <mat-icon>lock</mat-icon>
+        Lock
+      </button>
+      <button mat-raised-button color="accent" type="button" (click)="unlock()" [disabled]="busy || !isLocked">
+        <mat-icon>lock_open</mat-icon>
+        Unlock
+      </button>
+      <div class="hint" *ngIf="hasErrors">Fix validation errors before locking.</div>
+    </div>
+  </div>
+
+  <div *ngIf="!loading" class="validations">
+    <h3>Validations</h3>
+
+    <div class="section" *ngIf="(validations?.errors?.length ?? 0) > 0">
+      <h4>Errors</h4>
+      <ul>
+        <li *ngFor="let e of validations?.errors">{{ e?.scope }} {{ e?.rowId }} {{ e?.code }} — {{ e?.message }}</li>
+      </ul>
+    </div>
+
+    <div class="section" *ngIf="(validations?.warnings?.length ?? 0) > 0">
+      <h4>Warnings</h4>
+      <ul>
+        <li *ngFor="let w of validations?.warnings">{{ w?.scope }} {{ w?.rowId }} {{ w?.code }} — {{ w?.message }}</li>
+      </ul>
+    </div>
+
+    <div class="section ok" *ngIf="(validations?.errors?.length ?? 0) === 0 && (validations?.warnings?.length ?? 0) === 0">
+      No issues found.
+    </div>
+  </div>
+
+  <div *ngIf="!loading" class="summary">
+    <h3>Summary (tCO2e)</h3>
+
+    <div *ngIf="scope11Summary as s" class="summary-table">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">M{{ m }}</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]">
+              {{ s.tco2eMonths['M' + m] | number:'1.2-6' }}
+            </td>
+            <td class="total">{{ s.totalTco2e | number:'1.2-6' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!scope11Summary" class="msg warn">No summary available yet.</div>
+  </div>
+</mat-card>

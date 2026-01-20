@@ -30,7 +30,6 @@ import {
 })
 export class DataReferenceEfAr5Component implements OnInit {
   cycleId = 0;
-  templateKey = 'mbax';
   loading = false;
   warning: string | null = null;
   scope: 'stationary' | 'mobile' = 'stationary';
@@ -46,25 +45,15 @@ export class DataReferenceEfAr5Component implements OnInit {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
     if (routeId > 0) {
       this.cycleId = routeId;
-      this.loadCycleTemplate().catch(console.error);
+      void this.loadOptions();
     }
-  }
-
-  async loadCycleTemplate(): Promise<void> {
-    try {
-      const cycle = await this.cycleApi.getCycle(this.cycleId);
-      this.templateKey = cycle.template_id ?? this.templateKey;
-    } catch (error) {
-      console.error('Failed to load cycle for EF catalog', error);
-    }
-    await this.loadOptions();
   }
 
   async loadOptions(): Promise<void> {
     this.loading = true;
     this.warning = null;
     try {
-      const response = await this.cycleApi.getEfCatalog(this.templateKey, 'AR5', this.scope);
+      const response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'AR5', this.scope);
       this.options = Array.isArray(response?.options) ? response.options : [];
       this.warning = response?.warning ?? null;
     } catch (error: any) {

@@ -1,64 +1,92 @@
-.scope11-stationary {
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+.card {
+  padding: 16px;
+}
 
-    h3 {
-      margin: 0 0 4px;
-    }
-  }
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 
-  .header-actions {
+  .actions {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
   }
 
-  mat-form-field {
+  h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .sub {
+    margin-top: 4px;
+    opacity: 0.7;
+    font-size: 12px;
+  }
+}
+
+.section-title {
+  margin: 12px 0 8px;
+  font-weight: 700;
+}
+
+.mt16 { margin-top: 16px; }
+.mt6 { margin-top: 6px; }
+
+.table-wrap {
+  overflow: auto;
+  border-radius: 10px;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1100px;
+
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 6px;
+    vertical-align: top;
+    background: #fff;
+  }
+
+  thead th {
+    background: #f3f4f6;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .th-center { text-align: center; }
+  .td-center { text-align: center; }
+
+  .w-evidence { min-width: 220px; }
+  .w-unit { min-width: 80px; }
+  .w-total { min-width: 90px; }
+  .w-month { min-width: 70px; }
+  .w-action { width: 54px; }
+
+  .cell {
     width: 100%;
   }
 
-  td mat-form-field + mat-form-field {
-    margin-top: 6px;
+  .cell-num input {
+    text-align: right;
   }
 
-  .blend-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 6px 0;
+  .total-cell {
+    font-weight: 700;
+    text-align: right;
+    padding-right: 6px;
   }
 
-  .blend-badge {
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    color: #1a202c;
-  }
-
-  .blend-error {
-    margin-top: 4px;
-    font-size: 12px;
-    color: #b91c1c;
-  }
-
-  .header-input-row {
-    background: #f8fafc;
-
-    .header-label {
-      font-weight: 600;
-      input {
-        width: 90px;
-        margin-left: 4px;
-      }
-    }
-  }
-
-  .monthly-table th.header-label input {
-    width: 90px;
-    margin-left: 4px;
+  .empty {
+    text-align: center;
+    padding: 16px;
+    opacity: 0.7;
+    background: #fff;
   }
 }

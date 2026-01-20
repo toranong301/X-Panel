@@ -103,6 +103,8 @@ const scope3Menu: MenuItem[] = scope3Placeholders.map(section => placeholderItem
 export const SIDEBAR_MENU: Record<TopbarSection, MenuItem[]> = {
   dashboard: [
     { label: 'Dashboard', path: 'dashboard' },
+    { label: 'Summary', path: 'summary' },
+    { label: 'Review & Lock', path: 'review-lock' },
     { label: 'Scope 1', children: scope1Menu },
     { label: 'Scope 2', children: scope2Menu },
     { label: 'Scope 3', children: scope3Menu },

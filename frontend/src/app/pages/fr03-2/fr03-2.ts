@@ -51,6 +51,7 @@ export class Fr032Component implements OnInit {
   private fr032Svc = inject(Fr032Service);
 
   cycleId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
+  syncingSelection = false;
 
   // --- weight like Excel header ---
   wMag = 0.6;
@@ -110,6 +111,9 @@ export class Fr032Component implements OnInit {
 
     // 4) สร้าง rows ของ FR-03.2: group + eval rows
     this.rows = this.buildRowsFromScope3(computed, savedMap);
+
+    // 5) ถ้า local ไม่มี ให้ sync selection จาก backend (เพื่อให้ข้ามเครื่อง/ข้าม session ได้)
+    void this.syncSelectionFromApi(savedMap);
   }
 
   // =========================
@@ -328,6 +332,69 @@ export class Fr032Component implements OnInit {
       map.set(sectionId, list);
     }
     return map;
+  }
+
+  private async syncSelectionFromApi(saved: Fr032SavedMap) {
+    if (!Number.isFinite(this.cycleId) || this.cycleId <= 0) return;
+
+    const sectionIds = Array.from(
+      new Set(
+        this.rows
+          .filter((r): r is Fr032EvalRow => r.type === 'eval')
+          .filter(r => !r.isCategoryRow)
+          .map(r => String(r.tgoNo || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (sectionIds.length === 0) return;
+
+    this.syncingSelection = true;
+    try {
+      const includeBySection = new Map<string, Set<string>>();
+      const sectionsWithSaved = new Set<string>();
+
+      const results = await Promise.all(
+        sectionIds.map(async sectionId => {
+          try {
+            const selections = await this.cycleApi.getFr032Selection(this.cycleId, sectionId);
+            return [sectionId, selections] as const;
+          } catch (error) {
+            console.warn('Load FR-03.2 selection failed', { cycleId: this.cycleId, sectionId, error });
+            return [sectionId, []] as const;
+          }
+        })
+      );
+
+      for (const [sectionId, selections] of results) {
+        if (Array.isArray(selections) && selections.length > 0) {
+          sectionsWithSaved.add(sectionId);
+        }
+        const set = new Set<string>();
+        for (const sel of selections ?? []) {
+          if (!sel?.include) continue;
+          const itemName = String(sel.itemName ?? '').trim();
+          if (itemName) set.add(itemName);
+        }
+        includeBySection.set(sectionId, set);
+      }
+
+      for (const r of this.rows) {
+        if (r.type !== 'eval' || r.isCategoryRow) continue;
+        if (saved[r.key]) continue; // local มีค่า -> ถือว่าเป็น source of truth
+
+        const sectionId = String(r.tgoNo || '').trim();
+        if (!sectionsWithSaved.has(sectionId)) continue; // backend ยังไม่เคย save -> ใช้ default จาก score
+
+        const includeSet = includeBySection.get(sectionId) ?? new Set<string>();
+        const itemName = String(r.category || '').trim();
+        const include = includeSet.has(itemName);
+        r.selection = include ? 'เลือกประเมิน' : '';
+        r.assessment = include ? 'มีนัยสำคัญ' : 'ไม่มีนัยสำคัญ';
+      }
+    } finally {
+      this.syncingSelection = false;
+    }
   }
 
   isGroup = (_: number, row: Fr032ScreenRow) => row.type === 'group';

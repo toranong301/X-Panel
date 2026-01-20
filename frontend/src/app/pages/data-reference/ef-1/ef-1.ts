@@ -20,7 +20,6 @@ import {
 })
 export class DataReferenceEf1Component implements OnInit {
   cycleId = 0;
-  templateKey = 'mbax';
   loading = false;
   warning: string | null = null;
   options: EfCatalogOption[] = [];
@@ -36,25 +35,15 @@ export class DataReferenceEf1Component implements OnInit {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') ?? 0);
     if (routeId > 0) {
       this.cycleId = routeId;
-      void this.loadCycleTemplate();
+      void this.loadOptions();
     }
-  }
-
-  async loadCycleTemplate(): Promise<void> {
-    try {
-      const cycle = await this.cycleApi.getCycle(this.cycleId);
-      this.templateKey = cycle.template_id ?? this.templateKey;
-    } catch (error) {
-      console.error('Failed to load cycle', error);
-    }
-    await this.loadOptions();
   }
 
   async loadOptions(): Promise<void> {
     this.loading = true;
     this.warning = null;
     try {
-      const response = await this.cycleApi.getEfCatalog(this.templateKey, 'OTHER', 'stationary');
+      const response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'EF1', 'stationary');
       this.options = Array.isArray(response?.options) ? response.options : [];
       this.warning = response?.warning ?? null;
     } catch (error: any) {

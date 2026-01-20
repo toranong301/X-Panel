@@ -64,9 +64,18 @@ export class ExcelPreviewService {
     let previewCycleId = resolvedCycleId;
     if (!params.skipSave) {
       const canonical = this.canonicalSvc.build(resolvedCycleId);
-      const updateResult = await this.cycleApi.updateCycleData(resolvedCycleId, canonical);
-      previewCycleId = updateResult.cycleId;
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      try {
+        const updateResult = await this.cycleApi.updateCycleData(resolvedCycleId, canonical);
+        previewCycleId = updateResult.cycleId;
+        this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      } catch (error: any) {
+        const status = Number(error?.status);
+        if (status === 423) {
+          previewCycleId = resolvedCycleId;
+        } else {
+          throw error;
+        }
+      }
     }
 
     const paramsMap: Record<string, string> = {

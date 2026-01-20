@@ -1,31 +1,77 @@
 <mat-card class="card">
   <div class="header">
     <div>
-      <h2>Scope 1.1 Stationary</h2>
+      <h2>Scope 1.1 Stationary Combustion</h2>
       <div class="sub">Cycle ID: {{ cycleId }}</div>
+
+      <div class="msg error" *ngIf="loadError">{{ loadError }}</div>
+      <div class="msg error" *ngIf="saveError">{{ saveError }}</div>
     </div>
-    <button mat-raised-button color="primary" type="button" (click)="addRow()">
-      <mat-icon>add</mat-icon>
-      Add row
-    </button>
+
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="loadAll()" [disabled]="loading || saving">
+        <mat-icon>refresh</mat-icon>
+        Reload
+      </button>
+
+      <button mat-raised-button color="primary" type="button" (click)="save()" [disabled]="loading || saving">
+        <mat-icon>save</mat-icon>
+        Save
+      </button>
+
+      <button mat-raised-button color="accent" type="button" (click)="addRow()" [disabled]="loading || saving">
+        <mat-icon>add</mat-icon>
+        Add row
+      </button>
+    </div>
   </div>
 
-  <table mat-table [dataSource]="rows" class="mat-elevation-z1">
-    <ng-container matColumnDef="activity">
-      <th mat-header-cell *matHeaderCellDef>Activity</th>
+  <div class="loading" *ngIf="loading">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span>Loading…</span>
+  </div>
+
+  <table mat-table [dataSource]="rows" [trackBy]="trackRow" class="mat-elevation-z1" *ngIf="!loading">
+
+    <ng-container matColumnDef="include">
+      <th mat-header-cell *matHeaderCellDef>Include</th>
+      <td mat-cell *matCellDef="let row">
+        <mat-checkbox
+          [checked]="row.include"
+          (change)="toggleInclude(row, $event.checked)"
+          [disabled]="saving"
+        ></mat-checkbox>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="itemLabel">
+      <th mat-header-cell *matHeaderCellDef>Item</th>
       <td mat-cell *matCellDef="let row">
         <mat-form-field appearance="outline">
-          <input matInput [(ngModel)]="row.activity" />
+          <input matInput [(ngModel)]="row.itemLabel" [disabled]="saving || isFixedRow(row)" />
         </mat-form-field>
       </td>
     </ng-container>
 
-    <ng-container matColumnDef="quantity">
-      <th mat-header-cell *matHeaderCellDef>Quantity</th>
+    <ng-container matColumnDef="fuelKey">
+      <th mat-header-cell *matHeaderCellDef>Fuel</th>
       <td mat-cell *matCellDef="let row">
-        <mat-form-field appearance="outline">
-          <input matInput type="number" [(ngModel)]="row.quantity" />
-        </mat-form-field>
+        <div class="cell-stack">
+          <mat-form-field appearance="outline">
+            <mat-select [ngModel]="row.fuelKey" (ngModelChange)="setFuelKey(row, $event)" [disabled]="saving || isFixedRow(row)">
+              <mat-option value="B7">B7</mat-option>
+              <mat-option value="B10">B10</mat-option>
+              <mat-option value="91/95">91/95</mat-option>
+              <mat-option value="E20">E20</mat-option>
+              <mat-option value="LPG">LPG</mat-option>
+              <mat-option value="FUEL_OIL">Fuel oil</mat-option>
+              <mat-option value="OTHER">Other</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field *ngIf="row.fuelKey === 'OTHER'" appearance="outline">
+            <input matInput placeholder="Other type" [(ngModel)]="row.otherType" [disabled]="saving || isFixedRow(row)" />
+          </mat-form-field>
+        </div>
       </td>
     </ng-container>
 
@@ -33,7 +79,10 @@
       <th mat-header-cell *matHeaderCellDef>Unit</th>
       <td mat-cell *matCellDef="let row">
         <mat-form-field appearance="outline">
-          <input matInput [(ngModel)]="row.unit" />
+          <mat-select [(ngModel)]="row.unit" [disabled]="saving || isFixedRow(row)">
+            <mat-option value="L">L</mat-option>
+            <mat-option value="kg">kg</mat-option>
+          </mat-select>
         </mat-form-field>
       </td>
     </ng-container>
@@ -41,35 +90,111 @@
     <ng-container matColumnDef="evidence">
       <th mat-header-cell *matHeaderCellDef>Evidence</th>
       <td mat-cell *matCellDef="let row">
-        <mat-form-field appearance="outline">
-          <input matInput [(ngModel)]="row.evidence" />
+        <div class="cell-stack">
+          <mat-form-field appearance="outline">
+            <mat-select [ngModel]="row.evidenceType" (ngModelChange)="setEvidenceType(row, $event)">
+              <mat-option value="invoice">ใบกำกับภาษี</mat-option>
+              <mat-option value="cash_invoice">บิลเงินสด/ใบกำกับภาษี</mat-option>
+              <mat-option value="po">ใบสั่งซื้อ</mat-option>
+              <mat-option value="other">อื่นๆ</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field *ngIf="row.evidenceType === 'other'" appearance="outline">
+            <input
+              matInput
+              placeholder="ระบุหลักฐานอื่นๆ"
+              [ngModel]="row.evidenceOther"
+              (ngModelChange)="setEvidenceOther(row, $event)"
+            />
+          </mat-form-field>
+        </div>
+      </td>
+    </ng-container>
+
+    <!-- Months dynamic -->
+    <ng-container *ngFor="let k of monthKeys" [matColumnDef]="k">
+      <th mat-header-cell *matHeaderCellDef>{{ k }}</th>
+      <td mat-cell *matCellDef="let row">
+        <mat-form-field appearance="outline" class="month">
+          <input
+            matInput
+            type="number"
+            [ngModel]="row.months[k]"
+            (ngModelChange)="setMonth(row, k, $event)"
+          />
         </mat-form-field>
       </td>
     </ng-container>
 
-    <ng-container matColumnDef="remark">
-      <th mat-header-cell *matHeaderCellDef>Remark</th>
+    <ng-container matColumnDef="total">
+      <th mat-header-cell *matHeaderCellDef>Total</th>
       <td mat-cell *matCellDef="let row">
-        <mat-form-field appearance="outline">
-          <input matInput [(ngModel)]="row.remark" />
-        </mat-form-field>
+        {{ row.total ?? '-' }}
       </td>
     </ng-container>
 
     <ng-container matColumnDef="actions">
       <th mat-header-cell *matHeaderCellDef></th>
       <td mat-cell *matCellDef="let row">
-        <button mat-icon-button type="button" (click)="removeRow(row)">
+        <button mat-icon-button type="button" (click)="removeRow(row)" [disabled]="saving || isFixedRow(row)">
           <mat-icon>delete</mat-icon>
         </button>
       </td>
     </ng-container>
 
-    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns; trackBy: trackRow"></tr>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
   </table>
 
-  <div class="empty" *ngIf="rows.length === 0">
+  <div class="empty" *ngIf="!loading && rows.length === 0">
     No rows yet. Click “Add row” to start.
+  </div>
+
+  <div *ngIf="showSplitPreview" class="split-preview">
+    <h3>Density split preview</h3>
+    <table class="split-table">
+      <thead>
+        <tr>
+          <th rowspan="2">รายการ</th>
+          <th rowspan="2">ชนิด</th>
+          <th rowspan="2">หลักฐาน</th>
+          <th rowspan="2">หน่วย</th>
+          <th rowspan="2" class="num">ปริมาณน้ำมัน</th>
+          <th colspan="1">Diesel</th>
+          <th colspan="2">Biodiesel</th>
+          <th colspan="1">Gasoline</th>
+          <th colspan="2">Ethanol</th>
+        </tr>
+        <tr>
+          <th>L</th>
+          <th>L</th>
+          <th>kg</th>
+          <th>L</th>
+          <th>L</th>
+          <th>kg</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of splitPreviewRows">
+          <td class="truncate">{{ row.itemLabel }}</td>
+          <td class="truncate">
+            <span>{{ row.fuelKey }}</span>
+            <span *ngIf="row.otherType"> ({{ row.otherType }})</span>
+          </td>
+          <td class="truncate">{{ row.evidence }}</td>
+          <td>{{ row.unit }}</td>
+          <td class="num">{{ formatFixed2(row.total) }}</td>
+          <td class="num">{{ formatFixed2(row.dieselL) }}</td>
+          <td class="num">{{ formatFixed2(row.biodieselL) }}</td>
+          <td class="num">{{ formatFixed2(row.biodieselKg) }}</td>
+          <td class="num">{{ formatFixed2(row.gasolineL) }}</td>
+          <td class="num">{{ formatFixed2(row.ethanolL) }}</td>
+          <td class="num">{{ formatFixed2(row.ethanolKg) }}</td>
+        </tr>
+        <tr *ngIf="splitPreviewRows.length === 0">
+          <td colspan="11">No data yet.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </mat-card>

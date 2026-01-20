@@ -130,11 +130,18 @@ export class CyclesComponent implements OnInit {
   async exportAll(cycle: Cycle) {
     this.exportingId = cycle.id;
     try {
-      const canonical = this.canonicalSvc.build(cycle.id);
-      const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      let exportCycleId = cycle.id;
+      try {
+        const canonical = this.canonicalSvc.build(cycle.id);
+        const updateResult = await this.cycleApi.updateCycleData(cycle.id, canonical);
+        exportCycleId = updateResult.cycleId;
+        this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      } catch (error: any) {
+        const status = Number(error?.status);
+        if (status !== 423) throw error;
+      }
 
-      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      const download = await this.cycleApi.exportCycle(exportCycleId);
       this.downloadFile(download.blob, download.filename);
       this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (error: any) {

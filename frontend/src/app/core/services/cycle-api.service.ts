@@ -37,6 +37,8 @@ export interface TemplateSetsResponse {
 export type Scope11StationaryItem = {
   rowId: string;
   itemLabel: string;
+  evidenceType?: string | null;
+  evidenceOther?: string | null;
   evidence: string;
   unit: string;
   fuelKey: string;
@@ -61,7 +63,7 @@ export type Scope11StationaryItemsResponse = {
 };
 
 export type EfAr5Option = {
-  efCatalog?: 'AR5' | 'OTHER';
+  efCatalog?: string;
   efId: string;
   Name?: string;
   Unit?: string;
@@ -80,7 +82,7 @@ type EfAr5Response = {
 };
 
 export type EfCatalogOption = EfAr5Option & {
-  efCatalog?: 'AR5' | 'OTHER';
+  efCatalog?: string;
 };
 
 export type EfCatalogResponse = {
@@ -161,6 +163,8 @@ export type CycleDto = {
   name: string;
   data_json?: any;
   template_id?: string;
+  locked_at?: string | null;
+  locked_reason?: string | null;
 };
 
 export type ExportDownload = {
@@ -219,6 +223,46 @@ export type TemplateProfile = TemplateInfo & {
   previewRanges?: Record<string, any>;
 };
 
+export type CycleValidationIssue = {
+  scope?: string;
+  rowId?: string;
+  code?: string;
+  message?: string;
+  [key: string]: any;
+};
+
+export type CycleValidationResult = {
+  ok: boolean;
+  errors: Array<CycleValidationIssue>;
+  warnings: Array<CycleValidationIssue>;
+};
+
+export type CycleLockResult = {
+  ok: boolean;
+  locked: boolean;
+  locked_at?: string | null;
+  message?: string;
+  errors?: Array<CycleValidationIssue>;
+  warnings?: Array<CycleValidationIssue>;
+};
+
+export type CycleSummary = {
+  ok: boolean;
+  cycleId: number;
+  scopes: Array<{
+    scope: string;
+    tco2eMonths: Record<string, number>;
+    totalTco2e: number;
+  }>;
+};
+
+export type RecalcScope11Result = {
+  ok: boolean;
+  errors: Array<CycleValidationIssue>;
+  results: Array<Record<string, any>>;
+  summary: Record<string, any>;
+};
+
 /* =======================
  * Service
  * ======================= */
@@ -243,6 +287,12 @@ export class CycleApiService {
   constructor(private api: ApiClient) {}
 
   /* ---------- cycles ---------- */
+
+  saveScope11StationaryItems(cycleId: number, items: Scope11StationaryItem[]): Promise<{ ok: boolean; saved?: number }> {
+    return firstValueFrom(
+      this.api.put<{ ok: boolean; saved?: number }>(`cycles/${cycleId}/scope11/stationary/items`, { items })
+    );
+  }
 
   listCycles(): Promise<Cycle[]> {
     return firstValueFrom(
@@ -351,6 +401,16 @@ export class CycleApiService {
     return firstValueFrom(request);
   }
 
+  getCycleEfCatalog(
+    cycleId: number,
+    catalog: 'AR5' | 'AR5V2' | 'EF1',
+    scope = 'stationary'
+  ): Promise<EfCatalogResponse> {
+    const params = { catalog, scope };
+    const request = this.api.get<EfCatalogResponse>(`cycles/${cycleId}/ef/catalog`, { params }) as Observable<EfCatalogResponse>;
+    return firstValueFrom(request);
+  }
+
   /* ---------- update data (auto-create + retry) ---------- */
 
   async updateCycleData(
@@ -372,6 +432,38 @@ export class CycleApiService {
     } catch (error: any) {
       throw error;
     }
+  }
+
+  /* ---------- review / lock / summary ---------- */
+
+  getValidations(cycleId: number): Promise<CycleValidationResult> {
+    return firstValueFrom(
+      this.api.get<CycleValidationResult>(`cycles/${cycleId}/validations`)
+    );
+  }
+
+  lockCycle(cycleId: number, reason?: string): Promise<CycleLockResult> {
+    return firstValueFrom(
+      this.api.post<CycleLockResult>(`cycles/${cycleId}/lock`, { reason: reason ?? null })
+    );
+  }
+
+  unlockCycle(cycleId: number): Promise<CycleLockResult> {
+    return firstValueFrom(
+      this.api.post<CycleLockResult>(`cycles/${cycleId}/unlock`, {})
+    );
+  }
+
+  getSummary(cycleId: number): Promise<CycleSummary> {
+    return firstValueFrom(
+      this.api.get<CycleSummary>(`cycles/${cycleId}/summary`)
+    );
+  }
+
+  recalcScope11(cycleId: number): Promise<RecalcScope11Result> {
+    return firstValueFrom(
+      this.api.post<RecalcScope11Result>(`cycles/${cycleId}/scope11/stationary/recalc`, {})
+    );
   }
 
   /* ---------- attachments ---------- */

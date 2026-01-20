@@ -341,11 +341,7 @@ export class Fr041Component implements OnInit {
     this.exportError = null;
 
     try {
-      const canonical = await this.canonicalSvc.build(this.cycleId);
-      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.cycleId = updateResult.cycleId;
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      const download = await this.cycleApi.exportCycle(this.cycleId);
       this.downloadFile(download.blob, download.filename);
       this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (e: any) {
@@ -624,17 +620,27 @@ export class Fr041Component implements OnInit {
 
   async loadEfOptions() {
     try {
-      const ar5Response = await this.cycleApi.getEfCatalog(this.templateKey, 'AR5', 'stationary');
+      const ar5Response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'AR5', 'stationary');
+      const ef1Response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'EF1', 'stationary').catch(() => null);
+
       const ar5Options = Array.isArray(ar5Response?.options) ? ar5Response.options : [];
-      if (ar5Options.length) {
-        this.efOptions = ar5Options;
-        this.efCatalogWarning = ar5Response?.warning ?? null;
-        return;
+      const ef1Options = Array.isArray(ef1Response?.options) ? ef1Response.options : [];
+
+      const map = new Map<string, EfAr5Option>();
+      for (const opt of ar5Options) {
+        const key = String(opt?.efId || '').trim();
+        if (!key) continue;
+        map.set(key, opt);
       }
-      const otherResponse = await this.cycleApi.getEfCatalog(this.templateKey, 'OTHER', 'stationary');
-      const otherOptions = Array.isArray(otherResponse?.options) ? otherResponse.options : [];
-      this.efOptions = otherOptions;
-      this.efCatalogWarning = otherResponse?.warning ?? ar5Response?.warning ?? null;
+      for (const opt of ef1Options) {
+        const key = String(opt?.efId || '').trim();
+        if (!key) continue;
+        map.set(key, opt);
+      }
+
+      this.efOptions = Array.from(map.values());
+      const warnings = [ar5Response?.warning, ef1Response?.warning].filter(Boolean).map(String);
+      this.efCatalogWarning = warnings.length ? warnings.join(' | ') : null;
     } catch (error: any) {
       console.error('Load EF options failed', error);
       this.efOptions = [];

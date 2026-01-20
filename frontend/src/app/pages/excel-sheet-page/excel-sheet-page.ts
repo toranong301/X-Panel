@@ -57,11 +57,19 @@ export class ExcelSheetPageComponent implements OnInit {
     this.exportError = null;
 
     try {
-      const canonical = this.canonicalSvc.build(this.cycleId);
-      const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
-      this.cycleId = updateResult.cycleId;
-      this.cycleState.setSelectedCycleId(updateResult.cycleId);
-      const download = await this.cycleApi.exportCycle(updateResult.cycleId);
+      let exportCycleId = this.cycleId;
+      try {
+        const canonical = this.canonicalSvc.build(this.cycleId);
+        const updateResult = await this.cycleApi.updateCycleData(this.cycleId, canonical);
+        exportCycleId = updateResult.cycleId;
+        this.cycleId = updateResult.cycleId;
+        this.cycleState.setSelectedCycleId(updateResult.cycleId);
+      } catch (e: any) {
+        const status = Number(e?.status);
+        if (status !== 423) throw e;
+      }
+
+      const download = await this.cycleApi.exportCycle(exportCycleId);
       this.downloadFile(download.blob, download.filename);
       this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
     } catch (e: any) {
