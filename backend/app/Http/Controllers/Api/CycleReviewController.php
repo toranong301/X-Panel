@@ -42,6 +42,18 @@ class CycleReviewController extends Controller
             ], 422);
         }
 
+        if (Schema::hasTable('emission_results')) {
+            $calc = app(EmissionCalcService::class);
+            $calcResult = $calc->recalcScope11($cycle);
+            if (!($calcResult['ok'] ?? false)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Recalculation failed; cannot lock.',
+                    'errors' => $calcResult['errors'] ?? [],
+                ], 422);
+            }
+        }
+
         $cycle->locked_at = now();
         $cycle->locked_reason = $payload['reason'] ?? null;
         $cycle->save();
@@ -127,4 +139,3 @@ class CycleReviewController extends Controller
         return $out;
     }
 }
-

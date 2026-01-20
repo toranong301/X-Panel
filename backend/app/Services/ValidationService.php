@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Cycle;
+use App\Models\EmissionResult;
 use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
 use Illuminate\Support\Facades\Schema;
@@ -29,6 +30,7 @@ class ValidationService
         }
 
         $this->validateScope11($cycle, $errors, $warnings);
+        $this->validateLockedRecalcState($cycle, $errors);
 
         return [
             'ok' => count($errors) === 0,
@@ -116,6 +118,72 @@ class ValidationService
                     'message' => 'EF total is missing.',
                 ];
             }
+        }
+    }
+
+    private function validateLockedRecalcState(Cycle $cycle, array &$errors): void
+    {
+        if (!$cycle->locked_at) {
+            return;
+        }
+        if (!Schema::hasTable('scope11_stationary_items') || !Schema::hasTable('emission_results')) {
+            return;
+        }
+
+        $rows = Scope11StationaryItem::query()
+            ->where('cycle_id', $cycle->id)
+            ->get(['row_id', 'months_json', 'updated_at']);
+
+        $hasActivity = false;
+        $latestItemAt = null;
+        foreach ($rows as $row) {
+            $months = is_array($row->months_json ?? null) ? $row->months_json : [];
+            if ($this->hasAnyMonthValue($months)) {
+                $hasActivity = true;
+            }
+            if ($row->updated_at && (!$latestItemAt || $row->updated_at->gt($latestItemAt))) {
+                $latestItemAt = $row->updated_at;
+            }
+        }
+
+        if (!$hasActivity) {
+            return;
+        }
+
+        $latestResultAt = EmissionResult::query()
+            ->where('cycle_id', $cycle->id)
+            ->where('scope', '1.1')
+            ->max('updated_at');
+
+        if (!$latestResultAt) {
+            $errors[] = [
+                'scope' => '1.1',
+                'code' => 'RECALC_REQUIRED',
+                'message' => 'Reporting period is locked but emission results are missing; recalculation is required.',
+            ];
+            return;
+        }
+
+        if ($latestItemAt && $latestItemAt->gt($latestResultAt)) {
+            $errors[] = [
+                'scope' => '1.1',
+                'code' => 'RECALC_REQUIRED',
+                'message' => 'Reporting period is locked but emission results are out of date; recalculation is required.',
+            ];
+        }
+
+        $bad = EmissionResult::query()
+            ->where('cycle_id', $cycle->id)
+            ->where('scope', '1.1')
+            ->where('status', '!=', 'ok')
+            ->count();
+
+        if ($bad > 0) {
+            $errors[] = [
+                'scope' => '1.1',
+                'code' => 'EMISSION_RESULT_ERROR',
+                'message' => 'Reporting period is locked but some emission results are in error state.',
+            ];
         }
     }
 
