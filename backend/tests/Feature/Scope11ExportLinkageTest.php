@@ -15,7 +15,7 @@ class Scope11ExportLinkageTest extends TestCase
 
     public function test_scope11_export_preserves_fr041_and_stationary_formulas(): void
     {
-        $templatePath = base_path('../shared/templates/mbax/MBAX-TGO-11102567-Demo.xlsx');
+        $templatePath = base_path('storage/app/templates/mbax/VSheetCFO_BASE.xlsx');
         if (!is_file($templatePath)) {
             $this->markTestSkipped('Scope11 template missing: ' . $templatePath);
         }
@@ -69,27 +69,17 @@ class Scope11ExportLinkageTest extends TestCase
         $wsFr041 = $out->getSheetByName('Fr-04.1');
         $this->assertNotNull($wsFr041);
 
-        $this->assertFormulaStartsWith($wsFr041, 'B11', "='1.1 Stationary '!A9");
-        $this->assertFormulaStartsWith($wsFr041, 'C11', "='1.1 Stationary '!C9");
-        $this->assertFormulaStartsWith($wsFr041, 'D11', "='1.1 Stationary '!G4");
-        $this->assertFormulaStartsWith($wsFr041, 'D12', "='1.1 Stationary '!J5");
-        $this->assertFormulaStartsWith($wsFr041, 'D14', "='1.1 Stationary '!I4");
-        $this->assertFormulaStartsWith($wsFr041, 'D15', "='1.1 Stationary '!L5");
+        $this->assertFormulaContains($wsFr041, 'B11', 'tblScope11Stationary');
+        $this->assertFormulaContains($wsFr041, 'C11', 'tblScope11Stationary');
+        $this->assertFormulaContains($wsFr041, 'D11', 'tblScope11Stationary');
+        $this->assertFormulaContains($wsFr041, 'D12', 'tblScope11Stationary');
+        $this->assertFormulaContains($wsFr041, 'D14', 'tblScope11Stationary');
+        $this->assertFormulaContains($wsFr041, 'D15', 'tblScope11Stationary');
 
         $wsStationary = $out->getSheetByName('1.1 Stationary ');
         $this->assertNotNull($wsStationary);
-        $this->assertFormulaContains($wsStationary, 'A9', 'tblScope11Stationary');
         $this->assertFormulaContains($wsStationary, 'C9', 'tblScope11Stationary');
-    }
-
-    private function assertFormulaStartsWith(Worksheet $sheet, string $cell, string $expectedPrefix): void
-    {
-        $target = $sheet->getCell($cell);
-        $this->assertTrue($target->isFormula(), "Expected formula in {$sheet->getTitle()}!{$cell}");
-        $value = (string) $target->getValue();
-        $normalized = ltrim(trim($value), '=');
-        $expected = ltrim(trim($expectedPrefix), '=');
-        $this->assertStringStartsWith($expected, $normalized, "Unexpected formula in {$sheet->getTitle()}!{$cell}");
+        $this->assertFormulaContains($wsStationary, 'E9', 'tblScope11Stationary');
     }
 
     private function assertFormulaContains(Worksheet $sheet, string $cell, string $needle): void

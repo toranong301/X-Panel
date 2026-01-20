@@ -19,6 +19,30 @@ class Scope11HiddenTableExportService
     private const VALUE_COLUMN = 'B';
     private const START_ROW = 2;
 
+    private bool $traceEnabled = false;
+    private array $traceWrites = [];
+    private array $traceClearedRanges = [];
+
+    public function startTrace(): void
+    {
+        $this->traceEnabled = true;
+        $this->traceWrites = [];
+        $this->traceClearedRanges = [];
+    }
+
+    /**
+     * @return array{writes: array<int, array{sheet: string, cell: string, value: mixed}>, clearedRanges: array<int, array{sheet: string, range: string, reason: string}>}
+     */
+    public function endTrace(): array
+    {
+        $out = [
+            'writes' => $this->traceWrites,
+            'clearedRanges' => $this->traceClearedRanges,
+        ];
+        $this->traceEnabled = false;
+        return $out;
+    }
+
     /**
      * @return array{path: string, missingKeys: string[]}
      */
@@ -108,6 +132,11 @@ class Scope11HiddenTableExportService
         }
 
         $tableRange = $this->resolveSelectionTableRange($ws);
+        $this->traceClearRange(
+            $ws->getTitle(),
+            Coordinate::stringFromColumnIndex($tableRange['startCol']) . $tableRange['startRow'] . ':' . Coordinate::stringFromColumnIndex($tableRange['endCol']) . $tableRange['endRow'],
+            'clear_selection_table'
+        );
         $headerMap = $this->buildHeaderMap($ws, $tableRange['headerRow'], $tableRange['startCol'], $tableRange['endCol']);
         $rowIdCol = $headerMap['ROWID'] ?? null;
         $includeCol = $headerMap['INCLUDE'] ?? null;
@@ -137,6 +166,11 @@ class Scope11HiddenTableExportService
         }
 
         $tableRange = $this->resolveSelectionTableRange($ws);
+        $this->traceClearRange(
+            $ws->getTitle(),
+            Coordinate::stringFromColumnIndex($tableRange['startCol']) . $tableRange['startRow'] . ':' . Coordinate::stringFromColumnIndex($tableRange['endCol']) . $tableRange['endRow'],
+            'clear_selection_table'
+        );
         $headerMap = $this->buildHeaderMap($ws, $tableRange['headerRow'], $tableRange['startCol'], $tableRange['endCol']);
 
         for ($r = $tableRange['startRow']; $r <= $tableRange['endRow']; $r++) {
@@ -213,6 +247,8 @@ class Scope11HiddenTableExportService
             $ws->setCellValue($cell, null);
             return;
         }
+
+        $this->traceWrite($ws, $cell, $value);
 
         if (is_bool($value)) {
             $ws->setCellValueExplicit($cell, $value ? 1 : 0, DataType::TYPE_NUMERIC);
@@ -343,6 +379,12 @@ class Scope11HiddenTableExportService
         $startCol = $tableRange['startCol'];
         $endCol = $tableRange['endCol'];
 
+        $this->traceClearRange(
+            $ws->getTitle(),
+            Coordinate::stringFromColumnIndex($startCol) . $startRow . ':' . Coordinate::stringFromColumnIndex($endCol) . $endRow,
+            'clear_scope11_table'
+        );
+
         $headerMap = $this->buildHeaderMap($ws, $headerRow, $startCol, $endCol);
 
         for ($r = $startRow; $r <= $endRow; $r++) {
@@ -369,12 +411,19 @@ class Scope11HiddenTableExportService
             }
 
             $labelCol = $headerMap['ITEMLABEL'] ?? null;
-            if ($labelCol) {
+            $valueCol = $headerMap['VALUE'] ?? null;
+            if (array_key_exists('value', $data) && !$valueCol && $labelCol) {
+                $this->writeValue($ws, $labelCol . $excelRow, $data['value']);
+            } elseif ($labelCol) {
                 $label = $data['label'] ?? $this->labelFromRowId($rowId);
                 $this->writeValue($ws, $labelCol . $excelRow, $label);
             }
 
-            $valueCol = $headerMap['VALUE'] ?? null;
+            $fuelTypeCol = $headerMap['FUELTYPE'] ?? $headerMap['FUELKEY'] ?? null;
+            if ($fuelTypeCol) {
+                $this->writeValue($ws, $fuelTypeCol . $excelRow, $data['fuelKey'] ?? null);
+            }
+
             if ($valueCol && array_key_exists('value', $data)) {
                 $this->writeValue($ws, $valueCol . $excelRow, $data['value']);
             }
@@ -394,6 +443,11 @@ class Scope11HiddenTableExportService
                 $this->writeValue($ws, $blendCol . $excelRow, $data['blendProfile'] ?? null);
             }
 
+            $includeFr041Col = $headerMap['INCLUDEFR041'] ?? null;
+            if ($includeFr041Col && array_key_exists('includeFr041', $data)) {
+                $this->writeValue($ws, $includeFr041Col . $excelRow, $data['includeFr041'] ?? null);
+            }
+
             $months = is_array($data['months'] ?? null) ? $data['months'] : [];
             for ($m = 1; $m <= 12; $m++) {
                 $field = 'M' . $m;
@@ -401,11 +455,14 @@ class Scope11HiddenTableExportService
                 if (!$col) {
                     continue;
                 }
-                if (!array_key_exists($field, $months) || $months[$field] === null || $months[$field] === '') {
-                    $ws->setCellValue($col . $excelRow, '');
+                if (!array_key_exists($field, $months)) {
                     continue;
                 }
-                $this->writeValue($ws, $col . $excelRow, $months[$field]);
+                $value = $months[$field];
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $this->writeValue($ws, $col . $excelRow, $value);
             }
         }
     }
@@ -585,6 +642,19 @@ class Scope11HiddenTableExportService
                 $months[$key] = $this->normalizeValue($monthsIn[$key]);
             }
 
+            $includeRaw = null;
+            if (array_key_exists('includeFr041', $item) || array_key_exists('includeFR041', $item)) {
+                $includeRaw = $item['includeFr041'] ?? $item['includeFR041'] ?? null;
+            }
+            $includeFr041 = null;
+            if ($includeRaw !== null && $includeRaw !== '') {
+                $includeBool = filter_var($includeRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($includeBool === null && is_numeric($includeRaw)) {
+                    $includeBool = ((int) $includeRaw) === 1;
+                }
+                $includeFr041 = $includeBool ? true : null;
+            }
+
             $items[] = [
                 'rowId' => $rowId,
                 'fuelKey' => trim((string) ($item['fuelKey'] ?? '')),
@@ -594,6 +664,7 @@ class Scope11HiddenTableExportService
                 'blendProfile' => isset($item['blendProfile']) ? trim((string) $item['blendProfile']) : null,
                 'otherType' => isset($item['otherType']) ? trim((string) $item['otherType']) : null,
                 'months' => $months,
+                'includeFr041' => $includeFr041,
             ];
         }
 
@@ -628,9 +699,53 @@ class Scope11HiddenTableExportService
     {
         if (is_string($value)) {
             $trimmed = trim($value);
-            return $trimmed === '' ? null : $trimmed;
+            if ($trimmed === '') {
+                return null;
+            }
+            if (is_numeric($trimmed)) {
+                return (float) $trimmed;
+            }
+            return $trimmed;
         }
         return $value;
+    }
+
+    private function traceClearRange(string $sheetName, string $range, string $reason): void
+    {
+        if (!$this->traceEnabled) {
+            return;
+        }
+        $this->traceClearedRanges[] = [
+            'sheet' => $sheetName,
+            'range' => $range,
+            'reason' => $reason,
+        ];
+    }
+
+    private function traceWrite($ws, string $cell, $value): void
+    {
+        if (!$this->traceEnabled) {
+            return;
+        }
+
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $normalized = $value;
+        if (is_bool($value)) {
+            $normalized = $value ? 1 : 0;
+        } elseif (is_int($value) || is_float($value) || (is_string($value) && is_numeric($value))) {
+            $normalized = (float) $value;
+        } elseif (!is_string($value)) {
+            $normalized = (string) $value;
+        }
+
+        $this->traceWrites[] = [
+            'sheet' => method_exists($ws, 'getTitle') ? (string) $ws->getTitle() : '',
+            'cell' => $cell,
+            'value' => $normalized,
+        ];
     }
 
     private function computeSplitRows(array $items, bool $splitEnabled): array

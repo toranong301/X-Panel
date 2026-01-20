@@ -9,7 +9,8 @@ class TemplateRegistry
 
     public function __construct()
     {
-        $path = base_path('resources/templates/template-registry.json');
+        $base = dirname(__DIR__, 2);
+        $path = $base . DIRECTORY_SEPARATOR . 'resources' . DIRECTORY_SEPARATOR . 'templates' . DIRECTORY_SEPARATOR . 'template-registry.json';
         if (!file_exists($path)) {
             $this->registry = [];
         } else {
@@ -18,7 +19,7 @@ class TemplateRegistry
             $this->registry = is_array($decoded) ? $decoded : [];
         }
 
-        $profilePath = base_path('resources/templates/template-profiles.json');
+        $profilePath = $base . DIRECTORY_SEPARATOR . 'resources' . DIRECTORY_SEPARATOR . 'templates' . DIRECTORY_SEPARATOR . 'template-profiles.json';
         if (is_file($profilePath)) {
             $rawProfiles = file_get_contents($profilePath);
             $decodedProfiles = json_decode($rawProfiles ?: '', true);

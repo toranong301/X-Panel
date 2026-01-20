@@ -11,6 +11,7 @@ class Export extends Model
         'cycle_id',
         'status',
         'file_path',
+        'trace_path',
         'error_message',
     ];
 

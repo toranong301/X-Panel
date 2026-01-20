@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
+use App\Http\Controllers\Api\CycleEfCatalogController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\EfCatalogController;
 use App\Http\Controllers\Api\EfAr5Controller;
+use App\Http\Controllers\Api\EmissionCalcController;
+use App\Http\Controllers\Api\CycleReviewController;
 use App\Http\Controllers\Api\Fr041ConfigController;
 use App\Http\Controllers\Api\Fr041SourcesController;
 use App\Http\Controllers\Api\Fr041SelectionController;
@@ -18,6 +21,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
     return response()->json([
+        'status' => 'ok',
         'ok' => true,
         'time' => now()->toIso8601String(),
         'version' => config('app.version') ?? config('app.env'),
@@ -32,9 +36,15 @@ $publicCycleRoutes = function () {
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
     Route::get('/cycles/{cycle}/dashboard/sections', [CycleController::class, 'dashboardSections']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
+    Route::get('/cycles/{cycle}/validations', [CycleReviewController::class, 'validations']);
+    Route::post('/cycles/{cycle}/lock', [CycleReviewController::class, 'lock']);
+    Route::post('/cycles/{cycle}/unlock', [CycleReviewController::class, 'unlock']);
+    Route::get('/cycles/{cycle}/summary', [CycleReviewController::class, 'summary']);
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/template-sets', [TemplateSetController::class, 'index']);
     Route::get('/cycles/{cycle}/scope11/stationary/items', [Scope11StationaryController::class, 'items']);
+    Route::put('/cycles/{cycle}/scope11/stationary/items', [Scope11StationaryController::class, 'save']);
+    Route::post('/cycles/{cycle}/scope11/stationary/recalc', [EmissionCalcController::class, 'recalcScope11']);
     Route::get('/cycles/{cycle}/scope3/summary', [Scope3Controller::class, 'summary']);
     Route::get('/cycles/{cycle}/scope3/{sectionId}/items', [Scope3Controller::class, 'items']);
     Route::get('/cycles/{cycle}/fr041/sources', [Fr041SourcesController::class, 'index']);
@@ -45,6 +55,8 @@ $publicCycleRoutes = function () {
     Route::post('/cycles/{cycle}/fr032/selection', [Fr032SelectionController::class, 'store']);
     Route::get('/ef/ar5', [EfAr5Controller::class, 'index']);
     Route::get('/ef/catalog', [EfCatalogController::class, 'index']);
+    Route::get('/cycles/{cycle}/ef/catalog', [CycleEfCatalogController::class, 'index']);
+
 };
 
 $publicScope11ExportRoutes = function () {

@@ -4,7 +4,133 @@
       "id": "vsheet_cfo",
       "label": "V-Sheet CFO (Base)",
       "templateId": "VSHEET_CFO",
-      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx",
+      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE_2025.xlsx",
+      "requiredSheets": [
+        "Fr-04.1",
+        "_DATA_SCOPE11",
+        "_FR041_SEL"
+      ],
+      "hiddenTables": {
+        "scope11": {
+          "sheet": "_DATA_SCOPE11",
+          "tableName": "tblScope11Stationary",
+          "columns": [
+            "RowId",
+            "ItemLabel",
+            "FuelType",
+            "Evidence",
+            "Unit",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "M7",
+            "M8",
+            "M9",
+            "M10",
+            "M11",
+            "M12",
+            "OtherDieselPct",
+            "OtherBiodieselPct",
+            "OtherGasolinePct",
+            "OtherEthanolPct",
+            "OtherBiodieselDensityKgPerL",
+            "OtherEthanolDensityKgPerL",
+            "IncludeFR041"
+          ]
+        },
+        "fr041_sel": {
+          "sheet": "_FR041_SEL",
+          "tableName": "tblFR041Sel",
+          "columns": [
+            "RowId",
+            "Include"
+          ]
+        }
+      },
+      "uiFlags": {
+        "supportsSplitSummary": false,
+        "compactSummaryStyle": "vsheet"
+      },
+      "previewRanges": {
+        "fr041": {
+          "blocks": [
+            { "id": "header", "range": "A1:K10" },
+            { "id": "main", "range": "A11:AO70" }
+          ]
+        }
+      }
+    },
+    "vsheet_cfo_2025": {
+      "id": "vsheet_cfo_2025",
+      "label": "V-Sheet CFO (2025)",
+      "templateId": "VSHEET_CFO_2025",
+      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE_2025.xlsx",
+      "requiredSheets": [
+        "Fr-04.1",
+        "_DATA_SCOPE11",
+        "_FR041_SEL"
+      ],
+      "hiddenTables": {
+        "scope11": {
+          "sheet": "_DATA_SCOPE11",
+          "tableName": "tblScope11Stationary",
+          "columns": [
+            "RowId",
+            "ItemLabel",
+            "FuelType",
+            "Evidence",
+            "Unit",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "M7",
+            "M8",
+            "M9",
+            "M10",
+            "M11",
+            "M12",
+            "OtherDieselPct",
+            "OtherBiodieselPct",
+            "OtherGasolinePct",
+            "OtherEthanolPct",
+            "OtherBiodieselDensityKgPerL",
+            "OtherEthanolDensityKgPerL",
+            "IncludeFR041"
+          ]
+        },
+        "fr041_sel": {
+          "sheet": "_FR041_SEL",
+          "tableName": "tblFR041Sel",
+          "columns": [
+            "RowId",
+            "Include"
+          ]
+        }
+      },
+      "uiFlags": {
+        "supportsSplitSummary": false,
+        "compactSummaryStyle": "vsheet"
+      },
+      "previewRanges": {
+        "fr041": {
+          "blocks": [
+            { "id": "header", "range": "A1:K10" },
+            { "id": "main", "range": "A11:AO70" }
+          ]
+        }
+      }
+    },
+    "vsheet_cfo_2026": {
+      "id": "vsheet_cfo_2026",
+      "label": "V-Sheet CFO (2026)",
+      "templateId": "VSHEET_CFO_2026",
+      "templateFilePath": "storage/app/templates/mbax/VSheetCFO_BASE_2026.xlsx",
       "requiredSheets": [
         "Fr-04.1",
         "_DATA_SCOPE11",

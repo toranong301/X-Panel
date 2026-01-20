@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Tests\TestCase;
@@ -50,7 +51,8 @@ class Scope11ExportTest extends TestCase
             'M12',
         ];
         foreach ($headers as $idx => $header) {
-            $wsData->setCellValueByColumnAndRow($idx + 1, 1, $header);
+            $cell = Coordinate::stringFromColumnIndex($idx + 1) . '1';
+            $wsData->setCellValue($cell, $header);
         }
 
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');

@@ -130,7 +130,7 @@ class MbaxTemplateService
             return $envPath;
         }
 
-        $templateDir = env('MBAX_TEMPLATE_DIR') ?: base_path('storage/app/templates/mbax');
+        $templateDir = env('MBAX_TEMPLATE_DIR') ?: $this->projectBasePath('storage/app/templates/mbax');
         $attempted = [];
 
         $dirRegistryPath = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'template-registry.json';
@@ -147,10 +147,34 @@ class MbaxTemplateService
             }
         }
 
-        $fallback = base_path($fallbackRel);
+        $fallbackBasename = basename(str_replace('\\', '/', $fallbackRel));
+        if ($fallbackBasename !== '') {
+            $candidateInDir = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fallbackBasename;
+            $attempted[] = $candidateInDir;
+            if (is_file($candidateInDir)) {
+                return $candidateInDir;
+            }
+        }
+
+        $fallback = $this->projectBasePath($fallbackRel);
         $attempted[] = $fallback;
         if (is_file($fallback)) {
             return $fallback;
+        }
+
+        $fallbackBasename = basename(str_replace('\\', '/', $fallbackRel));
+        if ($fallbackBasename !== '') {
+            $altDirs = [
+                $this->projectBasePath('../shared/templates/mbax'),
+                $this->projectBasePath('../frontend/src/assets/templates/mbax'),
+            ];
+            foreach ($altDirs as $dir) {
+                $candidate = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fallbackBasename;
+                $attempted[] = $candidate;
+                if (is_file($candidate)) {
+                    return $candidate;
+                }
+            }
         }
 
         $candidateA = rtrim($templateDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $templateId . '.xlsx';
@@ -188,6 +212,15 @@ class MbaxTemplateService
         }
 
         throw new TemplateNotFoundException($templateId, $templateDir, $attempted);
+    }
+
+    private function projectBasePath(string $path = ''): string
+    {
+        $base = dirname(__DIR__, 2);
+        if ($path === '') {
+            return $base;
+        }
+        return rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, "/\\");
     }
 
     private function writeFr01(Spreadsheet $spreadsheet, array $data, ?string $sheetName, ?string $range): void

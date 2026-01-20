@@ -11,6 +11,14 @@ class AttachmentController extends Controller
 {
     public function store(Request $request, Cycle $cycle)
     {
+        if ($cycle->locked_at) {
+            return response()->json([
+                'ok' => false,
+                'code' => 'CYCLE_LOCKED',
+                'message' => 'This reporting period is locked.',
+            ], 423);
+        }
+
         $payload = $request->validate([
             'kind' => ['required', 'string', 'max:120'],
             'file' => ['required', 'file', 'max:5120'],

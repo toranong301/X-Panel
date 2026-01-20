@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cycle;
 use App\Models\Fr041Config;
 use App\Services\MbaxTemplateService;
+use App\Services\Scope11PayloadService;
 use App\Services\SheetRegistry;
 use App\Services\TemplateRegistry;
 use App\Services\Export\Scope11HiddenTableExportService;
@@ -77,10 +78,14 @@ class CycleController extends Controller
     }
     public function index()
     {
-        return response()->json(Cycle::query()->orderByDesc('id')->get());
+        return response()->json(
+            Cycle::query()
+                ->orderByDesc('id')
+                ->get(['id', 'year', 'name', 'template_id'])
+        );
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TemplateRegistry $registry)
     {
         $payload = $request->validate([
             'year' => ['required', 'integer'],
@@ -88,11 +93,17 @@ class CycleController extends Controller
             'data_json' => ['nullable', 'array'],
         ]);
 
+        $year = (int) $payload['year'];
+        $defaultProfile = $year >= 2026 ? 'vsheet_cfo_2026' : 'vsheet_cfo_2025';
+        if (!$registry->getProfile($defaultProfile)) {
+            $defaultProfile = 'mbax';
+        }
+
         $cycle = Cycle::create([
             'year' => $payload['year'],
             'name' => $payload['name'],
             'data_json' => $payload['data_json'] ?? null,
-            'template_id' => 'mbax',
+            'template_id' => $defaultProfile,
         ]);
 
         return response()->json($cycle);
@@ -105,6 +116,14 @@ class CycleController extends Controller
 
     public function updateData(Request $request, Cycle $cycle)
     {
+        if ($cycle->locked_at) {
+            return response()->json([
+                'ok' => false,
+                'code' => 'CYCLE_LOCKED',
+                'message' => 'This reporting period is locked.',
+            ], 423);
+        }
+
         $payload = $request->validate([
             'data_json' => ['nullable', 'array'],
             'data' => ['nullable', 'array'],
@@ -122,6 +141,14 @@ class CycleController extends Controller
 
     public function updateTemplate(Request $request, Cycle $cycle, TemplateRegistry $registry)
     {
+        if ($cycle->locked_at) {
+            return response()->json([
+                'ok' => false,
+                'code' => 'CYCLE_LOCKED',
+                'message' => 'This reporting period is locked.',
+            ], 423);
+        }
+
         $payload = $request->validate([
             'templateId' => ['required', 'string', 'max:200'],
         ]);
@@ -150,7 +177,8 @@ class CycleController extends Controller
         MbaxTemplateService $mbax,
         TemplateRegistry $registry,
         SheetRegistry $sheetRegistry,
-        Scope11HiddenTableExportService $scope11Export
+        Scope11HiddenTableExportService $scope11Export,
+        Scope11PayloadService $scope11Payload
     )
     {
         try {
@@ -192,8 +220,15 @@ class CycleController extends Controller
             if ($templateKey !== '') {
                 $templateId = $this->normalizeTemplateKey($templateKey, $registry) ?? $templateId;
             }
-            if ($sheetKey === 'fr041' && $this->templateExists($registry, 'VSHEET_CFO')) {
-                $templateId = 'VSHEET_CFO';
+            if ($sheetKey === 'fr041') {
+                $year = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+                if ($year !== null && $year >= 2026 && $this->templateExists($registry, 'VSHEET_CFO_2026')) {
+                    $templateId = 'VSHEET_CFO_2026';
+                } elseif ($this->templateExists($registry, 'VSHEET_CFO_2025')) {
+                    $templateId = 'VSHEET_CFO_2025';
+                } elseif ($this->templateExists($registry, 'VSHEET_CFO')) {
+                    $templateId = 'VSHEET_CFO';
+                }
             }
             $template = $registry->getTemplate($templateId);
             if (!$template) {
@@ -332,14 +367,29 @@ class CycleController extends Controller
                 $templateId
             );
             if ($sheetKey === 'fr041') {
-                $payload = $this->buildScope11PayloadFromCycleData($data);
-                $scope11Export->writeToSpreadsheet($spreadsheet, $payload);
-                $selectionRows = $this->loadFr041SelectionRowsFromData($data);
-                if ($selectionRows) {
-                    $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
-                } else {
-                    $selection = $this->loadFr041SelectionRowIds($cycle->id);
-                    $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+                $payloadScope11 = $scope11Payload->buildPayload($cycle);
+                if (empty($payloadScope11['items'] ?? [])) {
+                    $legacy = $this->buildScope11PayloadFromCycleData($data);
+                    if (!empty($legacy['items'] ?? [])) {
+                        $payloadScope11 = $legacy;
+                    }
+                }
+
+                $scope11Export->writeToSpreadsheet($spreadsheet, $payloadScope11);
+
+                if ($spreadsheet->getSheetByName('_FR041_SEL')) {
+                    $selectionRows = $scope11Payload->buildFr041SelectionRows($cycle);
+                    if ($selectionRows) {
+                        $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
+                    } else {
+                        $legacyRows = $this->loadFr041SelectionRowsFromData($data);
+                        if ($legacyRows) {
+                            $scope11Export->writeFr041SelectionRows($spreadsheet, $legacyRows);
+                        } else {
+                            $selection = $this->loadFr041SelectionRowIds($cycle->id);
+                            $scope11Export->writeSelectionToSpreadsheet($spreadsheet, $selection);
+                        }
+                    }
                 }
             }
             if ($sheetKey === 'fr041') {
@@ -717,6 +767,13 @@ class CycleController extends Controller
             return trim($fromData);
         }
 
+        $year = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+        if ($year !== null && $year >= 2026 && $this->templateExists($registry, 'VSHEET_CFO_2026')) {
+            return 'VSHEET_CFO_2026';
+        }
+        if ($this->templateExists($registry, 'VSHEET_CFO_2025')) {
+            return 'VSHEET_CFO_2025';
+        }
         if ($this->templateExists($registry, 'VSHEET_CFO')) {
             return 'VSHEET_CFO';
         }
@@ -756,6 +813,18 @@ class CycleController extends Controller
         if (is_string($fallbackRel) && $fallbackRel !== '') {
             $fallback = base_path($fallbackRel);
             if (is_file($fallback)) return true;
+
+            $basename = basename(str_replace('\\', '/', $fallbackRel));
+            if ($basename !== '') {
+                $altDirs = [
+                    base_path('../shared/templates/mbax'),
+                    base_path('../frontend/src/assets/templates/mbax'),
+                ];
+                foreach ($altDirs as $dir) {
+                    $candidate = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $basename;
+                    if (is_file($candidate)) return true;
+                }
+            }
         }
 
         return false;

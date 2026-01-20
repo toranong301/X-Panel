@@ -39,6 +39,14 @@ class Fr041ConfigController extends Controller
 
     public function update(Request $request, Cycle $cycle)
     {
+        if ($cycle->locked_at) {
+            return response()->json([
+                'ok' => false,
+                'code' => 'CYCLE_LOCKED',
+                'message' => 'This reporting period is locked.',
+            ], 423);
+        }
+
         if (!Schema::hasTable('fr041_configs')) {
             return response()->json($this->defaultConfig());
         }

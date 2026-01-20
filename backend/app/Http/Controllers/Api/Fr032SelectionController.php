@@ -40,6 +40,14 @@ class Fr032SelectionController extends Controller
 
     public function store(Request $request, Cycle $cycle)
     {
+        if ($cycle->locked_at) {
+            return response()->json([
+                'ok' => false,
+                'code' => 'CYCLE_LOCKED',
+                'message' => 'This reporting period is locked.',
+            ], 423);
+        }
+
         $payload = $request->validate([
             'sectionId' => ['required', 'string', 'max:20'],
             'selections' => ['required', 'array'],

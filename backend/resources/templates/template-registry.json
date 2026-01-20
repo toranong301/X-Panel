@@ -78,7 +78,7 @@
       "label": "V-Sheet CFO",
       "path": {
         "env": "CFO_TEMPLATE_PATH",
-        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE.xlsx"
+        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE_2025.xlsx"
       },
       "sheets": {
         "SCOPE11_STATIONARY": {
@@ -88,6 +88,54 @@
         "FR041": {
           "name": "Fr-04.1",
           "previewRange": "A1:AO70"
+        }
+      },
+      "mappings": {
+        "cfoSheets": []
+      }
+    },
+    "VSHEET_CFO_2025": {
+      "label": "V-Sheet CFO (2025)",
+      "path": {
+        "env": "CFO_TEMPLATE_PATH_2025",
+        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE_2025.xlsx"
+      },
+      "sheets": {
+        "SCOPE11_STATIONARY": {
+          "name": "1.1 Stationary ",
+          "previewRange": "A1:P60"
+        },
+        "FR041": {
+          "name": "Fr-04.1",
+          "previewRange": "A1:AO70"
+        },
+        "EF_TGO_AR5": {
+          "name": "EF TGO AR5",
+          "previewRange": "A1:Z60"
+        }
+      },
+      "mappings": {
+        "cfoSheets": []
+      }
+    },
+    "VSHEET_CFO_2026": {
+      "label": "V-Sheet CFO (2026)",
+      "path": {
+        "env": "CFO_TEMPLATE_PATH_2026",
+        "fallback": "storage/app/templates/mbax/VSheetCFO_BASE_2026.xlsx"
+      },
+      "sheets": {
+        "SCOPE11_STATIONARY": {
+          "name": "1.1 Stationary ",
+          "previewRange": "A1:P60"
+        },
+        "FR041": {
+          "name": "Fr-04.1",
+          "previewRange": "A1:AO70"
+        },
+        "EF_TGO_AR5_V2": {
+          "name": "EF TGO AR5 V2",
+          "previewRange": "A1:Z60"
         }
       },
       "mappings": {

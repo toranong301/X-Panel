@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cycle;
+use App\Models\Scope11StationaryItem;
+use Illuminate\Support\Facades\Schema;
 
 class Fr041SourcesController extends Controller
 {
@@ -15,10 +17,33 @@ class Fr041SourcesController extends Controller
         }
 
         $selectionMap = $this->loadSelectionMap($data);
+        $scope11Count = 0;
+        if (Schema::hasTable('scope11_stationary_items')) {
+            try {
+                $scope11Count = Scope11StationaryItem::query()
+                    ->where('cycle_id', $cycle->id)
+                    ->count();
+            } catch (\Throwable) {
+                $scope11Count = 0;
+            }
+        }
         $sources = [];
         foreach ($this->sectionDefinitions() as $def) {
             $endpoint = $this->endpointForSection($cycle->id, $def['sectionCode']);
             if ($endpoint === null) {
+                continue;
+            }
+
+            if (($def['sectionCode'] ?? '') === '1.1' && Schema::hasTable('scope11_stationary_items')) {
+                $sources[] = [
+                    'sectionId' => $def['sectionCode'],
+                    'sectionTitle' => $def['sectionTitle'],
+                    'sheetName' => $def['sheetName'],
+                    'endpoint' => $endpoint,
+                    'scope' => $def['scope'] ?? null,
+                    'sourceType' => 'scope11',
+                    'itemCountIncluded' => $scope11Count,
+                ];
                 continue;
             }
 

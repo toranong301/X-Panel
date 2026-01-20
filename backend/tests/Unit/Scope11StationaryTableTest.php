@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\MbaxTemplateService;
 use App\Services\TemplateRegistry;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PHPUnit\Framework\TestCase;
 
@@ -43,7 +44,8 @@ class Scope11StationaryTableTest extends TestCase
         ];
 
         foreach ($headers as $i => $header) {
-            $ws->setCellValueByColumnAndRow($i + 1, 1, $header);
+            $cell = Coordinate::stringFromColumnIndex($i + 1) . '1';
+            $ws->setCellValue($cell, $header);
         }
 
         $ws->setCellValue('A2', 'OLD_ROW');
