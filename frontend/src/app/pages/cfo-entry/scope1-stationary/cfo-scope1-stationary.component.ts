@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, NgZone, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, Subject, catchError, combineLatest, distinctUntilChanged, finalize, from, map, of, shareReplay, startWith, switchMap, tap } from 'rxjs';
+import { Observable, Subject, catchError, combineLatest, distinctUntilChanged, finalize, forkJoin, from, map, of, shareReplay, startWith, switchMap, tap } from 'rxjs';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -17,7 +17,7 @@ import { MatTableModule } from '@angular/material/table';
 
 import { CycleApiService, Scope11StationaryItem, Scope11StationaryItemsResponse } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
-import { computeBlendFromAnnualL, FuelBlendKey, resolveBlendKey } from '../../../core/sheets/fuel-blend.registry';
+import { FuelBlendKey, computeBlendFromAnnualL, resolveBlendKey } from '../../../core/sheets/fuel-blend.registry';
 
 type StationaryRow = Scope11StationaryItem & {
   include?: boolean;
@@ -98,9 +98,11 @@ export class CfoScope1StationaryComponent implements OnInit {
     private router: Router,
     private cycleState: CycleStateService,
     private cycleApi: CycleApiService,
+    private cdr: ChangeDetectorRef,
+    private zone: NgZone,
   ) {
     this.cycleId$ = this.route.paramMap.pipe(
-      map(params => Number(params.get('cycleId') || 0)),
+      map(params => Number(params.get('id') ?? params.get('cycleId') ?? 0)),
       distinctUntilChanged(),
       switchMap(routeId =>
         from(this.cycleState.resolveCycleId(routeId)).pipe(
@@ -136,47 +138,54 @@ export class CfoScope1StationaryComponent implements OnInit {
   }
 
   private loadAll$(cycleId: number) {
-    if (!cycleId) {
-      this.loading = false;
-      return of(undefined);
-    }
-
-    this.loading = true;
-    this.loadError = null;
-
-    return from(
-      Promise.all([
-        this.cycleApi.getCycle(cycleId).catch(() => null),
-        this.cycleApi.getScope11StationaryItems(cycleId),
-        this.cycleApi.getFr041Config(cycleId).catch(() => null),
-      ])
-    ).pipe(
-      tap(([cycle, resp, fr041]) => {
-        this.templateId = String((cycle as any)?.template_id ?? '');
-        this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any).year) : null;
-
-        const selected = new Set<string>(
-          (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
-        );
-        this.selectedRowIds = selected;
-
-        const data: Scope11StationaryItemsResponse = resp as any;
-        this.splitEnabled = Boolean(data?.splitEnabled);
-        this.rows = (data.items ?? []).map(item => this.normalizeRow(item, selected));
-        this.rebuildColumns();
-      }),
-      catchError((e: any) => {
-        console.error(e);
-        this.rows = [];
-        this.rebuildColumns();
-        this.loadError = e?.message || 'Load failed';
-        return of(undefined);
-      }),
-      finalize(() => {
-        this.loading = false;
-      })
-    );
+  if (!cycleId) {
+    this.loading = false;
+    this.loadError = 'Missing cycle id';
+    this.rows = [];
+    this.rebuildColumns();
+    return of(undefined);
   }
+
+  this.loading = true;
+  console.log('START loadAll loading=true');
+  this.loadError = null;
+
+  return forkJoin({
+    cycle: from(this.cycleApi.getCycle(cycleId)).pipe(catchError(() => of(null))),
+    resp: from(this.cycleApi.getScope11StationaryItems(cycleId)), // ถ้าพังให้ไป catchError ด้านล่าง
+    fr041: from(this.cycleApi.getFr041Config(cycleId)).pipe(catchError(() => of(null))),
+  }).pipe(
+    tap(({ cycle, resp, fr041 }) => {
+      this.templateId = String((cycle as any)?.template_id ?? '');
+      this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any)?.year) : null;
+
+      const selected = new Set<string>(
+        (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
+      );
+      this.selectedRowIds = selected;
+
+      const data: Scope11StationaryItemsResponse = resp as any;
+      this.splitEnabled = Boolean(data?.splitEnabled);
+      this.rows = (Array.isArray(data?.items) ? data.items : []).map(item => this.normalizeRow(item, selected));
+      this.rebuildColumns();
+    }),
+    catchError((e: any) => {
+      console.error('scope1-stationary load failed', e);
+      this.rows = [];
+      this.rebuildColumns();
+      // โชว์รายละเอียดให้เห็นชัดกว่าของเดิม
+      this.loadError = e?.error?.message ?? e?.message ?? `Load failed (${e?.status ?? 'unknown'})`;
+      return of(undefined);
+    }),
+    finalize(() => {
+  this.zone.run(() => {
+    this.loading = false;
+    this.cdr.detectChanges();
+  });
+})
+
+  );
+}
 
   addRow(): void {
     const rowId = `CUSTOM_${this.nextCustom++}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;

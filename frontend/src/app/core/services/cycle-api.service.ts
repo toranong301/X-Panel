@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { firstValueFrom, Observable } from 'rxjs';
+import { firstValueFrom, from, map, Observable } from 'rxjs';
 
 import { CanonicalCycleData } from '../../models/canonical-cycle.model';
 import { ApiClient } from './api-client.service';
@@ -33,6 +33,8 @@ export interface TemplatesResponse {
 export interface TemplateSetsResponse {
   templateSets: TemplateSetInfo[];
 }
+
+
 
 export type Scope11StationaryItem = {
   rowId: string;
@@ -645,4 +647,32 @@ export class CycleApiService {
     }
     return null;
   }
+
+  getCycle$(id: number): Observable<CycleDto> {
+  return from(this.getCycle(id));
+}
+
+getScope11StationaryItems$(cycleId: number): Observable<Scope11StationaryItemsResponse> {
+  return from(this.getScope11StationaryItems(cycleId)).pipe(
+    map(res => ({
+      ok: !!res?.ok,
+      splitEnabled: !!res?.splitEnabled,
+      periodYear: res?.periodYear ?? null,
+      headerMonths: res?.headerMonths ?? {},
+      items: Array.isArray(res?.items) ? res.items : [],
+    }))
+  );
+}
+
+getFr041Config$(cycleId: number): Observable<Fr041Config> {
+  return from(this.getFr041Config(cycleId)).pipe(
+    map(res => ({
+      ok: !!res?.ok,
+      sheetId: res?.sheetId,
+      section: res?.section,
+      selectedRowIds: Array.isArray(res?.selectedRowIds) ? res.selectedRowIds : [],
+      options: res?.options ?? {},
+    }))
+  );
+}
 }

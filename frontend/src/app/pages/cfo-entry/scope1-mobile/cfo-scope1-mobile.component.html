@@ -1,28 +1,40 @@
-<mat-card class="card">
+<mat-card class="card" *ngIf="cycleId$ | async as cycleId">
   <div class="header">
     <div>
       <h2>Scope 1.2 Mobile</h2>
       <div class="sub">Cycle ID: {{ cycleId }}</div>
     </div>
-    <button mat-raised-button color="primary" type="button" (click)="saveAndSync()" [disabled]="loading || saving">
-      <mat-progress-spinner *ngIf="saving" diameter="18" mode="indeterminate"></mat-progress-spinner>
-      <span>{{ saving ? 'Saving...' : 'Save & Sync' }}</span>
-    </button>
+    <div class="actions">
+      <button mat-raised-button color="primary" type="button" (click)="saveAndSync(cycleId)" [disabled]="loading || saving">
+        <mat-progress-spinner *ngIf="saving" diameter="18" mode="indeterminate"></mat-progress-spinner>
+        <span>{{ saving ? 'Saving...' : 'Save & Sync' }}</span>
+      </button>
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading">
+        Reload
+      </button>
+    </div>
   </div>
 
   <mat-divider></mat-divider>
 
-  <div class="empty" *ngIf="loading">Loading...</div>
+  <div class="empty" *ngIf="loading">
+    <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+    <span>Loading...</span>
+  </div>
   <div class="empty" *ngIf="!loading && error">{{ error }}</div>
+  <div class="empty" *ngIf="!loading && !error && rows.length === 0">
+    No records yet. Add or import data to get started.
+  </div>
 
   <app-scope12-mobile
-    *ngIf="!loading"
+    *ngIf="!loading && !error"
     [cycleId]="cycleId"
     [rows]="rows"
     (rowsChange)="onRowsChange($event)"
   ></app-scope12-mobile>
 
   <app-evidence-block
+    *ngIf="!loading && !error"
     evidenceKey="S1::1.2"
     [model]="evidenceModel"
     (modelChange)="onEvidenceChange($event)"
