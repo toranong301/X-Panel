@@ -478,6 +478,31 @@ class Scope11HiddenTableExportService
                 $this->writeValue($ws, $otherEthanolDensityCol . $excelRow, $data['otherEthanolDensityKgPerL'] ?? null);
             }
 
+            $tankModeCol = $headerMap['TANKMODEENABLED'] ?? null;
+            if ($tankModeCol && array_key_exists('tankModeEnabled', $data)) {
+                $this->writeValue($ws, $tankModeCol . $excelRow, $data['tankModeEnabled'] ?? null);
+            }
+
+            $tankCountCol = $headerMap['TANKCOUNT'] ?? null;
+            if ($tankCountCol && array_key_exists('tankCount', $data)) {
+                $this->writeValue($ws, $tankCountCol . $excelRow, $data['tankCount'] ?? null);
+            }
+
+            $kgPerTankCol = $headerMap['KGPERTANK'] ?? null;
+            if ($kgPerTankCol && array_key_exists('kgPerTank', $data)) {
+                $this->writeValue($ws, $kgPerTankCol . $excelRow, $data['kgPerTank'] ?? null);
+            }
+
+            $tankTargetMonthCol = $headerMap['TANKTARGETMONTH'] ?? null;
+            if ($tankTargetMonthCol && array_key_exists('tankTargetMonth', $data)) {
+                $this->writeValue($ws, $tankTargetMonthCol . $excelRow, $data['tankTargetMonth'] ?? null);
+            }
+
+            $computedKgCol = $headerMap['COMPUTEDKG'] ?? null;
+            if ($computedKgCol && array_key_exists('computedKg', $data)) {
+                $this->writeValue($ws, $computedKgCol . $excelRow, $data['computedKg'] ?? null);
+            }
+
             $months = is_array($data['months'] ?? null) ? $data['months'] : [];
             for ($m = 1; $m <= 12; $m++) {
                 $field = 'M' . $m;
@@ -693,6 +718,11 @@ class Scope11HiddenTableExportService
                 'unit' => strtoupper(trim((string) ($item['unit'] ?? 'L'))),
                 'blendProfile' => isset($item['blendProfile']) ? trim((string) $item['blendProfile']) : null,
                 'otherType' => isset($item['otherType']) ? trim((string) $item['otherType']) : null,
+                'tankModeEnabled' => $this->normalizeBoolean($item['tankModeEnabled'] ?? $item['tankMode'] ?? null),
+                'tankCount' => $this->normalizeValue($item['tankCount'] ?? null),
+                'kgPerTank' => $this->normalizeValue($item['kgPerTank'] ?? null),
+                'tankTargetMonth' => $this->normalizeTankTargetMonth($item['tankTargetMonth'] ?? null),
+                'computedKg' => $this->normalizeValue($item['computedKg'] ?? null),
                 'months' => $months,
                 'includeFr041' => $includeFr041,
             ];
@@ -738,6 +768,39 @@ class Scope11HiddenTableExportService
             return $trimmed;
         }
         return $value;
+    }
+
+    private function normalizeBoolean($value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return ((int) $value) === 1;
+        }
+        $normalized = strtolower(trim((string) $value));
+        if ($normalized === 'true' || $normalized === '1') {
+            return true;
+        }
+        if ($normalized === 'false' || $normalized === '0') {
+            return false;
+        }
+        return null;
+    }
+
+    private function normalizeTankTargetMonth($value): ?string
+    {
+        $raw = strtoupper(trim((string) ($value ?? '')));
+        if ($raw === '') {
+            return null;
+        }
+        if (preg_match('/^M(1[0-2]|[1-9])$/', $raw)) {
+            return $raw;
+        }
+        return null;
     }
 
     private function traceClearRange(string $sheetName, string $range, string $reason): void

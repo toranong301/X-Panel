@@ -49,6 +49,11 @@ class Scope11ExportTest extends TestCase
             'M10',
             'M11',
             'M12',
+            'TankModeEnabled',
+            'TankCount',
+            'KgPerTank',
+            'TankTargetMonth',
+            'ComputedKg',
         ];
         foreach ($headers as $idx => $header) {
             $cell = Coordinate::stringFromColumnIndex($idx + 1) . '1';
@@ -67,6 +72,11 @@ class Scope11ExportTest extends TestCase
                     'evidence' => 'Invoice',
                     'unit' => 'L',
                     'blendProfile' => 'B7',
+                    'tankModeEnabled' => true,
+                    'tankCount' => 5,
+                    'kgPerTank' => 12,
+                    'tankTargetMonth' => 'M1',
+                    'computedKg' => 60,
                     'months' => [
                         'M1' => 123,
                         'M2' => 456,
@@ -95,6 +105,11 @@ class Scope11ExportTest extends TestCase
         $this->assertSame('B7', $outSheet->getCell('E2')->getValue());
         $this->assertSame(123.0, $outSheet->getCell('F2')->getValue());
         $this->assertSame(456.0, $outSheet->getCell('G2')->getValue());
+        $this->assertSame(1.0, $outSheet->getCell('R2')->getValue());
+        $this->assertSame(5.0, $outSheet->getCell('S2')->getValue());
+        $this->assertSame(12.0, $outSheet->getCell('T2')->getValue());
+        $this->assertSame('M1', $outSheet->getCell('U2')->getValue());
+        $this->assertSame(60.0, $outSheet->getCell('V2')->getValue());
 
         @unlink($templatePath);
         File::deleteDirectory($templateDir);

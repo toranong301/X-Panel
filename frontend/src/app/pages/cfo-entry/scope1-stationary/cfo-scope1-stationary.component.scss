@@ -39,6 +39,50 @@ mat-form-field {
   width: 110px;
 }
 
+.item-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.item-meta .fuel-select,
+.item-meta .other-type {
+  min-width: 150px;
+  flex: 1;
+}
+
+.tank-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tank-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.tank-controls mat-form-field {
+  width: 180px;
+}
+
+.computed-label {
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.split-toggle {
+  padding: 6px 0;
+}
+
 .split-preview {
   margin-top: 16px;
 }

@@ -30,12 +30,16 @@ class EmissionCalcService
             ];
         }
 
+        $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+        $config = $this->fetchFr041Config($cycle->id);
+        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear);
         $efSelectionByRowId = $this->loadEfSelectionByRowId($cycle->id);
 
         $rows = Scope11StationaryItem::query()
             ->where('cycle_id', $cycle->id)
             ->orderBy('id')
             ->get();
+        $selectionLinesByRow = $this->selectionLinesByRow($helperResult);
 
         $results = [];
         $errors = [];
@@ -80,6 +84,21 @@ class EmissionCalcService
                 ];
 
                 continue;
+            }
+
+            $componentLines = $selectionLinesByRow[$rowId] ?? [];
+            if (!$helperResult->legacyFallbackUsed && $componentLines) {
+                if ($this->processRowWithSelectionLines(
+                    $cycle,
+                    $row,
+                    $qtyMonths,
+                    $componentLines,
+                    $summaryMonths,
+                    $results,
+                    $errors
+                )) {
+                    continue;
+                }
             }
 
             $efIdOverride = $efSelectionByRowId[$rowId] ?? null;
@@ -203,17 +222,287 @@ class EmissionCalcService
         );
     }
 
-    private function loadEfSelectionByRowId(int $cycleId): array
+    private function selectionLinesByRow(Fr041SelectionsV2HelperResult $helperResult): array
     {
-        if (!Schema::hasTable('fr041_configs')) {
+        if ($helperResult->legacyFallbackUsed) {
             return [];
         }
 
-        $config = Fr041Config::query()
+        $out = [];
+        foreach ($helperResult->includedLines as $lineId => $line) {
+            $parentRowId = trim((string) ($line['parentRowId'] ?? ''));
+            if ($parentRowId === '' || $lineId === '') {
+                continue;
+            }
+            $out[$parentRowId][$lineId] = $line;
+        }
+
+        return $out;
+    }
+
+    private function processRowWithSelectionLines(
+        Cycle $cycle,
+        Scope11StationaryItem $row,
+        array $qtyMonths,
+        array $componentLines,
+        array &$summaryMonths,
+        array &$results,
+        array &$errors
+    ): bool {
+        $rowId = trim((string) ($row->row_id ?? ''));
+        if ($rowId === '') {
+            return false;
+        }
+
+        $rowTco2eMonths = $this->emptyMonthsNull();
+        $totalTco2e = 0.0;
+        $hasValue = false;
+        $status = 'ok';
+        $errorMessage = null;
+        $lineSnapshots = [];
+
+        foreach ($componentLines as $lineId => $line) {
+            $component = trim((string) ($line['component'] ?? ''));
+            if ($component === '') {
+                continue;
+            }
+
+            $componentData = $this->componentDataForLine($row, $component, $qtyMonths);
+            if (!$componentData) {
+                continue;
+            }
+
+            if (!$this->hasAnyMonthValue($componentData['months'])) {
+                continue;
+            }
+
+            $componentLabel = $this->componentLabel($component);
+            $efId = trim((string) ($line['efId'] ?? ''));
+            if ($efId === '') {
+                $status = 'error';
+                $message = "Missing EF for component {$componentLabel}.";
+                $errors[] = [
+                    'rowId' => $rowId,
+                    'code' => 'MISSING_EF',
+                    'message' => $message,
+                ];
+                $errorMessage = $errorMessage ?? $message;
+                continue;
+            }
+
+            $payloadItem = [
+                'rowId' => $lineId,
+                'fuelKey' => (string) ($row->fuel_key ?? ''),
+                'unit' => $componentData['unit'],
+                'label' => trim((string) ($row->item_label ?? '')),
+            ];
+            $resolved = $this->efResolver->resolveScope11($cycle, $payloadItem, $efId);
+            if (!($resolved['ok'] ?? false)) {
+                $status = 'error';
+                $message = $resolved['message'] ?? 'EF resolve failed.';
+                $errors[] = [
+                    'rowId' => $rowId,
+                    'code' => $resolved['code'] ?? 'EF_RESOLVE_ERROR',
+                    'message' => $message,
+                ];
+                $errorMessage = $errorMessage ?? $message;
+                continue;
+            }
+
+            $ef = (array) ($resolved['ef'] ?? []);
+            $efTotal = $this->numOrNull($ef['total'] ?? null);
+            if ($efTotal === null) {
+                $status = 'error';
+                $message = 'EF total is missing.';
+                $errors[] = [
+                    'rowId' => $rowId,
+                    'code' => 'EF_TOTAL_MISSING',
+                    'message' => $message,
+                ];
+                $errorMessage = $errorMessage ?? $message;
+                continue;
+            }
+
+            foreach ($componentData['months'] as $key => $qty) {
+                if ($qty === null) {
+                    continue;
+                }
+                $componentTco2e = ($qty * $efTotal) / 1000.0;
+                $rounded = $this->round6($componentTco2e);
+                $rowTco2eMonths[$key] = $this->round6((float) ($rowTco2eMonths[$key] ?? 0.0) + $rounded);
+                $summaryMonths[$key] = $this->round6((float) ($summaryMonths[$key] ?? 0.0) + $rounded);
+                $totalTco2e += $rounded;
+                $hasValue = true;
+            }
+
+            $lineSnapshots[] = [
+                'lineId' => $lineId,
+                'component' => $component,
+                'efProfile' => $ef['efProfile'] ?? null,
+                'efId' => $ef['efId'] ?? null,
+                'name' => $ef['name'] ?? null,
+                'unit' => $ef['unit'] ?? null,
+                'total' => $ef['total'] ?? null,
+                'resolvedFrom' => $resolved['resolvedFrom'] ?? null,
+            ];
+        }
+
+        $totalTco2eValue = $hasValue ? $this->round6($totalTco2e) : null;
+        $status = $status === 'error' ? 'error' : 'ok';
+
+        $snapshot = [
+            'lines' => $lineSnapshots,
+        ];
+
+        $this->upsertEmissionResult($cycle->id, $rowId, [
+            'status' => $status,
+            'error_message' => $errorMessage,
+            'ef_profile' => null,
+            'ef_id' => null,
+            'ef_used_snapshot_json' => $snapshot,
+            'qty_months_json' => $qtyMonths,
+            'tco2e_months_json' => $rowTco2eMonths,
+            'total_tco2e' => $totalTco2eValue,
+        ]);
+
+        $results[] = [
+            'rowId' => $rowId,
+            'ef' => $snapshot,
+            'qtyMonths' => $qtyMonths,
+            'tco2eMonths' => $rowTco2eMonths,
+            'totalTco2e' => $totalTco2eValue,
+        ];
+
+        return true;
+    }
+
+    private function componentDataForLine(
+        Scope11StationaryItem $row,
+        string $component,
+        array $months
+    ): ?array {
+        $unit = strtoupper(trim((string) ($row->unit ?? 'L')));
+        $normalized = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $key = 'M' . $m;
+            $normalized[$key] = $this->numOrNull($months[$key] ?? null);
+        }
+
+        if ($unit !== 'L') {
+            if ($component !== 'DIESEL_L') {
+                return null;
+            }
+            return [
+                'unit' => $unit,
+                'months' => $normalized,
+            ];
+        }
+
+        $fuelKey = $this->normalizeFuelKeyForComponents((string) ($row->fuel_key ?? ''));
+        $spec = $this->componentSpec($fuelKey, $component);
+        if (!$spec) {
+            return null;
+        }
+
+        $componentMonths = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $key = 'M' . $m;
+            $qty = $normalized[$key];
+            if ($qty === null) {
+                $componentMonths[$key] = null;
+                continue;
+            }
+            $value = $qty * ($spec['ratio'] ?? 0.0);
+            if ($spec['unit'] === 'kg' && isset($spec['density'])) {
+                $value *= (float) $spec['density'];
+            }
+            $componentMonths[$key] = $this->round6($value);
+        }
+
+        return [
+            'unit' => $spec['unit'],
+            'months' => $componentMonths,
+        ];
+    }
+
+    private function componentSpec(string $fuelKey, string $component): ?array
+    {
+        $mapping = [
+            'B7' => [
+                'DIESEL_L' => ['ratio' => 0.93, 'unit' => 'L'],
+                'BIODIESEL_KG' => ['ratio' => 0.07, 'unit' => 'kg', 'density' => 0.87],
+            ],
+            'B10' => [
+                'DIESEL_L' => ['ratio' => 0.9, 'unit' => 'L'],
+                'BIODIESEL_KG' => ['ratio' => 0.1, 'unit' => 'kg', 'density' => 0.87],
+            ],
+            '9195' => [
+                'GASOLINE_L' => ['ratio' => 0.9, 'unit' => 'L'],
+                'ETHANOL_KG' => ['ratio' => 0.1, 'unit' => 'kg', 'density' => 0.79],
+            ],
+            'E20' => [
+                'GASOLINE_L' => ['ratio' => 0.8, 'unit' => 'L'],
+                'ETHANOL_KG' => ['ratio' => 0.2, 'unit' => 'kg', 'density' => 0.79],
+            ],
+            'OTHER' => [
+                'DIESEL_L' => ['ratio' => 1.0, 'unit' => 'L'],
+            ],
+        ];
+
+        $componentMap = $mapping[$fuelKey] ?? null;
+        if ($componentMap) {
+            return $componentMap[$component] ?? null;
+        }
+
+        return $component === 'DIESEL_L' ? ['ratio' => 1.0, 'unit' => 'L'] : null;
+    }
+
+    private function normalizeFuelKeyForComponents(string $value): string
+    {
+        $raw = strtoupper(trim($value));
+        if ($raw === '') {
+            return 'OTHER';
+        }
+        if (str_contains($raw, 'B7')) {
+            return 'B7';
+        }
+        if (str_contains($raw, 'B10')) {
+            return 'B10';
+        }
+        if (str_contains($raw, '91/95') || str_contains($raw, '9195')) {
+            return '9195';
+        }
+        if (str_contains($raw, 'E20')) {
+            return 'E20';
+        }
+        return 'OTHER';
+    }
+
+    private function componentLabel(string $component): string
+    {
+        if ($component === 'DIESEL_L') return 'Diesel';
+        if ($component === 'BIODIESEL_KG') return 'Biodiesel';
+        if ($component === 'GASOLINE_L') return 'Gasoline';
+        if ($component === 'ETHANOL_KG') return 'Ethanol';
+        return $component;
+    }
+
+    private function fetchFr041Config(int $cycleId): ?Fr041Config
+    {
+        if (!Schema::hasTable('fr041_configs')) {
+            return null;
+        }
+
+        return Fr041Config::query()
             ->where('cycle_id', $cycleId)
             ->where('sheet_id', 'fr041')
             ->where('section', 'scope1_stationary')
             ->first();
+    }
+
+    private function loadEfSelectionByRowId(int $cycleId): array
+    {
+        $config = $this->fetchFr041Config($cycleId);
 
         $options = is_array($config?->options ?? null) ? $config->options : [];
         $map = is_array($options['efSelectionByRowId'] ?? null) ? $options['efSelectionByRowId'] : [];

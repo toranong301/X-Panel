@@ -16,7 +16,6 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CanonicalGhgService, SplitSummaryRow } from '../../core/services/canonical-ghg.service';
 import {
   CycleApiService,
-  EfAr5Option,
   EfCatalogOption,
   Fr041Config,
   Fr041Source,
@@ -29,15 +28,30 @@ import { CycleStateService } from '../../core/services/cycle-state.service';
 import { DataEntryService } from '../../core/services/data-entry.service';
 import { Fr01Service } from '../../core/services/fr01.service';
 import { SHEET_REGISTRY } from '../../core/sheet.registry';
-import { computeBlendFromAnnualL, FuelBlendKey } from '../../core/sheets/fuel-blend.registry';
+import { computeBlendFromAnnualL, FuelBlendKey, resolveBlendKey } from '../../core/sheets/fuel-blend.registry';
 import { Fr01Data } from '../../models/fr01.model';
 import { ExcelSheetPreviewComponent } from '../../shared/components/excel-sheet-preview/excel-sheet-preview.component';
 
 type Fr041AvailableItem = Scope11StationaryItem & {
    sectionId?: string;
    sectionTitle?: string;
-   scope?: string;
+   scope?: string | null | undefined;
  };
+type Fr041SelectionComponent = 'DIESEL_L' | 'BIODIESEL_KG' | 'GASOLINE_L' | 'ETHANOL_KG';
+type Fr041SelectionLine = {
+  lineId: string;
+  parentRowId: string;
+  component: Fr041SelectionComponent;
+  include: boolean;
+  efCatalog: string | null;
+  efId: string | null;
+  qty: number | null;
+  unit: 'L' | 'kg';
+  itemLabel: string;
+  evidence: string;
+  fuelKey: string;
+  sectionId?: string | null;
+};
 @Component({
   selector: 'app-fr04-1',
   standalone: true,
@@ -104,12 +118,15 @@ export class Fr041Component implements OnInit {
   scope11PeriodYear: number | null = null;
   scope11HeaderMonths: Record<string, number | null> | null = null;
   selectedRowIds = new Set<string>();
+  selectionLines: Fr041SelectionLine[] = [];
+  missingEfCount = 0;
   selectionSaving = false;
   previewKey = 0;
   previewEnabled = true;
-  efOptions: EfAr5Option[] = [];
-  efSelectionByRowId: Record<string, string> = {};
+  efOptions: EfCatalogOption[] = [];
   efCatalogWarning: string | null = null;
+  cycleYear: number | null = null;
+  fr041ConfigOptions: Record<string, any> | null = null;
 
   selectedScope3: any[] = [];
   fr01Meta: Fr01Data | null = null;
@@ -140,6 +157,7 @@ export class Fr041Component implements OnInit {
     this.templateLoading = true;
     try {
       const cycle = await this.cycleApi.getCycle(this.cycleId);
+      this.cycleYear = Number.isFinite(Number(cycle?.year)) ? Number(cycle?.year) : null;
       this.templateId = String(cycle?.template_id || 'mbax');
       this.templateKey = this.templateId;
       this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
@@ -300,12 +318,13 @@ export class Fr041Component implements OnInit {
         }
 
         this.availableItems = merged;
-      this.scope11Items = this.extractSourceItems(scope11Resp);
+      const scope11Items = this.extractSourceItems(scope11Resp);
+      this.scope11Items = scope11Items.length ? scope11Items : this.availableItems;
       this.scope11SplitEnabled = Boolean(scope11Resp?.splitEnabled);
       this.scope11PeriodYear = scope11Resp?.periodYear ?? null;
       this.scope11HeaderMonths = scope11Resp?.headerMonths ?? null;
 
-      this.applySelectionConfig(configResult, this.availableItems);
+      this.applySelectionConfig(configResult, this.scope11Items);
       this.syncFr041SelectionLocal();
       console.log('FR-04.1 load done', {
         availableItems: this.availableItems.length,
@@ -420,28 +439,6 @@ export class Fr041Component implements OnInit {
     }, 0);
   }
 
-  toggleSelection(item: Fr041AvailableItem, checked: boolean) {
-    if (!item?.rowId) return;
-    const next = new Set(this.selectedRowIds);
-    if (checked) {
-      next.add(item.rowId);
-      if (!this.efSelectionByRowId[item.rowId]) {
-        const efId = this.defaultEfIdForFuelKey(item.fuelKey);
-        if (efId) {
-          this.efSelectionByRowId = { ...this.efSelectionByRowId, [item.rowId]: efId };
-        }
-      }
-    } else {
-      next.delete(item.rowId);
-    }
-    this.selectedRowIds = next;
-    this.queueSaveFr041Config();
-  }
-
-  isSelected(item: Fr041AvailableItem): boolean {
-    return Boolean(item?.rowId && this.selectedRowIds.has(item.rowId));
-  }
-
   get selectedItems(): Fr041AvailableItem[] {
     if (!this.availableItems.length) return [];
     return this.availableItems.filter(item => this.selectedRowIds.has(item.rowId));
@@ -539,30 +536,202 @@ export class Fr041Component implements OnInit {
   }
 
   private applySelectionConfig(config: Fr041Config | null, items: Fr041AvailableItem[]) {
-    const rowIds = new Set(items.map(item => item.rowId));
-    const selected = (config?.selectedRowIds ?? []).filter(rowId => rowIds.has(rowId));
-    this.selectedRowIds = new Set(selected);
+    const options = config?.options && typeof config.options === 'object' ? config.options : {};
+    this.fr041ConfigOptions = options;
 
-    const fromOptions = String(config?.options?.['templateSetId'] ?? '').trim();
-    if (fromOptions) {
-      this.templateSetId = fromOptions;
+    const rawSelections = Array.isArray(options['selections_v2']) ? options['selections_v2'] : [];
+    this.selectionLines = this.buildSelectionLines(items, rawSelections);
+
+    if (!rawSelections.length && config?.selectedRowIds?.length) {
+      this.ensureLegacyIncludes(config.selectedRowIds);
     }
 
-    const efOptions = config?.options?.['efSelectionByRowId'];
-    if (efOptions && typeof efOptions === 'object') {
-      this.efSelectionByRowId = { ...(efOptions as Record<string, string>) };
-    }
+    this.updateSelectedRowIdsFromSelectionLines();
+    this.updateMissingEfCount();
 
-    if (this.selectedRowIds.size) {
-      const next = { ...this.efSelectionByRowId };
-      for (const item of items) {
-        if (!this.selectedRowIds.has(item.rowId)) continue;
-        if (next[item.rowId]) continue;
-        const efId = this.defaultEfIdForFuelKey(item.fuelKey);
-        if (efId) next[item.rowId] = efId;
+    const fromTemplateSet = String(options?.['templateSetId'] ?? '').trim();
+    if (fromTemplateSet) {
+      this.templateSetId = fromTemplateSet;
+    }
+  }
+
+  private ensureLegacyIncludes(rowIds: string[]): void {
+    const included = new Set(rowIds);
+    this.selectionLines.forEach(line => {
+      if (!included.has(line.parentRowId)) return;
+      if (line.component !== 'DIESEL_L') return;
+      line.include = true;
+    });
+  }
+
+  private buildSelectionLines(items: Fr041AvailableItem[], selections: any[]): Fr041SelectionLine[] {
+    const selectionMap = new Map<string, any>();
+    for (const sel of selections || []) {
+      const lineId = String(sel?.lineId ?? '').trim();
+      if (!lineId) continue;
+      selectionMap.set(lineId, sel);
+    }
+    const result: Fr041SelectionLine[] = [];
+    for (const item of items) {
+      const components = this.componentsForFuelKey(item.fuelKey);
+      for (const component of components) {
+        const lineId = `${item.rowId || ''}::${component}`;
+        const existing = selectionMap.get(lineId);
+        result.push({
+          lineId,
+          parentRowId: item.rowId,
+          component,
+          include: Boolean(existing?.include),
+          efCatalog: this.normalizeValue(existing?.efCatalog),
+          efId: this.normalizeValue(existing?.efId),
+          qty: this.resolveComponentQty(item, component),
+          unit: this.componentUnit(component),
+          itemLabel: item.itemLabel || item.rowId,
+          evidence: item.evidence || '',
+          fuelKey: item.fuelKey || '',
+          sectionId: item.sectionId ?? null,
+        });
       }
-      this.efSelectionByRowId = next;
     }
+    return result;
+  }
+
+  private updateSelectedRowIdsFromSelectionLines(): void {
+    const set = new Set<string>();
+    for (const line of this.selectionLines) {
+      if (line.include) {
+        set.add(line.parentRowId);
+      }
+    }
+    this.selectedRowIds = set;
+  }
+
+  private updateMissingEfCount(): void {
+    this.missingEfCount = this.selectionLines.reduce((count, line) => {
+      if (!line.include) return count;
+      if (!line.efCatalog || !line.efId) return count + 1;
+      return count;
+    }, 0);
+  }
+
+  private normalizeValue(value: any): string | null {
+    const text = String(value ?? '').trim();
+    return text === '' ? null : text;
+  }
+
+  private componentUnit(component: Fr041SelectionComponent): 'L' | 'kg' {
+    return component.endsWith('_KG') ? 'kg' : 'L';
+  }
+
+  componentLabel(component: Fr041SelectionComponent): string {
+    switch (component) {
+      case 'DIESEL_L':
+        return 'Diesel';
+      case 'BIODIESEL_KG':
+        return 'Biodiesel';
+      case 'GASOLINE_L':
+        return 'Gasoline';
+      case 'ETHANOL_KG':
+        return 'Ethanol';
+    }
+    return component;
+  }
+
+  private resolveComponentQty(item: Scope11StationaryItem, component: Fr041SelectionComponent): number | null {
+    const total = this.resolveTotal(item);
+    if (total === null || !Number.isFinite(total)) {
+      return null;
+    }
+    const unit = String(item.unit || '').trim().toLowerCase();
+    if (unit !== 'l' && (component === 'DIESEL_L' || component === 'GASOLINE_L')) {
+      return null;
+    }
+    const blendKey = resolveBlendKey(item.fuelKey ?? '', item.otherType ?? undefined);
+    const supported = ['B7', 'B10', '91/95', 'E20'];
+    if (!supported.includes(blendKey)) {
+      if (component === 'DIESEL_L') {
+        return total;
+      }
+      return null;
+    }
+    const blend = computeBlendFromAnnualL(total, blendKey as FuelBlendKey);
+    switch (component) {
+      case 'DIESEL_L':
+        return blend.dieselL;
+      case 'BIODIESEL_KG':
+        return blend.biodieselKg;
+      case 'GASOLINE_L':
+        return blend.gasolineL;
+      case 'ETHANOL_KG':
+        return blend.ethanolKg;
+    }
+    return null;
+  }
+
+  private componentsForFuelKey(fuelKey?: string): Fr041SelectionComponent[] {
+    const normalized = this.normalizeFuelKey(fuelKey);
+    if (['B7', 'B10'].includes(normalized)) {
+      return ['DIESEL_L', 'BIODIESEL_KG'];
+    }
+    if (['91/95', 'E20'].includes(normalized)) {
+      return ['GASOLINE_L', 'ETHANOL_KG'];
+    }
+    if (normalized === 'OTHER') {
+      return ['DIESEL_L'];
+    }
+    return ['DIESEL_L'];
+  }
+
+  private normalizeFuelKey(fuelKey?: string): string {
+    const raw = String(fuelKey || '').trim().toUpperCase();
+    if (!raw) return 'OTHER';
+    if (raw.includes('DIESEL_B7')) return 'B7';
+    if (raw.includes('DIESEL_B10')) return 'B10';
+    if (raw.includes('91/95') || raw.includes('9195')) return '91/95';
+    if (raw.includes('E20')) return 'E20';
+    if (raw.includes('OTHER')) return 'OTHER';
+    return raw;
+  }
+
+  efOptionsForCatalog(catalog: string | null | undefined): EfCatalogOption[] {
+    if (!catalog) return [];
+    return this.efOptions.filter(option => (option.efCatalog ?? '').toUpperCase() === catalog.toUpperCase());
+  }
+
+  toggleLineInclude(line: Fr041SelectionLine, checked: boolean): void {
+    line.include = checked;
+    if (!checked) {
+      line.efCatalog = null;
+      line.efId = null;
+    }
+    this.handleLineChange();
+  }
+
+  setLineEfCatalog(line: Fr041SelectionLine, catalog: string | null): void {
+    line.efCatalog = this.normalizeValue(catalog);
+    line.efId = null;
+    this.handleLineChange();
+  }
+
+  setLineEfId(line: Fr041SelectionLine, efId: string | null): void {
+    line.efId = this.normalizeValue(efId);
+    this.handleLineChange();
+  }
+
+  private handleLineChange(): void {
+    this.updateSelectedRowIdsFromSelectionLines();
+    this.updateMissingEfCount();
+    this.syncFr041SelectionLocal();
+    this.queueSaveFr041Config();
+  }
+
+  private buildEfSelectionMap(): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const line of this.selectionLines) {
+      if (!line.include || !line.efId) continue;
+      if (!map[line.parentRowId]) map[line.parentRowId] = line.efId;
+    }
+    return map;
   }
 
   private queueSaveFr041Config() {
@@ -588,11 +757,19 @@ export class Fr041Component implements OnInit {
     const timerLabel = 'FR041 PUT config';
     try {
       this.syncFr041SelectionLocal();
+      const selectionsPayload = this.selectionLines.map(line => ({
+        lineId: line.lineId,
+        parentRowId: line.parentRowId,
+        component: line.component,
+        include: line.include,
+        efCatalog: line.efCatalog ?? null,
+        efId: line.efId ?? null,
+      }));
       const payload = {
         selectedRowIds: Array.from(this.selectedRowIds.values()),
         options: {
           templateSetId: this.templateSetId,
-          efSelectionByRowId: this.efSelectionByRowId,
+          selections_v2: selectionsPayload,
         },
       };
       slowSaveTimer = setTimeout(() => {
@@ -620,43 +797,55 @@ export class Fr041Component implements OnInit {
 
   async loadEfOptions() {
     try {
-      const ar5Response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'AR5', 'stationary');
-      const ef1Response = await this.cycleApi.getCycleEfCatalog(this.cycleId, 'EF1', 'stationary').catch(() => null);
-
-      const ar5Options = Array.isArray(ar5Response?.options) ? ar5Response.options : [];
-      const ef1Options = Array.isArray(ef1Response?.options) ? ef1Response.options : [];
-
-      const map = new Map<string, EfAr5Option>();
-      for (const opt of ar5Options) {
-        const key = String(opt?.efId || '').trim();
-        if (!key) continue;
-        map.set(key, opt);
+      const catalogs = this.allowedEfCatalogs;
+      const responses = await Promise.all(
+        catalogs.map(catalog =>
+          this.cycleApi.getCycleEfCatalog(this.cycleId, catalog as 'AR5' | 'AR5V2' | 'EF1', 'stationary').catch(() => null)
+        )
+      );
+      const optionsMap = new Map<string, EfCatalogOption>();
+      const warnings: string[] = [];
+      for (let i = 0; i < catalogs.length; i++) {
+        const catalog = catalogs[i];
+        const resp = responses[i];
+        if (!resp) continue;
+        const responseCatalog = resp.catalog?.trim() || catalog;
+        for (const opt of resp.options ?? []) {
+          const key = String(opt?.efId || '').trim();
+          if (!key) continue;
+          if (optionsMap.has(key)) continue;
+          optionsMap.set(key, {
+            ...opt,
+            efCatalog: opt.efCatalog || responseCatalog,
+          });
+        }
+        if (resp.warning) {
+          warnings.push(String(resp.warning));
+        }
       }
-      for (const opt of ef1Options) {
-        const key = String(opt?.efId || '').trim();
-        if (!key) continue;
-        map.set(key, opt);
-      }
-
-      this.efOptions = Array.from(map.values());
-      const warnings = [ar5Response?.warning, ef1Response?.warning].filter(Boolean).map(String);
+      this.efOptions = Array.from(optionsMap.values());
       this.efCatalogWarning = warnings.length ? warnings.join(' | ') : null;
     } catch (error: any) {
       console.error('Load EF options failed', error);
       this.efOptions = [];
+      this.efCatalogWarning = null;
     }
   }
 
-  onEfChangeByRowId(rowId: string, efId: string): void {
-    if (!rowId) return;
-    this.efSelectionByRowId = { ...this.efSelectionByRowId, [rowId]: efId };
-    this.queueSaveFr041Config();
+  get allowedEfCatalogs(): Array<'AR5' | 'AR5V2' | 'EF1'> {
+    if (this.cycleYear !== null && this.cycleYear >= 2026) {
+      return ['AR5V2', 'EF1'];
+    }
+    return ['AR5', 'EF1'];
   }
 
   getEfIdForItem(item: Scope11StationaryItem): string {
     if (!item?.rowId) return '';
-    const picked = this.efSelectionByRowId[item.rowId];
-    return picked ?? this.defaultEfIdForFuelKey(item.fuelKey);
+    const line = this.selectionLines.find(
+      line => line.parentRowId === item.rowId && line.include && line.efId
+    );
+    if (line?.efId) return line.efId;
+    return this.defaultEfIdForFuelKey(item.fuelKey);
   }
 
   private defaultEfIdForFuelKey(fuelKey: string): string {
@@ -710,7 +899,7 @@ export class Fr041Component implements OnInit {
       };
     });
 
-    const efMap = { byItemId: { ...this.efSelectionByRowId } };
+    const efMap = { byItemId: this.buildEfSelectionMap() };
     const rows = this.canonicalSvc.buildFr041SelectionRows(splitRows, efMap, 11);
 
     this.dataEntrySvc.save(this.cycleId, {

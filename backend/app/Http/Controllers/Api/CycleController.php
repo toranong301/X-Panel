@@ -7,6 +7,7 @@ use App\Models\Cycle;
 use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
 use App\Services\EfResolverService;
+use App\Services\Fr041SelectionsV2Helper;
 use App\Services\MbaxTemplateService;
 use App\Services\Scope11PayloadService;
 use App\Services\SheetRegistry;
@@ -381,7 +382,10 @@ class CycleController extends Controller
                 $scope11Export->writeToSpreadsheet($spreadsheet, $payloadScope11);
 
                 if ($spreadsheet->getSheetByName('_FR041_SEL')) {
-                    $selectionRows = $scope11Payload->buildFr041SelectionRows($cycle);
+                    $selectionRows = $payloadScope11['fr041SelectionRows'] ?? [];
+                    if (!$selectionRows) {
+                        $selectionRows = $scope11Payload->buildFr041SelectionRows($cycle);
+                    }
                     if ($selectionRows) {
                         $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
                     } else {
@@ -608,6 +612,12 @@ class CycleController extends Controller
             ->orderBy('id')
             ->get();
 
+        $config = $this->loadFr041Config($cycle->id);
+        $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear);
+        $useLegacyEfSelection = $helperResult->legacyFallbackUsed;
+        $legacyMissingEf = 0;
+
         foreach ($rows as $row) {
             $rowId = trim((string) ($row->row_id ?? ''));
             if ($rowId === '') continue;
@@ -625,23 +635,54 @@ class CycleController extends Controller
                 $missingEvidence += 1;
             }
 
-            $item = [
-                'rowId' => $rowId,
-                'fuelKey' => (string) ($row->fuel_key ?? ''),
-                'unit' => (string) ($row->unit ?? ''),
-                'label' => (string) ($row->item_label ?? ''),
-            ];
-            $resolved = $efResolver->resolveScope11($cycle, $item, null);
-            if (!($resolved['ok'] ?? false)) {
-                $missingEf += 1;
+            if ($useLegacyEfSelection) {
+                $item = [
+                    'rowId' => $rowId,
+                    'fuelKey' => (string) ($row->fuel_key ?? ''),
+                    'unit' => (string) ($row->unit ?? ''),
+                    'label' => (string) ($row->item_label ?? ''),
+                ];
+                $resolved = $efResolver->resolveScope11($cycle, $item, null);
+                if (!($resolved['ok'] ?? false)) {
+                    $legacyMissingEf += 1;
+                }
             }
         }
+
+        $missingEf = $useLegacyEfSelection ? $legacyMissingEf : count($helperResult->missingEfLineIds);
 
         return [
             'hasData' => $hasData,
             'missingEvidenceCount' => $missingEvidence,
             'missingEfCount' => $missingEf,
         ];
+    }
+
+    private function loadFr041Config(int $cycleId): ?Fr041Config
+    {
+        return Fr041Config::query()
+            ->where('cycle_id', $cycleId)
+            ->where('sheet_id', 'fr041')
+            ->where('section', 'scope1_stationary')
+            ->first();
+    }
+
+    private function hasAnyMonthValue(array $months): bool
+    {
+        for ($i = 1; $i <= 12; $i++) {
+            $key = 'M' . $i;
+            if (!array_key_exists($key, $months)) {
+                continue;
+            }
+            $value = $months[$key];
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (is_numeric($value) && (float) $value !== 0.0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function buildScope11PayloadFromCycleData(array $data): array

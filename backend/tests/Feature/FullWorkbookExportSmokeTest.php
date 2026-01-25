@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Cycle;
 use App\Models\EfLibraryEntry;
 use App\Models\EfProfile;
+use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -109,6 +110,9 @@ class FullWorkbookExportSmokeTest extends TestCase
             $this->apiHeaders()
         );
 
+        file_put_contents('php://stderr', $resp->getContent());
+
+
         $resp->assertStatus(200);
         $resp->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
@@ -143,5 +147,208 @@ class FullWorkbookExportSmokeTest extends TestCase
         $wsFr01 = $out->getSheetByName('Fr-01');
         $this->assertSame('ACME Co', $wsFr01->getCell('B6')->getValue());
     }
-}
 
+    public function test_export_with_selections_v2_2025_ar5_ef1(): void
+    {
+        $this->prepareMbaxTemplate();
+
+        $cycle = Cycle::query()->create([
+            'year' => 2025,
+            'name' => 'Selection cycle 2025',
+            'template_id' => 'mbax',
+            'data_json' => [],
+        ]);
+
+        Scope11StationaryItem::query()->create([
+            'cycle_id' => $cycle->id,
+            'row_id' => 'ROW_B7',
+            'item_label' => 'Diesel B7',
+            'unit' => 'L',
+            'fuel_key' => 'B7',
+            'months_json' => ['M1' => 100],
+            'total' => 100,
+        ]);
+
+        Fr041Config::query()->create([
+            'cycle_id' => $cycle->id,
+            'sheet_id' => 'fr041',
+            'section' => 'scope1_stationary',
+            'selected_row_ids' => ['ROW_B7'],
+            'options' => [
+                'selections_v2' => [
+                    [
+                        'lineId' => 'ROW_B7::DIESEL_L',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'DIESEL_L',
+                        'include' => true,
+                        'efCatalog' => 'AR5',
+                        'efId' => 'AR5_DIESEL',
+                    ],
+                    [
+                        'lineId' => 'ROW_B7::BIODIESEL_KG',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'BIODIESEL_KG',
+                        'include' => true,
+                        'efCatalog' => 'EF1',
+                        'efId' => 'EF1_BIODIESEL',
+                    ],
+                ],
+            ],
+        ]);
+
+        $resp = $this->postJson(
+            "/api/cycles/{$cycle->id}/export",
+            ['templateId' => 'MBAX_TGO_11102567'],
+            $this->apiHeaders()
+        );
+
+        file_put_contents('php://stderr', $resp->getContent());
+
+        $resp->assertStatus(200);
+        $resp->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $file = $resp->baseResponse->getFile();
+        $this->assertNotNull($file);
+        $this->assertFileExists($file->getPathname());
+
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(false);
+        $out = $reader->load($file->getPathname());
+        $selectionSheet = $out->getSheetByName('_FR041_SEL');
+        $this->assertNotNull($selectionSheet);
+
+        $headerMap = $this->selectionHeaderMap($selectionSheet);
+        $this->assertSelectionRowEf($selectionSheet, $headerMap, 'ROW_B7::DIESEL_L', 'AR5', 'AR5_DIESEL');
+        $this->assertSelectionRowEf($selectionSheet, $headerMap, 'ROW_B7::BIODIESEL_KG', 'EF1', 'EF1_BIODIESEL');
+    }
+
+    public function test_export_with_selections_v2_2026_ar5v2_ef1(): void
+    {
+        $this->prepareMbaxTemplate();
+
+        $cycle = Cycle::query()->create([
+            'year' => 2026,
+            'name' => 'Selection cycle 2026',
+            'template_id' => 'mbax',
+            'data_json' => [],
+        ]);
+
+        Scope11StationaryItem::query()->create([
+            'cycle_id' => $cycle->id,
+            'row_id' => 'ROW_B7',
+            'item_label' => 'Diesel B7',
+            'unit' => 'L',
+            'fuel_key' => 'B7',
+            'months_json' => ['M1' => 200],
+            'total' => 200,
+        ]);
+
+        Fr041Config::query()->create([
+            'cycle_id' => $cycle->id,
+            'sheet_id' => 'fr041',
+            'section' => 'scope1_stationary',
+            'selected_row_ids' => ['ROW_B7'],
+            'options' => [
+                'selections_v2' => [
+                    [
+                        'lineId' => 'ROW_B7::DIESEL_L',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'DIESEL_L',
+                        'include' => true,
+                        'efCatalog' => 'AR5V2',
+                        'efId' => 'AR5V2_DIESEL',
+                    ],
+                    [
+                        'lineId' => 'ROW_B7::BIODIESEL_KG',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'BIODIESEL_KG',
+                        'include' => true,
+                        'efCatalog' => 'EF1',
+                        'efId' => 'EF1_BIODIESEL',
+                    ],
+                ],
+            ],
+        ]);
+
+        $resp = $this->postJson(
+            "/api/cycles/{$cycle->id}/export",
+            ['templateId' => 'MBAX_TGO_11102567'],
+            $this->apiHeaders()
+        );
+
+        $resp->assertStatus(200);
+        $resp->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $file = $resp->baseResponse->getFile();
+        $this->assertNotNull($file);
+        $this->assertFileExists($file->getPathname());
+
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(false);
+        $out = $reader->load($file->getPathname());
+        $selectionSheet = $out->getSheetByName('_FR041_SEL');
+        $this->assertNotNull($selectionSheet);
+
+        $headerMap = $this->selectionHeaderMap($selectionSheet);
+        $this->assertSelectionRowEf($selectionSheet, $headerMap, 'ROW_B7::DIESEL_L', 'AR5V2', 'AR5V2_DIESEL');
+        $this->assertSelectionRowEf($selectionSheet, $headerMap, 'ROW_B7::BIODIESEL_KG', 'EF1', 'EF1_BIODIESEL');
+    }
+
+    private function prepareMbaxTemplate(): void
+    {
+        $tpl = base_path('../shared/templates/mbax/MBAX-TGO-11102567-Demo.xlsx');
+        if (!is_file($tpl)) {
+            $this->markTestSkipped('MBAX template missing: ' . $tpl);
+        }
+        putenv('MBAX_TEMPLATE_PATH=' . $tpl);
+        $_ENV['MBAX_TEMPLATE_PATH'] = $tpl;
+        $_SERVER['MBAX_TEMPLATE_PATH'] = $tpl;
+    }
+
+    private function selectionHeaderMap($sheet): array
+    {
+        $map = [];
+        $highestCol = $sheet->getHighestColumn() ?? 'A';
+        $limit = Coordinate::columnIndexFromString($highestCol);
+        for ($col = 1; $col <= $limit; $col++) {
+            $letter = Coordinate::stringFromColumnIndex($col);
+            $value = $sheet->getCell($letter . '1')->getValue();
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $map[strtoupper(trim((string) $value))] = $letter;
+        }
+        return $map;
+    }
+
+    private function findSelectionRow($sheet, array $headerMap, string $rowId): ?int
+    {
+        $rowIdCol = $headerMap['ROWID'] ?? null;
+        if (!$rowIdCol) {
+            return null;
+        }
+
+        $highestRow = $sheet->getHighestRow();
+        for ($row = 2; $row <= $highestRow; $row++) {
+            $value = $sheet->getCell($rowIdCol . $row)->getValue();
+            if ((string) $value === $rowId) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    private function assertSelectionRowEf($sheet, array $headerMap, string $rowId, string $catalog, string $efId): void
+    {
+        $row = $this->findSelectionRow($sheet, $headerMap, $rowId);
+        $this->assertNotNull($row, "Expected selection row {$rowId} to exist.");
+
+        $catalogCol = $headerMap['EFCATALOG'] ?? null;
+        $this->assertNotNull($catalogCol, 'Missing EFCATALOG column in selection sheet.');
+        $this->assertSame($catalog, (string) $sheet->getCell($catalogCol . $row)->getValue());
+
+        $efIdCol = $headerMap['EFID'] ?? null;
+        $this->assertNotNull($efIdCol, 'Missing EFID column in selection sheet.');
+        $this->assertSame($efId, (string) $sheet->getCell($efIdCol . $row)->getValue());
+    }
+}

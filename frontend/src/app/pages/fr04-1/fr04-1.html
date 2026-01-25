@@ -3,6 +3,9 @@
     <h2>FR-04.1 (Current year) – บัญชีรายการก๊าซเรือนกระจก</h2>
     <div class="sub">Cycle ID: {{ cycleId }}</div>
   </div>
+  <div class="empty" *ngIf="!selectionLines.length">
+    ยังไม่มี selection lines ให้กำหนด EF
+  </div>
 
   <div class="header-actions">
     <button mat-stroked-button (click)="goScope3Screen()">
@@ -93,7 +96,6 @@
 
   <div class="items-table" *ngIf="!scope11Loading">
     <div class="items-header">
-      <div>Include</div>
       <div>รายการ</div>
       <div>หน่วย</div>
       <div>รวม</div>
@@ -101,12 +103,6 @@
       <div>Scope/Section</div>
     </div>
     <div class="items-row" *ngFor="let item of availableItems">
-      <div>
-        <mat-checkbox
-          [checked]="isSelected(item)"
-          (change)="toggleSelection(item, $event.checked)"
-        ></mat-checkbox>
-      </div>
       <div class="truncate">{{ item.itemLabel || item.rowId }}</div>
       <div>{{ item.unit || '-' }}</div>
       <div class="num">{{ formatFixed2(item.total ?? sumMonths(item.months)) }}</div>
@@ -121,63 +117,83 @@
     </div>
   </div>
 
-  <div class="section-title" *ngIf="selectedItems.length">Selected Items</div>
-  <div class="selected-table" *ngIf="selectedItems.length">
+  <div class="section-title">Stationary EF selection lines</div>
+  <div class="hint" *ngIf="missingEfCount > 0">
+    Missing EF for {{ missingEfCount }} line{{ missingEfCount === 1 ? '' : 's' }}
+  </div>
+  <div class="selection-table" *ngIf="selectionLines.length">
     <table>
       <thead>
         <tr>
-          <th rowspan="2">รายการ</th>
-          <th rowspan="2">ชนิด</th>
-          <th rowspan="2">EF (AR5)</th>
-          <th rowspan="2">หลักฐาน</th>
-          <th rowspan="2">หน่วย</th>
-          <th rowspan="2" class="num">ปริมาณน้ำมัน</th>
-          <th colspan="1">Diesel (Stationary combustion)</th>
-          <th colspan="2">Biodiesel (Stationary combustion)</th>
-          <th colspan="1">Gasoline (Stationary combustion)</th>
-          <th colspan="2">Ethanol (Stationary combustion)</th>
-        </tr>
-        <tr>
-          <th>L</th>
-          <th>L</th>
-          <th>kg</th>
-          <th>L</th>
-          <th>L</th>
-          <th>kg</th>
+          <th>Include</th>
+          <th>รายการ</th>
+          <th>Component</th>
+          <th class="num">Qty</th>
+          <th>Unit</th>
+          <th>หลักฐาน</th>
+          <th>EF Catalog</th>
+          <th>EF</th>
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let row of selectedSummaryRows">
-          <td class="payload-key">{{ row.itemLabel || '-' }}</td>
+        <tr
+          *ngFor="let line of selectionLines"
+          [class.missing]="line.include && (!line.efCatalog || !line.efId)"
+        >
           <td>
-            <span>{{ row.fuelKey }}</span>
-            <span *ngIf="row.otherType"> (Other: {{ row.otherType }})</span>
+            <mat-checkbox
+              [checked]="line.include"
+              (change)="toggleLineInclude(line, $event.checked)"
+              [disabled]="selectionSaving"
+            ></mat-checkbox>
           </td>
+          <td class="truncate">{{ line.itemLabel || line.parentRowId }}</td>
           <td>
-            <mat-form-field appearance="fill" class="ef-select">
+            {{ componentLabel(line.component) }}
+            <span *ngIf="line.fuelKey && line.fuelKey !== '-'">
+              ({{ line.fuelKey }})
+            </span>
+          </td>
+          <td class="num">{{ formatFixed2(line.qty) }}</td>
+          <td>{{ line.unit }}</td>
+          <td class="truncate">{{ line.evidence || '-' }}</td>
+          <td>
+            <mat-form-field appearance="outline" class="ef-select">
               <mat-select
-                [ngModel]="row.efId"
-                (ngModelChange)="onEfChangeByRowId(row.itemId, $event)"
+                [value]="line.efCatalog"
+                (selectionChange)="setLineEfCatalog(line, $event.value)"
+                [disabled]="selectionSaving || !line.include"
               >
-                <mat-option value="">-- เลือก EF --</mat-option>
-                <mat-option *ngFor="let ef of (efOptions || [])" [value]="ef.efId">
-                  {{ ef.efId }} — {{ ef.Name }} ({{ ef.Unit }})
+                <mat-option value="">-- catalog --</mat-option>
+                <mat-option *ngFor="let catalog of allowedEfCatalogs" [value]="catalog">
+                  {{ catalog }}
                 </mat-option>
               </mat-select>
             </mat-form-field>
           </td>
-          <td class="truncate">{{ row.evidence }}</td>
-          <td>{{ row.unit }}</td>
-          <td class="num">{{ formatFixed2(row.total) }}</td>
-          <td class="num">{{ formatFixed2(row.dieselL) }}</td>
-          <td class="num">{{ formatFixed2(row.biodieselL) }}</td>
-          <td class="num">{{ formatFixed2(row.biodieselKg) }}</td>
-          <td class="num">{{ formatFixed2(row.gasolineL) }}</td>
-          <td class="num">{{ formatFixed2(row.ethanolL) }}</td>
-          <td class="num">{{ formatFixed2(row.ethanolKg) }}</td>
-        </tr>
-        <tr class="empty" *ngIf="!selectedSummaryRows.length">
-          <td colspan="12">ยังไม่ได้เลือกรายการ (ติ๊ก Include ด้านบน)</td>
+          <td>
+            <mat-form-field appearance="outline" class="ef-select">
+              <mat-select
+                [value]="line.efId"
+                (selectionChange)="setLineEfId(line, $event.value)"
+                [disabled]="selectionSaving || !line.include || !line.efCatalog"
+              >
+                <mat-option value="">-- เลือก EF --</mat-option>
+                <mat-option
+                  *ngFor="let option of efOptionsForCatalog(line.efCatalog)"
+                  [value]="option.efId"
+                >
+                  {{ option.efId }} — {{ option.Name }} ({{ option.Unit }})
+                </mat-option>
+              </mat-select>
+              <div
+                class="inline-error"
+                *ngIf="line.include && (!line.efCatalog || !line.efId)"
+              >
+                กรุณาเลือก EF Catalog และ EF
+              </div>
+            </mat-form-field>
+          </td>
         </tr>
       </tbody>
     </table>

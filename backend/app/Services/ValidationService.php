@@ -6,6 +6,7 @@ use App\Models\Cycle;
 use App\Models\EmissionResult;
 use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
+use App\Services\Fr041SelectionsV2Helper;
 use Illuminate\Support\Facades\Schema;
 
 class ValidationService
@@ -45,7 +46,22 @@ class ValidationService
             return;
         }
 
-        $efSelectionByRowId = $this->loadEfSelectionByRowId($cycle->id);
+        $config = $this->loadFr041Config($cycle->id);
+        $effectiveConfig = $config ?? new Fr041Config();
+        $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+        $helperResult = Fr041SelectionsV2Helper::resolve($effectiveConfig, $cycleYear);
+
+        if ($helperResult->legacyFallbackUsed) {
+            $warnings[] = [
+                'scope' => '1.1',
+                'code' => 'LEGACY_FR041_FALLBACK',
+                'message' => 'FR-04.1 selections_v2 is missing; using legacy selections.',
+            ];
+        } else {
+            $this->applySelectionLineErrors($helperResult, $errors, $cycleYear);
+        }
+
+        $useLegacyEfSelection = $helperResult->legacyFallbackUsed;
 
         $rows = Scope11StationaryItem::query()
             ->where('cycle_id', $cycle->id)
@@ -89,34 +105,36 @@ class ValidationService
                 continue;
             }
 
-            $item = [
-                'rowId' => $rowId,
-                'fuelKey' => (string) ($row->fuel_key ?? ''),
-                'unit' => (string) ($row->unit ?? ''),
-                'label' => (string) ($row->item_label ?? ''),
-            ];
-
-            $efIdOverride = $efSelectionByRowId[$rowId] ?? null;
-            $resolved = $this->efResolver->resolveScope11($cycle, $item, $efIdOverride);
-            if (!($resolved['ok'] ?? false)) {
-                $errors[] = [
-                    'scope' => '1.1',
+            if ($useLegacyEfSelection) {
+                $item = [
                     'rowId' => $rowId,
-                    'code' => $resolved['code'] ?? 'EF_RESOLVE_ERROR',
-                    'message' => $resolved['message'] ?? 'EF resolve failed.',
+                    'fuelKey' => (string) ($row->fuel_key ?? ''),
+                    'unit' => (string) ($row->unit ?? ''),
+                    'label' => (string) ($row->item_label ?? ''),
                 ];
-                continue;
-            }
 
-            $ef = (array) ($resolved['ef'] ?? []);
-            $total = $ef['total'] ?? null;
-            if ($total === null || $total === '') {
-                $errors[] = [
-                    'scope' => '1.1',
-                    'rowId' => $rowId,
-                    'code' => 'EF_TOTAL_MISSING',
-                    'message' => 'EF total is missing.',
-                ];
+                $efIdOverride = $this->loadEfSelectionByRowId($cycle->id)[$rowId] ?? null;
+                $resolved = $this->efResolver->resolveScope11($cycle, $item, $efIdOverride);
+                if (!($resolved['ok'] ?? false)) {
+                    $errors[] = [
+                        'scope' => '1.1',
+                        'rowId' => $rowId,
+                        'code' => $resolved['code'] ?? 'EF_RESOLVE_ERROR',
+                        'message' => $resolved['message'] ?? 'EF resolve failed.',
+                    ];
+                    continue;
+                }
+
+                $ef = (array) ($resolved['ef'] ?? []);
+                $total = $ef['total'] ?? null;
+                if ($total === null || $total === '') {
+                    $errors[] = [
+                        'scope' => '1.1',
+                        'rowId' => $rowId,
+                        'code' => 'EF_TOTAL_MISSING',
+                        'message' => 'EF total is missing.',
+                    ];
+                }
             }
         }
     }
@@ -210,6 +228,54 @@ class ValidationService
             $out[$k] = $v;
         }
         return $out;
+    }
+
+    private function applySelectionLineErrors(Fr041SelectionsV2HelperResult $helperResult, array &$errors, ?int $cycleYear): void
+    {
+        foreach ($helperResult->invalidCatalogLineIds as $lineId) {
+            $line = $helperResult->includedLines[$lineId] ?? null;
+            if (!$line) continue;
+            $errors[] = [
+                'scope' => '1.1',
+                'rowId' => $line['parentRowId'],
+                'code' => 'INVALID_EF_CATALOG_YEAR',
+                'message' => "EF catalog {$line['efCatalog']} is not allowed for cycle year {$cycleYear}.",
+            ];
+        }
+
+        foreach ($helperResult->missingEfLineIds as $lineId) {
+            $line = $helperResult->includedLines[$lineId] ?? null;
+            if (!$line) continue;
+            $component = $this->componentLabel($line['component']);
+            $errors[] = [
+                'scope' => '1.1',
+                'rowId' => $line['parentRowId'],
+                'code' => 'MISSING_EF',
+                'message' => "Missing EF for component {$component}.",
+            ];
+        }
+    }
+
+    private function componentLabel(string $component): string
+    {
+        if ($component === 'DIESEL_L') return 'Diesel';
+        if ($component === 'BIODIESEL_KG') return 'Biodiesel';
+        if ($component === 'GASOLINE_L') return 'Gasoline';
+        if ($component === 'ETHANOL_KG') return 'Ethanol';
+        return $component;
+    }
+
+    private function loadFr041Config(int $cycleId): ?Fr041Config
+    {
+        if (!Schema::hasTable('fr041_configs')) {
+            return null;
+        }
+
+        return Fr041Config::query()
+            ->where('cycle_id', $cycleId)
+            ->where('sheet_id', 'fr041')
+            ->where('section', 'scope1_stationary')
+            ->first();
     }
 
     private function hasAnyMonthValue(array $months): bool

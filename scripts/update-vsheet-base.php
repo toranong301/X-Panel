@@ -73,6 +73,11 @@ $headers = [
     'OtherEthanolPct',
     'OtherBiodieselDensityKgPerL',
     'OtherEthanolDensityKgPerL',
+    'TankModeEnabled',
+    'TankCount',
+    'KgPerTank',
+    'TankTargetMonth',
+    'ComputedKg',
     'IncludeFR041',
 ];
 

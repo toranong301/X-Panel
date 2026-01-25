@@ -196,6 +196,11 @@ export class CanonicalGhgService {
           evidence: String(row.referenceText || '').trim(),
           unit: this.normalizeScope11Unit(row.unit),
           otherType: fuelKey === 'OTHER' ? (String(row.otherType || '').trim() || null) : null,
+          tankModeEnabled: Boolean(row.tankModeEnabled),
+          tankCount: this.parseNumberOrNull(row.tankCount),
+          kgPerTank: this.parseNumberOrNull(row.kgPerTank),
+          tankTargetMonth: this.normalizeTankTargetMonth(row.tankTargetMonth),
+          computedKg: this.parseNumberOrNull(row.computedKg),
           months,
         };
       })
@@ -459,6 +464,12 @@ export class CanonicalGhgService {
   private normalizeScope11Unit(unit?: string): 'L' | 'kg' {
     const raw = String(unit || '').trim().toLowerCase();
     return raw === 'kg' ? 'kg' : 'L';
+  }
+
+  private normalizeTankTargetMonth(value: any): string | null {
+    const raw = String(value ?? '').trim().toUpperCase();
+    if (!raw) return null;
+    return /^M(1[0-2]|[1-9])$/.test(raw) ? raw : null;
   }
 
   private parseNumberOrNull(value: any): number | null {

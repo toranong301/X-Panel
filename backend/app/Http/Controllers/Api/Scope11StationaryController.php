@@ -8,6 +8,7 @@ use App\Models\Scope11StationaryItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class Scope11StationaryController extends Controller
 {
@@ -23,51 +24,12 @@ class Scope11StationaryController extends Controller
                     ->get()
                     ->all();
 
-                $rowsById = [];
-                foreach ($rows as $row) {
-                    $rid = trim((string) ($row->row_id ?? ''));
-                    if ($rid !== '') {
-                        $rowsById[$rid] = $row;
-                    }
-                }
-
                 $items = [];
                 $splitEnabled = false;
-                $defaultRowIds = $this->defaultScope11RowIds();
-
-                foreach ($defaultRowIds as $rowId) {
-                    $row = $rowsById[$rowId] ?? null;
-                    $months = $this->normalizeMonths(is_array($row?->months_json ?? null) ? $row->months_json : []);
-                    $total = $this->sumMonths($months);
-                    $unitRaw = strtoupper(trim((string) ($row?->unit ?? $this->defaultUnitForScope11RowId($rowId))));
-                    $unit = $unitRaw !== '' ? $unitRaw : 'L';
-                    if ($unit === 'L' && $this->hasAnyMonthValue($months)) {
-                        $splitEnabled = true;
-                    }
-
-                    $items[] = [
-                        'rowId' => $rowId,
-                        'itemLabel' => (string) ($row?->item_label ?? ''),
-                        'evidenceType' => $row?->evidence_type ?? null,
-                        'evidenceOther' => $row?->evidence_other ?? null,
-                        'evidence' => (string) ($row?->evidence ?? ''),
-                        'unit' => $unit,
-                        'fuelKey' => (string) ($row?->fuel_key ?? $this->defaultFuelKeyForScope11RowId($rowId)),
-                        'otherType' => $row?->other_type ?? null,
-                        'otherDieselPct' => $row?->other_diesel_pct ?? null,
-                        'otherBiodieselPct' => $row?->other_biodiesel_pct ?? null,
-                        'otherGasolinePct' => $row?->other_gasoline_pct ?? null,
-                        'otherEthanolPct' => $row?->other_ethanol_pct ?? null,
-                        'otherBiodieselDensityKgPerL' => $row?->other_biodiesel_density_kg_per_l ?? null,
-                        'otherEthanolDensityKgPerL' => $row?->other_ethanol_density_kg_per_l ?? null,
-                        'months' => $months,
-                        'total' => $total,
-                    ];
-                }
 
                 foreach ($rows as $row) {
                     $rowId = trim((string) ($row->row_id ?? ''));
-                    if ($rowId === '' || in_array($rowId, $defaultRowIds, true)) {
+                    if ($rowId === '') {
                         continue;
                     }
 
@@ -79,12 +41,12 @@ class Scope11StationaryController extends Controller
                     }
 
                     $items[] = [
-                        'rowId' => (string) ($row->row_id ?? ''),
+                        'rowId' => $rowId,
                         'itemLabel' => (string) ($row->item_label ?? ''),
                         'evidenceType' => $row->evidence_type ?? null,
                         'evidenceOther' => $row->evidence_other ?? null,
                         'evidence' => (string) ($row->evidence ?? ''),
-                        'unit' => (string) ($row->unit ?? 'L'),
+                        'unit' => $unit,
                         'fuelKey' => (string) ($row->fuel_key ?? ''),
                         'otherType' => $row->other_type ?? null,
                         'otherDieselPct' => $row->other_diesel_pct ?? null,
@@ -93,6 +55,11 @@ class Scope11StationaryController extends Controller
                         'otherEthanolPct' => $row->other_ethanol_pct ?? null,
                         'otherBiodieselDensityKgPerL' => $row->other_biodiesel_density_kg_per_l ?? null,
                         'otherEthanolDensityKgPerL' => $row->other_ethanol_density_kg_per_l ?? null,
+                        'tankModeEnabled' => (bool) ($row->tank_mode_enabled ?? false),
+                        'tankCount' => $row->tank_count ?? null,
+                        'kgPerTank' => $row->kg_per_tank ?? null,
+                        'tankTargetMonth' => $row->tank_target_month ?? null,
+                        'computedKg' => $row->computed_kg ?? null,
                         'months' => $months,
                         'total' => $total,
                     ];
@@ -172,11 +139,38 @@ class Scope11StationaryController extends Controller
             'items.*.otherEthanolPct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.otherBiodieselDensityKgPerL' => ['nullable', 'numeric', 'min:0', 'max:10'],
             'items.*.otherEthanolDensityKgPerL' => ['nullable', 'numeric', 'min:0', 'max:10'],
+            'items.*.tankModeEnabled' => ['nullable', 'boolean'],
+            'items.*.tankCount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.kgPerTank' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tankTargetMonth' => ['nullable', 'string', 'max:5', 'regex:/^M(1[0-2]|[1-9])$/'],
+            'items.*.computedKg' => ['nullable', 'numeric', 'min:0'],
             'items.*.months' => ['required', 'array'],
         ]);
 
         $items = array_values(array_filter($payload['items'] ?? [], fn ($it) => is_array($it)));
         $rowIds = [];
+        $tankModeErrors = [];
+        foreach ($items as $idx => $item) {
+            $tankMode = filter_var($item['tankModeEnabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if (!$tankMode) {
+                continue;
+            }
+            $tankCount = $this->normalizeNumber($item['tankCount'] ?? null);
+            $kgPerTank = $this->normalizeNumber($item['kgPerTank'] ?? null);
+            $targetMonth = $this->normalizeTankTargetMonth($item['tankTargetMonth'] ?? null);
+            if ($tankCount === null) {
+                $tankModeErrors["items.{$idx}.tankCount"] = 'Tank count is required when tank mode is enabled.';
+            }
+            if ($kgPerTank === null) {
+                $tankModeErrors["items.{$idx}.kgPerTank"] = 'Kg per tank is required when tank mode is enabled.';
+            }
+            if ($targetMonth === null) {
+                $tankModeErrors["items.{$idx}.tankTargetMonth"] = 'Tank target month is required when tank mode is enabled.';
+            }
+        }
+        if ($tankModeErrors) {
+            throw ValidationException::withMessages($tankModeErrors);
+        }
 
         DB::beginTransaction();
         try {
@@ -204,6 +198,11 @@ class Scope11StationaryController extends Controller
                         $evidenceType = null;
                     }
                 }
+                $tankMode = filter_var($item['tankModeEnabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $tankCountValue = $this->normalizeNumber($item['tankCount'] ?? null);
+                $kgPerTankValue = $this->normalizeNumber($item['kgPerTank'] ?? null);
+                $tankMonthValue = $this->normalizeTankTargetMonth($item['tankTargetMonth'] ?? null);
+                $computedKgValue = $this->normalizeNumber($item['computedKg'] ?? null);
 
                 Scope11StationaryItem::updateOrCreate(
                     [
@@ -224,6 +223,11 @@ class Scope11StationaryController extends Controller
                         'other_ethanol_pct' => $this->normalizeNumber($item['otherEthanolPct'] ?? null),
                         'other_biodiesel_density_kg_per_l' => $this->normalizeNumber($item['otherBiodieselDensityKgPerL'] ?? null),
                         'other_ethanol_density_kg_per_l' => $this->normalizeNumber($item['otherEthanolDensityKgPerL'] ?? null),
+                        'tank_mode_enabled' => $tankMode,
+                        'tank_count' => $tankCountValue,
+                        'kg_per_tank' => $kgPerTankValue,
+                        'tank_target_month' => $tankMonthValue,
+                        'computed_kg' => $computedKgValue,
                         'months_json' => $months,
                         'total' => $total,
                     ]
@@ -403,33 +407,14 @@ class Scope11StationaryController extends Controller
         return '';
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function defaultScope11RowIds(): array
+    private function normalizeTankTargetMonth($value): ?string
     {
-        return [
-            'DIESEL_B7_STATIONARY',
-            'GASOHOL_9195_STATIONARY',
-            'ACETYLENE_TANK5_MAINT_2',
-            'ACETYLENE_TANK5_MAINT_3',
-        ];
+        $raw = strtoupper(trim((string) ($value ?? '')));
+        if ($raw === '') return null;
+        if (preg_match('/^M(1[0-2]|[1-9])$/', $raw)) {
+            return $raw;
+        }
+        return null;
     }
 
-    private function defaultFuelKeyForScope11RowId(string $rowId): string
-    {
-        return match ($rowId) {
-            'DIESEL_B7_STATIONARY' => 'B7',
-            'GASOHOL_9195_STATIONARY' => '91/95',
-            default => 'OTHER',
-        };
-    }
-
-    private function defaultUnitForScope11RowId(string $rowId): string
-    {
-        return match ($rowId) {
-            'DIESEL_B7_STATIONARY', 'GASOHOL_9195_STATIONARY' => 'L',
-            default => 'L',
-        };
-    }
 }

@@ -88,7 +88,10 @@ class ExportController extends Controller
             $scope11Export->startTrace();
             $scope11Export->writeToSpreadsheet($spreadsheet, $payloadScope11);
             if ($spreadsheet->getSheetByName('_FR041_SEL')) {
-                $selectionRows = $scope11Payload->buildFr041SelectionRows($cycle);
+                $selectionRows = $payloadScope11['fr041SelectionRows'] ?? [];
+                if (!$selectionRows) {
+                    $selectionRows = $scope11Payload->buildFr041SelectionRows($cycle);
+                }
                 if ($selectionRows) {
                     $scope11Export->writeFr041SelectionRows($spreadsheet, $selectionRows);
                 } else {

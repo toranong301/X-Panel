@@ -18,16 +18,11 @@ import { MatTableModule } from '@angular/material/table';
 import { CycleApiService, Scope11StationaryItem, Scope11StationaryItemsResponse } from '../../../core/services/cycle-api.service';
 import { CycleStateService } from '../../../core/services/cycle-state.service';
 import { FuelBlendKey, computeBlendFromAnnualL, resolveBlendKey } from '../../../core/sheets/fuel-blend.registry';
+import { applyTankMonths, TankInjection } from './tank.utils';
 
 type StationaryRow = Scope11StationaryItem & {
   include?: boolean;
-};
-
-const SCOPE11_ROW_META: Record<string, { label: string; fuelKey: string; unit: 'L' | 'kg' }> = {
-  DIESEL_B7_STATIONARY: { label: 'Diesel B7', fuelKey: 'B7', unit: 'L' },
-  GASOHOL_9195_STATIONARY: { label: 'Gasohol 91/95', fuelKey: '91/95', unit: 'L' },
-  ACETYLENE_TANK5_MAINT_2: { label: 'Acetylene Tank5 (Maint 2)', fuelKey: 'OTHER', unit: 'L' },
-  ACETYLENE_TANK5_MAINT_3: { label: 'Acetylene Tank5 (Maint 3)', fuelKey: 'OTHER', unit: 'L' },
+  tankInjection?: TankInjection | null;
 };
 
 type SplitPreviewRow = {
@@ -81,9 +76,11 @@ export class CfoScope1StationaryComponent implements OnInit {
   saveError: string | null = null;
 
   splitEnabled = false;
+  splitPreviewToggle = false;
 
   rows: StationaryRow[] = [];
   private selectedRowIds = new Set<string>();
+  showEmptyRows = false;
 
   readonly monthKeys: string[] = [
     'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
@@ -155,20 +152,20 @@ export class CfoScope1StationaryComponent implements OnInit {
     resp: from(this.cycleApi.getScope11StationaryItems(cycleId)), // ถ้าพังให้ไป catchError ด้านล่าง
     fr041: from(this.cycleApi.getFr041Config(cycleId)).pipe(catchError(() => of(null))),
   }).pipe(
-    tap(({ cycle, resp, fr041 }) => {
-      this.templateId = String((cycle as any)?.template_id ?? '');
-      this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any)?.year) : null;
+      tap(({ cycle, resp, fr041 }) => {
+        this.templateId = String((cycle as any)?.template_id ?? '');
+        this.year = Number.isFinite(Number((cycle as any)?.year)) ? Number((cycle as any)?.year) : null;
 
-      const selected = new Set<string>(
-        (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
-      );
-      this.selectedRowIds = selected;
+        const selected = new Set<string>(
+          (fr041 as any)?.selectedRowIds?.map((v: any) => String(v)) ?? []
+        );
+        this.selectedRowIds = selected;
 
-      const data: Scope11StationaryItemsResponse = resp as any;
-      this.splitEnabled = Boolean(data?.splitEnabled);
-      this.rows = (Array.isArray(data?.items) ? data.items : []).map(item => this.normalizeRow(item, selected));
-      this.rebuildColumns();
-    }),
+        const data: Scope11StationaryItemsResponse = resp as any;
+        this.splitEnabled = Boolean(data?.splitEnabled);
+        this.rows = (Array.isArray(data?.items) ? data.items : []).map(item => this.normalizeRow(item, selected));
+        this.rebuildColumns();
+      }),
     catchError((e: any) => {
       console.error('scope1-stationary load failed', e);
       this.rows = [];
@@ -208,6 +205,12 @@ export class CfoScope1StationaryComponent implements OnInit {
       otherEthanolDensityKgPerL: null,
       months,
       total: null,
+      tankModeEnabled: false,
+      tankCount: null,
+      kgPerTank: null,
+      tankTargetMonth: null,
+      computedKg: null,
+      tankInjection: null,
       include: false,
     };
 
@@ -216,18 +219,12 @@ export class CfoScope1StationaryComponent implements OnInit {
   }
 
   removeRow(row: StationaryRow): void {
-    if (this.isFixedRow(row)) return;
     this.rows = this.rows.filter(r => r.rowId !== row.rowId);
     this.selectedRowIds.delete(row.rowId);
   }
 
   trackRow(_i: number, row: StationaryRow): string {
     return row.rowId;
-  }
-
-  isFixedRow(row: StationaryRow): boolean {
-    const key = String(row.rowId || '').trim().toUpperCase();
-    return Boolean(SCOPE11_ROW_META[key]);
   }
 
   setMonth(row: StationaryRow, key: string, raw: any): void {
@@ -250,12 +247,63 @@ export class CfoScope1StationaryComponent implements OnInit {
   }
 
   setFuelKey(row: StationaryRow, fuelKey: string): void {
-    if (this.isFixedRow(row)) return;
     const normalized = String(fuelKey || '').trim().toUpperCase();
     row.fuelKey = normalized;
     if (normalized !== 'OTHER') {
       row.otherType = null;
+      row.tankModeEnabled = false;
+      row.tankCount = null;
+      row.kgPerTank = null;
+      row.tankTargetMonth = null;
+      row.computedKg = null;
+      row.tankInjection = null;
+      this.applyTankMode(row);
     }
+  }
+
+  setTankMode(row: StationaryRow, enabled: boolean): void {
+    row.tankModeEnabled = enabled;
+    if (!enabled) {
+      row.computedKg = null;
+    }
+    this.applyTankMode(row);
+  }
+
+  setTankCount(row: StationaryRow, raw: any): void {
+    row.tankCount = this.normalizeNumber(raw);
+    this.applyTankMode(row);
+  }
+
+  setKgPerTank(row: StationaryRow, raw: any): void {
+    row.kgPerTank = this.normalizeNumber(raw);
+    this.applyTankMode(row);
+  }
+
+  setTankTargetMonth(row: StationaryRow, value: string): void {
+    row.tankTargetMonth = this.normalizeTankTargetMonth(value);
+    this.applyTankMode(row);
+  }
+
+  private calculateTankTotal(row: StationaryRow): number | null {
+    const count = this.normalizeNumber(row.tankCount);
+    const kg = this.normalizeNumber(row.kgPerTank);
+    if (count === null || kg === null) return null;
+    return count * kg;
+  }
+
+  private applyTankMode(row: StationaryRow): void {
+    const computed = row.tankModeEnabled ? this.calculateTankTotal(row) : null;
+    row.computedKg = computed;
+    const target = row.tankModeEnabled ? row.tankTargetMonth ?? null : null;
+    const { months, injection } = applyTankMonths(
+      row.months ?? this.emptyMonths(),
+      row.tankInjection ?? null,
+      target,
+      computed,
+    );
+    row.months = months;
+    row.tankInjection = injection;
+    this.recalcRowTotal(row);
   }
 
   toggleInclude(row: StationaryRow, checked: boolean): void {
@@ -293,6 +341,11 @@ export class CfoScope1StationaryComponent implements OnInit {
         otherEthanolPct: row.fuelKey === 'OTHER' ? (row.otherEthanolPct ?? null) : null,
         otherBiodieselDensityKgPerL: row.fuelKey === 'OTHER' ? (row.otherBiodieselDensityKgPerL ?? null) : null,
         otherEthanolDensityKgPerL: row.fuelKey === 'OTHER' ? (row.otherEthanolDensityKgPerL ?? null) : null,
+        tankModeEnabled: Boolean(row.tankModeEnabled),
+        tankCount: row.tankCount ?? null,
+        kgPerTank: row.kgPerTank ?? null,
+        tankTargetMonth: row.tankTargetMonth ?? null,
+        computedKg: row.computedKg ?? null,
         months: row.months ?? this.emptyMonths(),
         total: row.total ?? null,
       }));
@@ -314,8 +367,6 @@ export class CfoScope1StationaryComponent implements OnInit {
   }
 
   private normalizeRow(it: Scope11StationaryItem, selected: Set<string>): StationaryRow {
-    const meta = SCOPE11_ROW_META[String(it.rowId || '').trim().toUpperCase()] ?? null;
-
     const months: Record<string, number | null> = this.emptyMonths();
     const src = it.months ?? {};
     for (const k of this.monthKeys) {
@@ -325,14 +376,24 @@ export class CfoScope1StationaryComponent implements OnInit {
     const evidenceType = this.normalizeEvidenceType((it as any).evidenceType ?? null, it.evidence ?? '');
     const evidenceOther = evidenceType === 'other' ? (String((it as any).evidenceOther ?? it.evidence ?? '').trim() || '') : null;
 
+    const tankModeEnabled = Boolean((it as any).tankModeEnabled ?? false);
+    const tankCount = this.normalizeNumber((it as any).tankCount);
+    const kgPerTank = this.normalizeNumber((it as any).kgPerTank);
+    const tankTargetMonth = this.normalizeTankTargetMonth((it as any).tankTargetMonth);
+    const computedKg = this.normalizeNumber((it as any).computedKg);
+    const tankInjection =
+      tankModeEnabled && tankTargetMonth && computedKg !== null
+        ? { month: tankTargetMonth, value: computedKg }
+        : null;
+
     const row: StationaryRow = {
       rowId: it.rowId,
-      itemLabel: (it.itemLabel ?? '').trim() ? (it.itemLabel ?? '') : (meta?.label ?? ''),
+      itemLabel: (it.itemLabel ?? '').trim() ? (it.itemLabel ?? '') : '',
       evidenceType,
       evidenceOther,
       evidence: this.resolveEvidenceLabel(evidenceType, evidenceOther),
-      unit: meta?.unit ?? (String(it.unit || '').toLowerCase() === 'kg' ? 'kg' : 'L'),
-      fuelKey: meta?.fuelKey ?? String(it.fuelKey || '').trim().toUpperCase(),
+      unit: String(it.unit || '').toLowerCase() === 'kg' ? 'kg' : 'L',
+      fuelKey: String(it.fuelKey || '').trim().toUpperCase(),
       otherType: it.otherType ?? null,
       otherDieselPct: this.normalizeNumber((it as any).otherDieselPct),
       otherBiodieselPct: this.normalizeNumber((it as any).otherBiodieselPct),
@@ -342,6 +403,12 @@ export class CfoScope1StationaryComponent implements OnInit {
       otherEthanolDensityKgPerL: this.normalizeNumber((it as any).otherEthanolDensityKgPerL),
       months,
       total: it.total ?? null,
+      tankModeEnabled,
+      tankCount,
+      kgPerTank,
+      tankTargetMonth,
+      computedKg,
+      tankInjection,
       include: selected.has(it.rowId),
     };
     this.recalcRowTotal(row);
@@ -352,13 +419,38 @@ export class CfoScope1StationaryComponent implements OnInit {
     this.displayedColumns = [
       'include',
       'itemLabel',
-      'fuelKey',
       'evidence',
       'unit',
-      ...this.monthKeys,
       'total',
+      ...this.monthKeys,
       'actions',
     ];
+  }
+
+  get visibleRows(): StationaryRow[] {
+    if (this.showEmptyRows) {
+      return this.rows;
+    }
+    return this.rows.filter(row => this.hasUserData(row));
+  }
+
+  private hasUserData(row: StationaryRow): boolean {
+    const label = String(row.itemLabel ?? '').trim();
+    if (label) return true;
+    if (String(row.evidence ?? '').trim()) return true;
+    if (String(row.evidenceOther ?? '').trim()) return true;
+    if (row.total !== null && Number.isFinite(Number(row.total))) return true;
+    return this.hasAnyMonthValue(row.months ?? {});
+  }
+
+  private hasAnyMonthValue(months: Record<string, number | null>): boolean {
+    for (const key of this.monthKeys) {
+      const value = months[key];
+      if (value !== null && Number.isFinite(Number(value))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   get splitPreviewRows(): SplitPreviewRow[] {
@@ -403,7 +495,7 @@ export class CfoScope1StationaryComponent implements OnInit {
   }
 
   get showSplitPreview(): boolean {
-    return this.splitEnabled || this.templateId.toLowerCase().includes('mbax');
+    return this.splitPreviewToggle || this.templateId.toLowerCase().includes('mbax');
   }
 
   get otherBlendRows(): StationaryRow[] {
@@ -454,6 +546,12 @@ export class CfoScope1StationaryComponent implements OnInit {
     if (s === '') return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
+  }
+
+  private normalizeTankTargetMonth(raw: any): string | null {
+    const value = String(raw ?? '').trim().toUpperCase();
+    if (!value) return null;
+    return /^M(1[0-2]|[1-9])$/.test(value) ? value : null;
   }
 
   private normalizeEvidenceType(rawType: any, rawEvidence?: any): string {

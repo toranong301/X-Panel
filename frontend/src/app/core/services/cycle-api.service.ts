@@ -51,6 +51,11 @@ export type Scope11StationaryItem = {
   otherEthanolPct?: number | null;
   otherBiodieselDensityKgPerL?: number | null;
   otherEthanolDensityKgPerL?: number | null;
+  tankModeEnabled?: boolean;
+  tankCount?: number | null;
+  kgPerTank?: number | null;
+  tankTargetMonth?: string | null;
+  computedKg?: number | null;
   months: Record<string, number | null>;
   total?: number | null;
 

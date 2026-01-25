@@ -78,4 +78,9 @@ export interface EntryRow {
     ethanolL?: number;
     ethanolKg?: number;
   };
+  tankModeEnabled?: boolean;
+  tankCount?: number | null;
+  kgPerTank?: number | null;
+  tankTargetMonth?: string | null;
+  computedKg?: number | null;
 }
