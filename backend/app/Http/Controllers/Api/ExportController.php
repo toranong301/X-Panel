@@ -19,12 +19,14 @@ use App\Services\ValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Settings;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Throwable;
 
 class ExportController extends Controller
 {
@@ -96,20 +98,22 @@ class ExportController extends Controller
             }
             $selectedRowIds = $this->loadFr041SelectionRowIds($cycle->id);
 
-            $validationResult = $validation->validateCycle($cycle);
-            if (! ($validationResult['ok'] ?? false)) {
-                $export->status = 'failed';
-                $export->error_message = 'Validation failed; cannot export.';
-                $export->save();
+            if ($mode === self::MODE_FULL) {
+                $validationResult = $validation->validateCycle($cycle);
+                if (! ($validationResult['ok'] ?? false)) {
+                    $export->status = 'failed';
+                    $export->error_message = 'Validation failed; cannot export.';
+                    $export->save();
 
-                return $this->errorResponse(
-                    $cycle->id,
-                    $templateIdUsed,
-                    $mode,
-                    'Validation failed; cannot export.',
-                    $validationResult['errors'] ?? [],
-                    422
-                );
+                    return $this->errorResponse(
+                        $cycle->id,
+                        $templateIdUsed,
+                        $mode,
+                        'Validation failed; cannot export.',
+                        $validationResult['errors'] ?? [],
+                        422
+                    );
+                }
             }
 
             if ($mode === self::MODE_LEAN) {
@@ -137,6 +141,25 @@ class ExportController extends Controller
                     'cycle_id' => $cycle->id,
                     'rows' => count($selectionRows),
                 ]);
+
+                $validationResult = $this->validateForExport($cycle, $mode, $efView, $registry);
+                if (! ($validationResult['ok'] ?? false)) {
+                    $export->status = 'failed';
+                    $export->error_message = 'Validation failed; cannot export.';
+                    $export->save();
+
+                    return $this->errorResponse(
+                        $cycle->id,
+                        $templateIdUsed,
+                        $mode,
+                        'Validation failed; cannot export.',
+                        $validationResult['errors'] ?? [],
+                        422,
+                        [
+                            'checks' => $validationResult['checks'] ?? [],
+                        ]
+                    );
+                }
 
                 $efViewOptions = $efView->build($cycle, 'stationary', $registry);
                 return $this->runFullLiteExport(
@@ -284,14 +307,11 @@ class ExportController extends Controller
             $export->error_message = $e->getMessage();
             $export->save();
             $this->logExportFailure('ARGUMENT', $cycle->id, $templateIdUsed, $e);
-            return $this->errorResponse(
-                $cycle->id,
-                $templateIdUsed,
-                $mode,
-                $e->getMessage(),
-                [],
-                422
-            );
+            return $this->exportError($e, [
+                'cycle_id' => $cycle->id,
+                'template_id' => $templateIdUsed,
+                'mode' => $mode,
+            ], 422);
         } catch (\RuntimeException $e) {
             $export->status = 'failed';
             $export->error_message = $e->getMessage();
@@ -304,96 +324,117 @@ class ExportController extends Controller
             if (str_contains($message, 'PhpSpreadsheet')) {
                 $message = 'Spreadsheet engine missing';
             }
-            return $this->errorResponse(
-                $cycle->id,
-                $templateIdUsed,
-                $mode,
-                $message,
-                [],
-                500
-            );
+            return $this->exportError($e, [
+                'cycle_id' => $cycle->id,
+                'template_id' => $templateIdUsed,
+                'mode' => $mode,
+                'message' => $message,
+            ], 500);
         } catch (\Throwable $e) {
             $export->status = 'failed';
             $export->error_message = $e->getMessage();
             $export->save();
             $this->logExportFailure('GENERAL', $cycle->id, $templateIdUsed, $e);
-            $payload = [
-                'ok' => false,
-                'message' => $e->getMessage(),
+            return $this->exportError($e, [
                 'cycle_id' => $cycle->id,
                 'template_id' => $templateIdUsed,
                 'mode' => $mode,
-            ];
-            if (config('app.debug')) {
-                $payload['debug'] = [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $this->sanitizeTrace($e->getTrace()),
-                ];
-            }
-            return response()->json($payload, 500);
+            ], 500);
         } finally {
             Settings::setCache(null);
         }
     }
 
     public function debug(
+        Request $request,
         Cycle $cycle,
         TemplateRegistry $registry,
         Scope11PayloadService $scope11Payload,
         EfViewService $efView
     ) {
-        $payloadScope11 = $scope11Payload->buildPayload($cycle);
-        $items = is_array($payloadScope11['items'] ?? null) ? $payloadScope11['items'] : [];
-        $selectionRows = $payloadScope11['fr041SelectionRows'] ?? $scope11Payload->buildFr041SelectionRows($cycle);
-        $efViewOptions = $efView->build($cycle, 'stationary', $registry);
+        $mode = $this->resolveMode($request);
+        try {
+            $payloadScope11 = $scope11Payload->buildPayload($cycle);
+            $items = is_array($payloadScope11['items'] ?? null) ? $payloadScope11['items'] : [];
+            $selectionRows = $payloadScope11['fr041SelectionRows'] ?? $scope11Payload->buildFr041SelectionRows($cycle);
+            $efViewOptions = $efView->build($cycle, 'stationary', $registry);
 
-        $rows = Scope11StationaryItem::query()
-            ->where('cycle_id', $cycle->id)
-            ->orderBy('id')
-            ->get()
-            ->all();
-        $config = $this->loadFr041Config($cycle->id);
-        $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
-        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear, $rows);
+            $rows = Scope11StationaryItem::query()
+                ->where('cycle_id', $cycle->id)
+                ->orderBy('id')
+                ->get()
+                ->all();
+            $config = $this->loadFr041Config($cycle->id);
+            $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
+            $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear, $rows);
 
-        $efMap = [];
-        foreach ($efViewOptions as $option) {
-            if (!is_array($option)) {
-                continue;
+            $efMap = [];
+            foreach ($efViewOptions as $option) {
+                if (!is_array($option)) {
+                    continue;
+                }
+                $efKey = strtoupper(trim((string) ($option['efKey'] ?? '')));
+                if ($efKey === '') {
+                    continue;
+                }
+                $efMap[$efKey] = true;
             }
-            $efKey = strtoupper(trim((string) ($option['efKey'] ?? '')));
-            if ($efKey === '') {
-                continue;
+
+            $efFound = 0;
+            $efMissing = 0;
+            foreach ($helperResult->includedLines as $line) {
+                $efKey = strtoupper(trim((string) ($line['efKey'] ?? '')));
+                if ($efKey !== '' && isset($efMap[$efKey])) {
+                    $efFound++;
+                    continue;
+                }
+                $efMissing++;
             }
-            $efMap[$efKey] = true;
+
+            $validationResult = $this->validateForExport($cycle, $mode, $efView, $registry);
+
+            return response()->json([
+                'ok' => true,
+                'cycle_id' => $cycle->id,
+                'year' => $cycle->year ?? null,
+                'template_id' => $cycle->template_id ?? null,
+                'mode' => $mode,
+                'counts' => [
+                    'scope11_items' => count($items),
+                    'selection_rows' => count($selectionRows),
+                    'included_lines' => count($helperResult->includedLines),
+                    'missing_ef_lines' => count($helperResult->missingEfLineIds),
+                    'ef_found' => $efFound,
+                    'ef_missing' => $efMissing,
+                    'ef_view_options' => count($efViewOptions),
+                ],
+                'samples' => [
+                    'ef_view' => array_slice(array_values($efViewOptions), 0, 10),
+                    'fr041_rows' => array_slice($selectionRows, 0, 10),
+                ],
+                'validation' => [
+                    'ok' => $validationResult['ok'] ?? false,
+                    'errors' => $validationResult['errors'] ?? [],
+                    'checks' => $validationResult['checks'] ?? [],
+                ],
+                'next' => [
+                    'export_url' => "/api/cycles/{$cycle->id}/export?mode={$mode}",
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::error('EXPORT_STEP_FAILED', [
+                'phase' => 'debug',
+                'cycle_id' => $cycle->id,
+                'template_id' => $cycle->template_id ?? null,
+                'mode' => $mode,
+                'message' => $e->getMessage(),
+            ]);
+            return $this->exportError($e, [
+                'cycle_id' => $cycle->id,
+                'template_id' => $cycle->template_id ?? null,
+                'mode' => $mode,
+            ], 200);
         }
-
-        $efFound = 0;
-        $efMissing = 0;
-        foreach ($helperResult->includedLines as $line) {
-            $efKey = strtoupper(trim((string) ($line['efKey'] ?? '')));
-            if ($efKey !== '' && isset($efMap[$efKey])) {
-                $efFound++;
-                continue;
-            }
-            $efMissing++;
-        }
-
-        return response()->json([
-            'ok' => true,
-            'cycle_id' => $cycle->id,
-            'mode' => self::DEFAULT_MODE,
-            'items_count' => count($items),
-            'selection_rows' => count($selectionRows),
-            'included_lines' => count($helperResult->includedLines),
-            'missing_ef_lines' => count($helperResult->missingEfLineIds),
-            'ef_found' => $efFound,
-            'ef_missing' => $efMissing,
-            'ef_view_options' => count($efViewOptions),
-            'ef_view_samples' => array_slice(array_values($efViewOptions), 0, 10),
-            'fr041_rows' => array_slice($selectionRows, 0, 10),
-        ]);
     }
 
     public function show(Export $export)
@@ -609,7 +650,15 @@ class ExportController extends Controller
         return $dir;
     }
 
-    private function errorResponse(int $cycleId, string $templateId, string $mode, string $message, array $errors = [], int $status = 500)
+    private function errorResponse(
+        int $cycleId,
+        string $templateId,
+        string $mode,
+        string $message,
+        array $errors = [],
+        int $status = 500,
+        array $extra = []
+    )
     {
         $payload = [
             'ok' => false,
@@ -619,7 +668,111 @@ class ExportController extends Controller
             'template_id' => $templateId,
             'mode' => $mode,
         ];
+        if ($extra) {
+            $payload = array_merge($payload, $extra);
+        }
         return response()->json($payload, $status);
+    }
+
+    /**
+     * Always return structured JSON errors for export/debug.
+     */
+    private function exportError(Throwable $e, array $ctx = [], int $status = 422)
+    {
+        $errors = null;
+        if ($e instanceof ValidationException) {
+            $errors = $e->errors();
+        } elseif (method_exists($e, 'errors')) {
+            try { $errors = $e->errors(); } catch (Throwable $ignored) {}
+        }
+
+        $payload = [
+            'ok' => false,
+            'message' => $ctx['message'] ?? $e->getMessage(),
+            'errors' => $errors,
+            'cycle_id' => $ctx['cycle_id'] ?? null,
+            'template_id' => $ctx['template_id'] ?? null,
+            'mode' => $ctx['mode'] ?? null,
+        ];
+
+        if (config('app.debug')) {
+            $payload['trace'] = $this->sanitizeTrace($e->getTrace());
+        }
+
+        return response()->json($payload, $status);
+    }
+
+    /**
+     * Mode-aware minimal validation (lean bypass, full-lite minimal, full heavy).
+     * Return: ['ok'=>bool,'errors'=>array,'checks'=>array]
+     */
+    private function validateForExport(
+        Cycle $cycle,
+        string $mode,
+        EfViewService $efView,
+        TemplateRegistry $registry
+    ): array {
+        $checks = [];
+        $errors = [];
+
+        $year = (int) ($cycle->year ?? 0);
+        $defaultCatalog = ($year <= 2025) ? 'AR5' : 'AR5V2';
+        $checks['year'] = $year;
+        $checks['default_catalog'] = $defaultCatalog;
+
+        if ($mode === self::MODE_LEAN) {
+            return ['ok' => true, 'errors' => [], 'checks' => $checks];
+        }
+
+        if ($mode === self::MODE_FULL_LITE) {
+            $rows = Scope11StationaryItem::query()
+                ->where('cycle_id', $cycle->id)
+                ->get();
+            $realCount = 0;
+            foreach ($rows as $row) {
+                if (! $this->isStationaryRowEmpty($row)) {
+                    $realCount++;
+                }
+            }
+            $checks['scope11_stationary_count'] = $realCount;
+            if ($realCount <= 0) {
+                $errors[] = 'Scope 1.1 Stationary has no user data rows.';
+            }
+
+            $efViewOptions = $efView->build($cycle, 'stationary', $registry);
+            $hasEf1 = false;
+            foreach ($efViewOptions as $opt) {
+                if (!is_array($opt)) continue;
+                if (strtoupper((string) ($opt['catalog'] ?? '')) === 'EF1') {
+                    $hasEf1 = true;
+                    break;
+                }
+            }
+            $checks['has_ef1_stationary'] = $hasEf1;
+            if (!$hasEf1) {
+                $errors[] = 'EF1 Stationary combustion is missing.';
+            }
+
+            return ['ok' => count($errors) === 0, 'errors' => $errors, 'checks' => $checks];
+        }
+
+        return ['ok' => true, 'errors' => [], 'checks' => $checks];
+    }
+
+    private function isStationaryRowEmpty(Scope11StationaryItem $row): bool
+    {
+        if (trim((string) ($row->item_label ?? '')) !== '') return false;
+        if (trim((string) ($row->evidence ?? '')) !== '') return false;
+        if (trim((string) ($row->evidence_other ?? '')) !== '') return false;
+        if ($row->total !== null) return false;
+        if ($row->computed_kg !== null) return false;
+        if ($row->tank_count !== null) return false;
+        if ($row->kg_per_tank !== null) return false;
+        $months = is_array($row->months_json ?? null) ? $row->months_json : [];
+        foreach ($months as $value) {
+            if ($value !== null && $value !== '') return false;
+        }
+        return true;
     }
 
     private function resolveSpreadsheetTempDir(): string
@@ -653,6 +806,18 @@ class ExportController extends Controller
     {
         $spreadsheet = new Spreadsheet();
         $spreadsheet->removeSheetByIndex(0);
+
+        $dataSheet = $spreadsheet->createSheet();
+        $dataSheet->setTitle(self::SCOPE11_DATA_SHEET);
+        $rowsWritten = $this->writeDataScope11Sheet($dataSheet, [
+            'items' => $items,
+        ]);
+        $dataSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+        $this->logExportStep('LEAN_DATA', [
+            'cycle_id' => $cycle->id,
+            'rows' => $rowsWritten,
+        ]);
+        $this->logMemoryUsage('LEAN_DATA');
 
         $this->writeEfViewSheet($spreadsheet, $efViewOptions);
         $this->logExportStep('LEAN_EF_VIEW', [
@@ -924,7 +1089,13 @@ class ExportController extends Controller
             $ws->setCellValue('A' . $rowNo, (string) ($row['rowId'] ?? ''));
             $ws->setCellValue('B' . $rowNo, (string) ($row['itemName'] ?? $row['itemLabel'] ?? ''));
             $ws->setCellValue('C' . $rowNo, (string) ($row['unit'] ?? ''));
-            $ws->setCellValue('D' . $rowNo, $qty);
+            $rowId = trim((string) ($row['rowId'] ?? ''));
+            if ($rowId !== '') {
+                $lookup = '=IFERROR(INDEX(' . self::SCOPE11_DATA_SHEET . '!F:F, MATCH($A' . $rowNo . ',' . self::SCOPE11_DATA_SHEET . '!A:A,0)),"")';
+                $this->setFormula($ws, 'D' . $rowNo, $lookup);
+            } else {
+                $ws->setCellValue('D' . $rowNo, $qty);
+            }
             $ws->setCellValue('E' . $rowNo, (string) ($row['efCatalog'] ?? ''));
             $ws->setCellValue('F' . $rowNo, (string) ($row['efId'] ?? ''));
             $ws->setCellValue('G' . $rowNo, $efKey ?: null);
