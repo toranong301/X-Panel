@@ -101,7 +101,7 @@ export class Fr032Component implements OnInit {
     // 1) โหลด scope3 items (ที่ screen scope 3 ใช้)
     const scope3Doc = this.scope3Svc.load(this.cycleId);
     const scope3Items: Scope3ItemRow[] =
-      scope3Doc?.rows?.length ? scope3Doc.rows : this.scope3Svc.getMockRows(this.cycleId);
+      scope3Doc?.rows?.length ? scope3Doc.rows : [];
 
     // 2) คำนวณ total/share ให้เหมือน scope3 screen (กัน data เก่าไม่มีคำนวณ)
     const computed = this.computeScope3(scope3Items);

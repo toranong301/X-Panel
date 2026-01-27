@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, NgZone, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -96,7 +96,6 @@ export class CfoScope1StationaryComponent implements OnInit {
     private cycleState: CycleStateService,
     private cycleApi: CycleApiService,
     private cdr: ChangeDetectorRef,
-    private zone: NgZone,
   ) {
     this.cycleId$ = this.route.paramMap.pipe(
       map(params => Number(params.get('id') ?? params.get('cycleId') ?? 0)),
@@ -136,14 +135,14 @@ export class CfoScope1StationaryComponent implements OnInit {
 
   private loadAll$(cycleId: number) {
   if (!cycleId) {
-    this.loading = false;
+    this.setLoading(false);
     this.loadError = 'Missing cycle id';
     this.rows = [];
     this.rebuildColumns();
     return of(undefined);
   }
 
-  this.loading = true;
+  this.setLoading(true);
   console.log('START loadAll loading=true');
   this.loadError = null;
 
@@ -175,11 +174,8 @@ export class CfoScope1StationaryComponent implements OnInit {
       return of(undefined);
     }),
     finalize(() => {
-  this.zone.run(() => {
-    this.loading = false;
-    this.cdr.detectChanges();
-  });
-})
+      this.setLoading(false);
+    })
 
   );
 }
@@ -352,11 +348,6 @@ export class CfoScope1StationaryComponent implements OnInit {
 
       await this.cycleApi.saveScope11StationaryItems(cycleId, items);
 
-      // persist Include selection (FR-04.1) without touching Excel
-      await this.cycleApi.updateFr041Config(cycleId, {
-        selectedRowIds: Array.from(this.selectedRowIds.values()),
-      });
-
       this.reload();
     } catch (e: any) {
       console.error(e);
@@ -425,6 +416,11 @@ export class CfoScope1StationaryComponent implements OnInit {
       ...this.monthKeys,
       'actions',
     ];
+  }
+
+  private setLoading(value: boolean): void {
+    this.loading = value;
+    this.cdr.markForCheck();
   }
 
   get visibleRows(): StationaryRow[] {

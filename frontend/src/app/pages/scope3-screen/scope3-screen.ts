@@ -62,7 +62,7 @@ export class Scope3ScreenComponent implements OnInit {
 
   ngOnInit(): void {
     const saved = this.svc.load(this.cycleId);
-    this.itemRows = saved?.rows?.length ? saved.rows : this.svc.getMockRows(this.cycleId);
+    this.itemRows = saved?.rows?.length ? saved.rows : [];
 
     this.recalc();
     this.rebuildScreenRows();
@@ -133,14 +133,6 @@ export class Scope3ScreenComponent implements OnInit {
   saveDraft() {
     this.svc.save(this.cycleId, this.itemRows);
     alert('Saved Scope 3 summary (local)');
-  }
-
-  resetToMock() {
-    if (!confirm('Reset เป็น mock dataset? (ข้อมูลที่ save ไว้จะถูกแทนที่)')) return;
-    this.itemRows = this.svc.getMockRows(this.cycleId);
-    this.recalc();
-    this.rebuildScreenRows();
-    this.svc.save(this.cycleId, this.itemRows);
   }
 
   goDataEntry() {

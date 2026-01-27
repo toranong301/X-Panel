@@ -28,6 +28,7 @@ function isNonNull<T>(value: T | null | undefined): value is T {
 
 export interface Fr041SelRow {
   rowNo: number;
+  rowId?: string;
   itemId: string;
   itemName: string;
   fuelKey: string;
@@ -35,27 +36,11 @@ export interface Fr041SelRow {
   unit: string;
   qty: number | null;
   efId: string;
+  efCatalog?: string;
+  efKey?: string;
+  sourceItemLabel?: string;
 }
 
-export interface SplitSummaryRow {
-  itemId: string;
-  itemName: string;
-  fuelKey: string;
-  evidence: string;
-  dieselL?: number;
-  biodieselL?: number;
-  biodieselKg?: number;
-  gasolineL?: number;
-  ethanolL?: number;
-  ethanolKg?: number;
-  otherQty?: number;
-  otherUnit?: string;
-}
-
-export interface EfSelectionMap {
-  byItemId?: Record<string, string>;
-  byFuelKey?: Record<string, string>;
-}
 
 @Injectable({ providedIn: 'root' })
 export class CanonicalGhgService {
@@ -81,7 +66,7 @@ export class CanonicalGhgService {
     // --- Scope 3 source ---
     const scope3Doc = this.scope3Svc.load(cycleId);
     const scope3Items: Scope3ItemRow[] =
-      scope3Doc?.rows?.length ? scope3Doc.rows : this.scope3Svc.getMockRows(cycleId);
+      scope3Doc?.rows?.length ? scope3Doc.rows : [];
 
     // ensure computed fields exist
     this.computeScope3(scope3Items);
@@ -132,6 +117,7 @@ export class CanonicalGhgService {
       (entryDoc as any)?.fr041Selection ??
       (entryDoc as any)?.fr041Selections ??
       undefined;
+    const efViewOptions = (entryDoc as any)?.efViewOptions ?? undefined;
     const cfoGhg = this.buildCfoGhg(entryDoc, scope3Items);
 
     const templateId = this.normalizeTemplateId(templateKey, (entryDoc as any)?.templateId);
@@ -152,6 +138,7 @@ export class CanonicalGhgService {
       fr02,
       fr031,
       fr041Selection,
+      efViewOptions,
       cfoGhg,
     };
   }
@@ -220,60 +207,6 @@ export class CanonicalGhgService {
       splitEnabled,
       items,
     };
-  }
-
-  /**
-   * Build FR-04.1 selection rows (rowNo starts at 11 to match template main block).
-   * - Split rows are emitted only when qty > 0 to keep empty inputs empty.
-   * - efId comes from map (itemId first, then fuelKey). Missing efId stays empty.
-   */
-  public buildFr041SelectionRows(
-    splitRows: SplitSummaryRow[],
-    efMap: EfSelectionMap,
-    startRowNo = 11,
-  ): Fr041SelRow[] {
-    const out: Fr041SelRow[] = [];
-    let rowNo = startRowNo;
-
-    const pickEfId = (itemId: string, fuelKey: string): string => {
-      const byItem = efMap?.byItemId?.[itemId];
-      if (byItem) return byItem;
-      const byFuel = efMap?.byFuelKey?.[fuelKey];
-      if (byFuel) return byFuel;
-      return '';
-    };
-
-    const push = (r: SplitSummaryRow, labelSuffix: string, unit: string, qty: number | undefined, efId: string) => {
-      if (!Number.isFinite(Number(qty)) || Number(qty) <= 0) return;
-      out.push({
-        rowNo,
-        itemId: String(r.itemId ?? ''),
-        itemName: labelSuffix ? `${r.itemName} ${labelSuffix}` : String(r.itemName ?? ''),
-        fuelKey: String(r.fuelKey ?? ''),
-        evidence: String(r.evidence ?? ''),
-        unit: unit || '',
-        qty: Math.round(Number(qty) * 100) / 100,
-        efId: String(efId ?? ''),
-      });
-      rowNo += 1;
-    };
-
-    for (const r of splitRows || []) {
-      const efId = pickEfId(String(r.itemId ?? ''), String(r.fuelKey ?? ''));
-
-      push(r, '(Diesel)', 'L', r.dieselL, efId);
-      push(r, '(Biodiesel)', 'L', r.biodieselL, efId);
-      push(r, '(Biodiesel)', 'kg', r.biodieselKg, efId);
-      push(r, '(Gasoline)', 'L', r.gasolineL, efId);
-      push(r, '(Ethanol)', 'L', r.ethanolL, efId);
-      push(r, '(Ethanol)', 'kg', r.ethanolKg, efId);
-
-      if (Number.isFinite(Number(r.otherQty)) && Number(r.otherQty) > 0) {
-        push(r, '', r.otherUnit || 'L', r.otherQty, efId);
-      }
-    }
-
-    return out;
   }
 
   // ✅ Scope 1.1 + 1.2: สร้าง InventoryItemRow ที่มี quantityMonthly + fuelKey + slotNo

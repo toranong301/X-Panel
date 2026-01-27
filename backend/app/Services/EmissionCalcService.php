@@ -10,8 +10,11 @@ use Illuminate\Support\Facades\Schema;
 
 class EmissionCalcService
 {
-    public function __construct(private EfResolverService $efResolver)
-    {
+    public function __construct(
+        private EfResolverService $efResolver,
+        private EfViewService $efViewService,
+        private TemplateRegistry $templateRegistry
+    ) {
     }
 
     /**
@@ -32,14 +35,15 @@ class EmissionCalcService
 
         $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
         $config = $this->fetchFr041Config($cycle->id);
-        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear);
         $efSelectionByRowId = $this->loadEfSelectionByRowId($cycle->id);
 
         $rows = Scope11StationaryItem::query()
             ->where('cycle_id', $cycle->id)
             ->orderBy('id')
             ->get();
+        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear, $rows->all());
         $selectionLinesByRow = $this->selectionLinesByRow($helperResult);
+        $efViewMap = $this->buildEfViewMap($cycle);
 
         $results = [];
         $errors = [];
@@ -93,6 +97,7 @@ class EmissionCalcService
                     $row,
                     $qtyMonths,
                     $componentLines,
+                    $efViewMap,
                     $summaryMonths,
                     $results,
                     $errors
@@ -245,6 +250,7 @@ class EmissionCalcService
         Scope11StationaryItem $row,
         array $qtyMonths,
         array $componentLines,
+        array $efViewMap,
         array &$summaryMonths,
         array &$results,
         array &$errors
@@ -277,8 +283,8 @@ class EmissionCalcService
             }
 
             $componentLabel = $this->componentLabel($component);
-            $efId = trim((string) ($line['efId'] ?? ''));
-            if ($efId === '') {
+            $efKeyRaw = trim((string) ($line['efKey'] ?? ''));
+            if ($efKeyRaw === '') {
                 $status = 'error';
                 $message = "Missing EF for component {$componentLabel}.";
                 $errors[] = [
@@ -290,27 +296,22 @@ class EmissionCalcService
                 continue;
             }
 
-            $payloadItem = [
-                'rowId' => $lineId,
-                'fuelKey' => (string) ($row->fuel_key ?? ''),
-                'unit' => $componentData['unit'],
-                'label' => trim((string) ($row->item_label ?? '')),
-            ];
-            $resolved = $this->efResolver->resolveScope11($cycle, $payloadItem, $efId);
-            if (!($resolved['ok'] ?? false)) {
+            $efKey = strtoupper($efKeyRaw);
+            $efEntry = $efViewMap[$efKey] ?? null;
+            if (!$efEntry) {
                 $status = 'error';
-                $message = $resolved['message'] ?? 'EF resolve failed.';
+                $message = 'EF not found in EF_VIEW.';
                 $errors[] = [
                     'rowId' => $rowId,
-                    'code' => $resolved['code'] ?? 'EF_RESOLVE_ERROR',
+                    'code' => 'EF_NOT_FOUND',
                     'message' => $message,
                 ];
                 $errorMessage = $errorMessage ?? $message;
                 continue;
             }
 
-            $ef = (array) ($resolved['ef'] ?? []);
-            $efTotal = $this->numOrNull($ef['total'] ?? null);
+            $ef = (array) $efEntry;
+            $efTotal = $this->numOrNull($ef['Total'] ?? ($ef['total'] ?? null));
             if ($efTotal === null) {
                 $status = 'error';
                 $message = 'EF total is missing.';
@@ -338,12 +339,13 @@ class EmissionCalcService
             $lineSnapshots[] = [
                 'lineId' => $lineId,
                 'component' => $component,
-                'efProfile' => $ef['efProfile'] ?? null,
+                'efProfile' => $ef['catalog'] ?? null,
                 'efId' => $ef['efId'] ?? null,
                 'name' => $ef['name'] ?? null,
                 'unit' => $ef['unit'] ?? null,
-                'total' => $ef['total'] ?? null,
-                'resolvedFrom' => $resolved['resolvedFrom'] ?? null,
+                'total' => $ef['Total'] ?? ($ef['total'] ?? null),
+                'resolvedFrom' => 'ef_view',
+                'efKey' => $efKey,
             ];
         }
 
@@ -480,11 +482,24 @@ class EmissionCalcService
 
     private function componentLabel(string $component): string
     {
-        if ($component === 'DIESEL_L') return 'Diesel';
-        if ($component === 'BIODIESEL_KG') return 'Biodiesel';
-        if ($component === 'GASOLINE_L') return 'Gasoline';
-        if ($component === 'ETHANOL_KG') return 'Ethanol';
+        if ($component === 'DIESEL_L') return 'Diesel (Stationary combustion)';
+        if ($component === 'BIODIESEL_KG') return 'Biodiesel (Stationary combustion)';
+        if ($component === 'GASOLINE_L') return 'Gasoline (Stationary combustion)';
+        if ($component === 'ETHANOL_KG') return 'Biogasoline (Ethanol) (Stationary combustion)';
         return $component;
+    }
+
+    private function buildEfViewMap(Cycle $cycle): array
+    {
+        $rows = $this->efViewService->build($cycle, 'stationary', $this->templateRegistry);
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $key = strtoupper(trim((string) ($row['efKey'] ?? '')));
+            if ($key === '') continue;
+            $out[$key] = $row;
+        }
+        return $out;
     }
 
     private function fetchFr041Config(int $cycleId): ?Fr041Config

@@ -10,6 +10,7 @@ export interface DataEntryDoc {
   scope2: EntryRow[];
   scope3: EntryRow[];
   fr041Selection?: any[];
+  efViewOptions?: any[];
   scope11HeaderMonths?: Record<string, number | null>;
   scope11PeriodYear?: number | null;
   cfoFixed?: VSheetDataDoc['cfoFixed'];

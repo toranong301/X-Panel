@@ -55,10 +55,7 @@ class Scope11HiddenTableExportService
         $templatePath = $this->resolveTemplatePath();
 
         $spreadsheet = IOFactory::load($templatePath);
-        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
-        if (!$ws) {
-            throw new \RuntimeException('Missing worksheet: ' . self::SHEET_NAME);
-        }
+        $ws = $this->ensureScope11Sheet($spreadsheet);
 
         $normalizedPayload = $this->normalizePayload($payload);
         $this->writeScope11Table($ws, $normalizedPayload['items'], (bool) $normalizedPayload['splitEnabled'], $normalizedPayload['headerMonths'] ?? null, $normalizedPayload['periodYear'] ?? null);
@@ -109,10 +106,7 @@ class Scope11HiddenTableExportService
 
     public function writeToSpreadsheet(Spreadsheet $spreadsheet, array $payload): void
     {
-        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
-        if (!$ws) {
-            throw new \RuntimeException('Missing worksheet: ' . self::SHEET_NAME);
-        }
+        $ws = $this->ensureScope11Sheet($spreadsheet);
 
         $normalizedPayload = $this->normalizePayload($payload);
         $this->writeScope11Table(
@@ -122,6 +116,59 @@ class Scope11HiddenTableExportService
             $normalizedPayload['headerMonths'] ?? null,
             $normalizedPayload['periodYear'] ?? null
         );
+    }
+
+    public function ensureScope11SheetExists(Spreadsheet $spreadsheet): Worksheet
+    {
+        return $this->ensureScope11Sheet($spreadsheet);
+    }
+
+    private function ensureScope11Sheet(Spreadsheet $spreadsheet): Worksheet
+    {
+        $ws = $spreadsheet->getSheetByName(self::SHEET_NAME);
+        if ($ws) {
+            return $ws;
+        }
+
+        $ws = new Worksheet($spreadsheet, self::SHEET_NAME);
+        $spreadsheet->addSheet($ws);
+
+        $headers = $this->scope11SheetHeaders();
+        foreach ($headers as $index => $header) {
+            $cell = Coordinate::stringFromColumnIndex($index + 1) . '1';
+            $ws->setCellValue($cell, $header);
+        }
+
+        $lastCol = count($headers);
+        $range = 'A1:' . Coordinate::stringFromColumnIndex($lastCol) . '200';
+        return $ws;
+    }
+
+    private function scope11SheetHeaders(): array
+    {
+        return [
+            'RowId',
+            'ItemLabel',
+            'ItemName',
+            'FuelKey',
+            'FuelType',
+            'Unit',
+            'Evidence',
+            'Value',
+            'BlendProfile',
+            'IncludeFr041',
+            'TankModeEnabled',
+            'TankCount',
+            'KgPerTank',
+            'TankTargetMonth',
+            'ComputedKg',
+            'OtherDieselPct',
+            'OtherBiodieselPct',
+            'OtherGasolinePct',
+            'OtherEthanolPct',
+            'OtherBiodieselDensityKgPerL',
+            'OtherEthanolDensityKgPerL',
+        ];
     }
 
     public function writeSelectionToSpreadsheet(Spreadsheet $spreadsheet, array $selectedRowIds): void
@@ -201,6 +248,10 @@ class Scope11HiddenTableExportService
             $this->writeIfColumn($ws, $headerMap, 'QTY', $excelRow, $row['qty'] ?? null);
             $this->writeIfColumn($ws, $headerMap, 'EFCATALOG', $excelRow, $row['efCatalog'] ?? null);
             $this->writeIfColumn($ws, $headerMap, 'EFID', $excelRow, $row['efId'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'EFKEY', $excelRow, $row['efKey'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'SOURCEITEMLABEL', $excelRow, $row['sourceItemLabel'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'SOURCE_ITEM_LABEL', $excelRow, $row['sourceItemLabel'] ?? null);
+            $this->writeIfColumn($ws, $headerMap, 'SOURCEITEM', $excelRow, $row['sourceItemLabel'] ?? null);
             $this->writeIfColumn($ws, $headerMap, 'INCLUDE', $excelRow, 1);
         }
     }
@@ -605,6 +656,8 @@ class Scope11HiddenTableExportService
                 'qty' => $this->normalizeValue($row['qty'] ?? $row['total'] ?? null),
                 'efCatalog' => (string) ($row['efCatalog'] ?? ''),
                 'efId' => (string) ($row['efId'] ?? ''),
+                'efKey' => (string) ($row['efKey'] ?? ''),
+                'sourceItemLabel' => (string) ($row['sourceItemLabel'] ?? ''),
             ];
 
             $rowNo += 1;

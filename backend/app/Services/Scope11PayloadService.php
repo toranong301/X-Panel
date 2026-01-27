@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Schema;
 
 class Scope11PayloadService
 {
-    public function __construct(private EfResolverService $efResolver)
-    {
-    }
 
     /**
      * Build the hidden-table payload for Scope 1.1 export/preview.
@@ -56,8 +53,8 @@ class Scope11PayloadService
             ];
         }
 
-        $helperResult = $this->resolveFr041Selections($cycle);
-        $fr041SelectionLines = $this->buildFr041SelectionLines($rows, $helperResult);
+        $helperResult = $this->resolveFr041Selections($cycle, $rows);
+        $fr041SelectionLines = $this->buildFr041SelectionLines($helperResult);
         $fr041SelectionRows = $this->buildFr041SelectionRows($cycle, $helperResult);
 
         return [
@@ -79,12 +76,7 @@ class Scope11PayloadService
     public function buildFr041SelectionRows(Cycle $cycle, ?Fr041SelectionsV2HelperResult $helperResult = null): array
     {
         $helper = $helperResult ?? $this->resolveFr041Selections($cycle);
-        if ($helper->legacyFallbackUsed) {
-            return $this->buildLegacyFr041SelectionRows($cycle);
-        }
-
-        $rows = $this->loadStationaryItems($cycle);
-        $selectionLines = $this->buildFr041SelectionLines($rows, $helper);
+        $selectionLines = $this->buildFr041SelectionLines($helper);
         if (!$selectionLines) {
             return [];
         }
@@ -99,21 +91,6 @@ class Scope11PayloadService
         return is_array($rows) ? array_values(array_filter(array_map('strval', $rows))) : [];
     }
 
-    private function loadEfSelectionByRowId(int $cycleId): array
-    {
-        $config = $this->fetchFr041Config($cycleId);
-        $options = is_array($config?->options ?? null) ? $config->options : [];
-        $map = is_array($options['efSelectionByRowId'] ?? null) ? $options['efSelectionByRowId'] : [];
-
-        $out = [];
-        foreach ($map as $rowId => $efId) {
-            $k = trim((string) $rowId);
-            $v = trim((string) $efId);
-            if ($k === '' || $v === '') continue;
-            $out[$k] = $v;
-        }
-        return $out;
-    }
 
     private function normalizeMonths(array $months): array
     {
@@ -162,164 +139,31 @@ class Scope11PayloadService
             ->all();
     }
 
-    private function resolveFr041Selections(Cycle $cycle): Fr041SelectionsV2HelperResult
+    private function resolveFr041Selections(Cycle $cycle, array $rows = []): Fr041SelectionsV2HelperResult
     {
         $config = $this->fetchFr041Config($cycle->id);
         $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
-        return Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear);
+        return Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear, $rows);
     }
 
     /**
-     * @param Scope11StationaryItem[] $rows
+     * @return array<int, array<string, mixed>>
      */
-    private function buildFr041SelectionLines(array $rows, Fr041SelectionsV2HelperResult $helper): array
+    private function buildFr041SelectionLines(Fr041SelectionsV2HelperResult $helper): array
     {
-        if ($helper->legacyFallbackUsed || empty($helper->includedLines)) {
+        if (empty($helper->includedLines)) {
             return [];
         }
 
-        $rowsById = [];
-        foreach ($rows as $row) {
-            $rowId = trim((string) ($row->row_id ?? ''));
-            if ($rowId === '') {
-                continue;
-            }
-            $rowsById[$rowId] = $row;
-        }
-
-        $lines = [];
-        foreach ($helper->includedLines as $lineId => $line) {
-            $parentRowId = $line['parentRowId'] ?? '';
-            $row = $rowsById[$parentRowId] ?? null;
-            if (!$row) {
-                continue;
-            }
-
-            $months = is_array($row->months_json ?? null) ? $row->months_json : [];
-            $total = $this->rowTotalFromMonths($months);
-            $componentQty = $this->componentQuantity($row, (string) ($line['component'] ?? ''), $total);
-            if (!$componentQty) {
-                continue;
-            }
-
-            $lines[] = [
-                'lineId' => $lineId,
-                'parentRowId' => $parentRowId,
-                'component' => (string) ($line['component'] ?? ''),
-                'componentLabel' => $this->componentLabel((string) ($line['component'] ?? '')),
-                'fuelKey' => (string) ($row->fuel_key ?? ''),
-                'label' => trim((string) ($row->item_label ?? '')),
-                'evidence' => trim((string) ($row->evidence ?? '')),
-                'unit' => $componentQty['unit'],
-                'qty' => $componentQty['value'],
-                'efCatalog' => (string) ($line['efCatalog'] ?? ''),
-                'efId' => (string) ($line['efId'] ?? ''),
-            ];
-        }
-
-        return $lines;
-    }
-
-    private function componentQuantity(Scope11StationaryItem $row, string $component, float $totalLiters): ?array
-    {
-        $unit = strtoupper(trim((string) ($row->unit ?? 'L')));
-        if ($unit !== 'L') {
-            if ($component === 'DIESEL_L') {
-                return [
-                    'unit' => $unit,
-                    'value' => $this->round2($totalLiters),
-                ];
-            }
-            return null;
-        }
-
-        $fuelKey = $this->normalizeFuelKeyForComponents((string) ($row->fuel_key ?? ''));
-        $spec = $this->componentSpec($fuelKey, $component);
-        if (!$spec) {
-            return null;
-        }
-
-        $value = $totalLiters * ($spec['ratio'] ?? 0.0);
-        if ($spec['unit'] === 'kg' && isset($spec['density'])) {
-            $value = $value * $spec['density'];
-        }
-
-        return [
-            'unit' => $spec['unit'],
-            'value' => $this->round2($value),
-        ];
-    }
-
-    private function componentSpec(string $fuelKey, string $component): ?array
-    {
-        $mapping = [
-            'B7' => [
-                'DIESEL_L' => ['ratio' => 0.93, 'unit' => 'L'],
-                'BIODIESEL_KG' => ['ratio' => 0.07, 'unit' => 'kg', 'density' => 0.87],
-            ],
-            'B10' => [
-                'DIESEL_L' => ['ratio' => 0.9, 'unit' => 'L'],
-                'BIODIESEL_KG' => ['ratio' => 0.1, 'unit' => 'kg', 'density' => 0.87],
-            ],
-            '9195' => [
-                'GASOLINE_L' => ['ratio' => 0.9, 'unit' => 'L'],
-                'ETHANOL_KG' => ['ratio' => 0.1, 'unit' => 'kg', 'density' => 0.79],
-            ],
-            'E20' => [
-                'GASOLINE_L' => ['ratio' => 0.8, 'unit' => 'L'],
-                'ETHANOL_KG' => ['ratio' => 0.2, 'unit' => 'kg', 'density' => 0.79],
-            ],
-            'OTHER' => [
-                'DIESEL_L' => ['ratio' => 1.0, 'unit' => 'L'],
-            ],
-        ];
-
-        $componentMap = $mapping[$fuelKey] ?? null;
-        if (!$componentMap) {
-            return $component === 'DIESEL_L' ? ['ratio' => 1.0, 'unit' => 'L'] : null;
-        }
-
-        return $componentMap[$component] ?? null;
-    }
-
-    private function normalizeFuelKeyForComponents(string $value): string
-    {
-        $raw = strtoupper(trim($value));
-        if ($raw === '') {
-            return 'OTHER';
-        }
-        if (str_contains($raw, 'B7')) {
-            return 'B7';
-        }
-        if (str_contains($raw, 'B10')) {
-            return 'B10';
-        }
-        if (str_contains($raw, '91/95') || str_contains($raw, '9195')) {
-            return '9195';
-        }
-        if (str_contains($raw, 'E20')) {
-            return 'E20';
-        }
-        return 'OTHER';
-    }
-
-    private function rowTotalFromMonths(array $months): float
-    {
-        $total = 0.0;
-        foreach ($months as $value) {
-            if (is_numeric($value)) {
-                $total += (float) $value;
-            }
-        }
-        return $total;
+        return array_values($helper->includedLines);
     }
 
     private function componentLabel(string $component): string
     {
-        if ($component === 'DIESEL_L') return 'Diesel';
-        if ($component === 'BIODIESEL_KG') return 'Biodiesel';
-        if ($component === 'GASOLINE_L') return 'Gasoline';
-        if ($component === 'ETHANOL_KG') return 'Ethanol';
+        if ($component === 'DIESEL_L') return 'Diesel (Stationary combustion)';
+        if ($component === 'BIODIESEL_KG') return 'Biodiesel (Stationary combustion)';
+        if ($component === 'GASOLINE_L') return 'Gasoline (Stationary combustion)';
+        if ($component === 'ETHANOL_KG') return 'Biogasoline (Ethanol) (Stationary combustion)';
         return $component;
     }
 
@@ -333,81 +177,23 @@ class Scope11PayloadService
                 continue;
             }
 
-            $label = (string) ($line['label'] ?? '');
-            $componentLabel = (string) ($line['componentLabel'] ?? $this->componentLabel((string) ($line['component'] ?? '')));
-            $itemName = $label !== '' ? "{$label} ({$componentLabel})" : $componentLabel;
+            $componentLabel = $this->componentLabel((string) ($line['component'] ?? ''));
+            $itemName = $componentLabel !== '' ? $componentLabel : (string) ($line['itemLabel'] ?? '');
 
             $out[] = [
                 'rowNo' => $rowNo,
                 'rowId' => $lineId,
                 'itemId' => $lineId,
                 'itemName' => $itemName,
-                'sectionId' => '1.1',
+                'sectionId' => (string) ($line['sectionId'] ?? '1.1'),
                 'fuelKey' => (string) ($line['fuelKey'] ?? ''),
                 'evidence' => (string) ($line['evidence'] ?? ''),
                 'unit' => (string) ($line['unit'] ?? ''),
                 'qty' => array_key_exists('qty', $line) ? $line['qty'] : null,
                 'efCatalog' => (string) ($line['efCatalog'] ?? ''),
                 'efId' => (string) ($line['efId'] ?? ''),
-            ];
-
-            $rowNo += 1;
-        }
-
-        return $out;
-    }
-
-    private function round2(float $value): float
-    {
-        return round($value, 2);
-    }
-
-    private function buildLegacyFr041SelectionRows(Cycle $cycle): array
-    {
-        $selectedRowIds = $this->loadSelectedRowIds($cycle->id);
-        if (!$selectedRowIds) {
-            return [];
-        }
-
-        $efSelectionByRowId = $this->loadEfSelectionByRowId($cycle->id);
-
-        $itemsByRowId = [];
-        $rows = $this->loadStationaryItems($cycle);
-        foreach ($rows as $row) {
-            $rowId = trim((string) ($row->row_id ?? ''));
-            if ($rowId === '') {
-                continue;
-            }
-            $itemsByRowId[$rowId] = $row;
-        }
-
-        $out = [];
-        $rowNo = 11;
-        foreach ($selectedRowIds as $rowId) {
-            $it = $itemsByRowId[$rowId] ?? null;
-            $efIdOverride = $efSelectionByRowId[$rowId] ?? null;
-
-            $payloadItem = [
-                'rowId' => $rowId,
-                'fuelKey' => (string) ($it?->fuel_key ?? ''),
-                'unit' => (string) ($it?->unit ?? ''),
-                'label' => (string) ($it?->item_label ?? ''),
-            ];
-            $resolved = $this->efResolver->resolveScope11($cycle, $payloadItem, $efIdOverride);
-            $ef = is_array($resolved['ef'] ?? null) ? $resolved['ef'] : [];
-
-            $out[] = [
-                'rowNo' => $rowNo,
-                'rowId' => $rowId,
-                'itemId' => $rowId,
-                'itemName' => (string) ($it?->item_label ?? ''),
-                'sectionId' => '1.1',
-                'fuelKey' => (string) ($it?->fuel_key ?? ''),
-                'evidence' => (string) ($it?->evidence ?? ''),
-                'unit' => (string) ($it?->unit ?? ''),
-                'qty' => $it?->total ?? null,
-                'efCatalog' => (string) ($ef['efProfile'] ?? ''),
-                'efId' => (string) ($ef['efId'] ?? ($efIdOverride ?? '')),
+                'efKey' => (string) ($line['efKey'] ?? ''),
+                'sourceItemLabel' => (string) ($line['sourceItemLabel'] ?? ''),
             ];
 
             $rowNo += 1;

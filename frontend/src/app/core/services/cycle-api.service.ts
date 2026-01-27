@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom, from, map, Observable } from 'rxjs';
 
@@ -105,6 +106,31 @@ export type EfCatalogResponse = {
   warning?: string;
 };
 
+export type EfViewOption = {
+  efKey: string;
+  catalog: 'AR5' | 'AR5V2' | 'EF1';
+  efId: string;
+  name: string;
+  unit: string;
+  CO2?: number | null;
+  'Fossil CH4'?: number | null;
+  CH4?: number | null;
+  N2O?: number | null;
+  SF6?: number | null;
+  NF3?: number | null;
+  HFCs?: number | null;
+  PFCs?: number | null;
+  Other?: number | null;
+  Total?: number | null;
+  Source?: string | null;
+};
+
+export type EfViewResponse = {
+  ok: boolean;
+  options: EfViewOption[];
+  warning?: string;
+};
+
 export type Fr041Source = {
   sectionId: string;
   sectionTitle: string;
@@ -199,9 +225,33 @@ type DashboardSectionsResponse = {
   sections: DashboardSection[];
 };
 
+export type ExportMode = 'lean' | 'full-lite' | 'full';
+
 export type ExportDownload = {
   blob: Blob;
   filename: string;
+  mode?: ExportMode;
+};
+
+export type ExportErrorPayload = {
+  ok?: boolean;
+  message?: string;
+  errors?: any;
+  cycle_id?: number;
+  template_id?: string;
+  mode?: ExportMode | string;
+  trace?: any;
+};
+
+export type ExportDebugResponse = {
+  ok: boolean;
+  cycle_id?: number;
+  template_id?: string | null;
+  year?: number | null;
+  mode?: string;
+  counts?: any;
+  samples?: any;
+  message?: string;
 };
 
 export type AttachmentLinkDto = {
@@ -469,6 +519,15 @@ export class CycleApiService {
     return firstValueFrom(request);
   }
 
+  getCycleEfView(
+    cycleId: number,
+    scope = 'stationary'
+  ): Promise<EfViewResponse> {
+    const params = { scope };
+    const request = this.api.get<EfViewResponse>(`cycles/${cycleId}/ef/view`, { params }) as Observable<EfViewResponse>;
+    return firstValueFrom(request);
+  }
+
   /* ---------- update data (auto-create + retry) ---------- */
 
   async updateCycleData(
@@ -579,13 +638,56 @@ export class CycleApiService {
 
   /* ---------- export ---------- */
 
-  async exportCycle(id: number): Promise<ExportDownload> {
+  async exportCycleWithMode(id: number, mode: ExportMode): Promise<ExportDownload> {
+    const url = `cycles/${id}/export?mode=${encodeURIComponent(mode)}`;
     const resp = await firstValueFrom(
-      this.api.postBlob(`cycles/${id}/export`, {})
+      this.api.postBlob(url, {})
     );
     const disposition = resp.headers?.get('content-disposition') ?? '';
     const filename = this.extractFilename(disposition) ?? `export_${id}.xlsx`;
-    return { blob: resp.body ?? new Blob(), filename };
+    return { blob: resp.body ?? new Blob(), filename, mode };
+  }
+
+  async exportCycle(id: number): Promise<ExportDownload> {
+    return this.exportCycleWithMode(id, 'full');
+  }
+
+  async readExportErrorPayload(err: any): Promise<ExportErrorPayload> {
+    try {
+      const httpErr = err as HttpErrorResponse;
+      const raw = (httpErr as any)?.error;
+
+      if (raw && typeof raw === 'object' && !(raw instanceof Blob)) {
+        return raw as ExportErrorPayload;
+      }
+
+      if (raw instanceof Blob) {
+        const text = await raw.text();
+        try {
+          return JSON.parse(text) as ExportErrorPayload;
+        } catch {
+          return {
+            ok: false,
+            message: text || httpErr?.message || 'Export failed',
+          };
+        }
+      }
+
+      const msg =
+        (typeof raw === 'string' ? raw : '') ||
+        httpErr?.message ||
+        'Export failed';
+      return { ok: false, message: msg };
+    } catch {
+      return { ok: false, message: 'Export failed' };
+    }
+  }
+
+  getExportDebug(cycleId: number, mode?: ExportMode): Promise<ExportDebugResponse> {
+    const url = mode
+      ? `cycles/${cycleId}/export/debug?mode=${encodeURIComponent(mode)}`
+      : `cycles/${cycleId}/export/debug`;
+    return firstValueFrom(this.api.get<ExportDebugResponse>(url));
   }
 
   async exportScope11Preview(payload: Record<string, any>): Promise<ExportDownload> {

@@ -18,15 +18,50 @@
       FR-03.2
     </button>
 
-    <button mat-raised-button color="primary" (click)="exportVSheet()" [disabled]="exporting">
-      <mat-icon *ngIf="!exporting">download</mat-icon>
-      <mat-progress-spinner
-        *ngIf="exporting"
-        diameter="18"
-        mode="indeterminate"
-      ></mat-progress-spinner>
-      <span>{{ exporting ? 'กำลัง Export...' : 'Export v-sheet' }}</span>
-    </button>
+    <div class="export-buttons">
+      <button
+        mat-raised-button
+        color="primary"
+        (click)="exportVSheet('lean')"
+        [disabled]="exporting"
+      >
+        <mat-icon *ngIf="!exporting || exportingMode !== 'lean'">download</mat-icon>
+        <mat-progress-spinner
+          *ngIf="exporting && exportingMode === 'lean'"
+          diameter="18"
+          mode="indeterminate"
+        ></mat-progress-spinner>
+        <span>Export (Lean)</span>
+      </button>
+      <button
+        mat-raised-button
+        color="accent"
+        (click)="exportVSheet('full-lite')"
+        [disabled]="exporting"
+      >
+        <mat-icon *ngIf="!exporting || exportingMode !== 'full-lite'">download</mat-icon>
+        <mat-progress-spinner
+          *ngIf="exporting && exportingMode === 'full-lite'"
+          diameter="18"
+          mode="indeterminate"
+        ></mat-progress-spinner>
+        <span>Export (Full-lite)</span>
+      </button>
+      <button
+        mat-raised-button
+        color="warn"
+        (click)="exportVSheet('full')"
+        [disabled]="exporting"
+      >
+        <mat-icon *ngIf="!exporting || exportingMode !== 'full'">download</mat-icon>
+        <mat-progress-spinner
+          *ngIf="exporting && exportingMode === 'full'"
+          diameter="18"
+          mode="indeterminate"
+        ></mat-progress-spinner>
+        <span>Export (Full)</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -121,6 +156,9 @@
   <div class="hint" *ngIf="missingEfCount > 0">
     Missing EF for {{ missingEfCount }} line{{ missingEfCount === 1 ? '' : 's' }}
   </div>
+  <div class="hint" *ngIf="efCatalogWarning">
+    {{ efCatalogWarning }}
+  </div>
   <div class="selection-table" *ngIf="selectionLines.length">
     <table>
       <thead>
@@ -147,7 +185,10 @@
               [disabled]="selectionSaving"
             ></mat-checkbox>
           </td>
-          <td class="truncate">{{ line.itemLabel || line.parentRowId }}</td>
+          <td class="truncate">
+            {{ line.itemLabel || line.parentRowId }}
+            <div class="cell-sub">{{ line.sourceItemLabel || line.parentRowId }}</div>
+          </td>
           <td>
             {{ componentLabel(line.component) }}
             <span *ngIf="line.fuelKey && line.fuelKey !== '-'">
@@ -162,7 +203,7 @@
               <mat-select
                 [value]="line.efCatalog"
                 (selectionChange)="setLineEfCatalog(line, $event.value)"
-                [disabled]="selectionSaving || !line.include"
+                [disabled]="selectionSaving || !line.include || efOptionsLoading"
               >
                 <mat-option value="">-- catalog --</mat-option>
                 <mat-option *ngFor="let catalog of allowedEfCatalogs" [value]="catalog">
@@ -174,16 +215,16 @@
           <td>
             <mat-form-field appearance="outline" class="ef-select">
               <mat-select
-                [value]="line.efId"
+                [value]="lineEfKey(line)"
                 (selectionChange)="setLineEfId(line, $event.value)"
-                [disabled]="selectionSaving || !line.include || !line.efCatalog"
+                [disabled]="selectionSaving || !line.include || !line.efCatalog || efOptionsLoading || !efOptions.length"
               >
                 <mat-option value="">-- เลือก EF --</mat-option>
                 <mat-option
                   *ngFor="let option of efOptionsForCatalog(line.efCatalog)"
-                  [value]="option.efId"
+                  [value]="option.efKey"
                 >
-                  {{ option.efId }} — {{ option.Name }} ({{ option.Unit }})
+                  [{{ option.catalog }}] {{ option.name }} ({{ option.efId }})
                 </mat-option>
               </mat-select>
               <div
@@ -192,6 +233,12 @@
               >
                 กรุณาเลือก EF Catalog และ EF
               </div>
+              <div
+                class="inline-error"
+                *ngIf="line.include && line.efCatalog && !efOptionsLoading && efOptionsForCatalog(line.efCatalog).length === 0"
+              >
+                {{ efCatalogWarning || 'EF view loaded but no options (check backend /ef/view)' }}
+              </div>
             </mat-form-field>
           </td>
         </tr>
@@ -199,25 +246,66 @@
     </table>
   </div>
 
+  <div class="section-title">FR-04.1 Main table (Stationary)</div>
+  <div class="hint" *ngIf="!fr041MainRowsStationary.length">
+    ยังไม่มีรายการที่เลือกพร้อม EF
+  </div>
+  <div class="main-table" *ngIf="fr041MainRowsStationary.length">
+    <table>
+      <thead>
+        <tr>
+          <th>รายการ</th>
+          <th>หน่วย</th>
+          <th class="num">ปริมาณ</th>
+          <th class="num">CO2</th>
+          <th class="num">Fossil CH4</th>
+          <th class="num">CH4</th>
+          <th class="num">N2O</th>
+          <th class="num">SF6</th>
+          <th class="num">NF3</th>
+          <th class="num">HFCs</th>
+          <th class="num">PFCs</th>
+          <th class="num">Total (kgCO2e/หน่วย)</th>
+          <th class="num">ผลคูณ (TonCO2e)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of fr041MainRowsStationary" [class.missing]="row.missingEf">
+          <td class="truncate">
+            {{ row.itemLabel || row.parentRowId }}
+            <div class="cell-sub">{{ row.sourceItemLabel || '-' }}</div>
+            <div class="cell-sub">{{ row.evidence || '-' }}</div>
+            <div class="inline-error" *ngIf="row.missingEf">กรุณาเลือก EF Catalog และ EF</div>
+          </td>
+          <td>{{ row.unit || '-' }}</td>
+          <td class="num">{{ row.qty === null ? '-' : formatFixed2(row.qty) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.co2 ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.fossilCh4 ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.ch4 ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.n2o ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.sf6 ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.nf3 ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.hfcs ?? 0) }}</td>
+          <td class="num">{{ formatFixed2(row.ef?.pfcs ?? 0) }}</td>
+          <td class="num">{{ row.totalKgCo2ePerUnit === null ? '-' : formatFixed2(row.totalKgCo2ePerUnit) }}</td>
+          <td class="num">{{ row.multiplyTonCo2e === null ? '-' : formatFixed2(row.multiplyTonCo2e) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="preview-controls">
+    <button mat-stroked-button type="button" (click)="togglePreview()">
+      {{ previewEnabled ? 'ซ่อน Preview' : 'แสดง Preview' }}
+    </button>
+    <button mat-stroked-button type="button" (click)="refreshPreview()" [disabled]="!previewEnabled">
+      Refresh Preview
+    </button>
+  </div>
+
   <div class="hint">
     แสดงฟอร์ม FR-04.1 แบบ Excel (read-only) พร้อมคอลัมน์ A,B,C... และข้อมูลที่ดึงจากชีท 1.1/1.2
   </div>
-
-  <mat-divider></mat-divider>
-
-  <div class="table-title-row">
-  <div class="table-title">FR-04.1 Preview (Excel-like)</div>
-  <div class="preview-actions">
-    <button mat-stroked-button (click)="refreshPreview()">
-      <mat-icon>refresh</mat-icon>
-      Refresh Preview
-    </button>
-    <button mat-stroked-button (click)="togglePreview()">
-      <mat-icon>{{ previewEnabled ? 'visibility_off' : 'visibility' }}</mat-icon>
-      {{ previewEnabled ? 'ซ่อน Preview' : 'แสดง Preview' }}
-    </button>
-  </div>
-</div>
 
   <app-excel-sheet-preview
     *ngIf="previewEnabled"
@@ -226,6 +314,8 @@
     [cacheKey]="previewKey"
     [formatNumbersFixed2]="true"
   ></app-excel-sheet-preview>
+
+  <mat-divider></mat-divider>
 </mat-card>
 
 <mat-card class="card" *ngIf="exportError">

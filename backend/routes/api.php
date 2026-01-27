@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\CycleController;
 use App\Http\Controllers\Api\CycleEfCatalogController;
+use App\Http\Controllers\Api\CycleEfViewController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\EfCatalogController;
 use App\Http\Controllers\Api\EfAr5Controller;
@@ -36,6 +37,7 @@ $publicCycleRoutes = function () {
     Route::get('/cycles/{cycle}/preview', [CycleController::class, 'preview']);
     Route::get('/cycles/{cycle}/dashboard/sections', [CycleController::class, 'dashboardSections']);
     Route::post('/cycles/{cycle}/export', [ExportController::class, 'store']);
+    Route::get('/cycles/{cycle}/export/debug', [ExportController::class, 'debug']);
     Route::get('/cycles/{cycle}/validations', [CycleReviewController::class, 'validations']);
     Route::post('/cycles/{cycle}/lock', [CycleReviewController::class, 'lock']);
     Route::post('/cycles/{cycle}/unlock', [CycleReviewController::class, 'unlock']);
@@ -56,6 +58,7 @@ $publicCycleRoutes = function () {
     Route::get('/ef/ar5', [EfAr5Controller::class, 'index']);
     Route::get('/ef/catalog', [EfCatalogController::class, 'index']);
     Route::get('/cycles/{cycle}/ef/catalog', [CycleEfCatalogController::class, 'index']);
+    Route::get('/cycles/{cycle}/ef/view', [CycleEfViewController::class, 'index']);
 
 };
 

@@ -5,8 +5,6 @@
   </div>
 
   <div class="header-actions">
-    <button mat-stroked-button (click)="resetToMock()" [disabled]="loading || saving">Reset mock</button>
-
     <button mat-raised-button color="primary" (click)="saveAndSync()" [disabled]="loading || saving">
       <mat-progress-spinner *ngIf="saving" diameter="18" mode="indeterminate"></mat-progress-spinner>
       <span>{{ saving ? 'Saving...' : 'Save & Sync' }}</span>
@@ -142,5 +140,8 @@
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.group-row]="row.type === 'group'"></tr>
     </table>
+  </div>
+  <div class="empty" *ngIf="!loading && screenRows.length === 0">
+    No data yet. Add rows in Scope 3 data entry.
   </div>
 </mat-card>

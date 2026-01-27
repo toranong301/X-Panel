@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\Schema;
 
 class ValidationService
 {
-    public function __construct(private EfResolverService $efResolver)
-    {
+    public function __construct(
+        private EfResolverService $efResolver,
+        private EfViewService $efViewService,
+        private TemplateRegistry $templateRegistry
+    ) {
     }
 
     /**
@@ -46,10 +49,15 @@ class ValidationService
             return;
         }
 
+        $rows = Scope11StationaryItem::query()
+            ->where('cycle_id', $cycle->id)
+            ->orderBy('id')
+            ->get();
+
         $config = $this->loadFr041Config($cycle->id);
         $effectiveConfig = $config ?? new Fr041Config();
         $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
-        $helperResult = Fr041SelectionsV2Helper::resolve($effectiveConfig, $cycleYear);
+        $helperResult = Fr041SelectionsV2Helper::resolve($effectiveConfig, $cycleYear, $rows->all());
 
         if ($helperResult->legacyFallbackUsed) {
             $warnings[] = [
@@ -62,11 +70,24 @@ class ValidationService
         }
 
         $useLegacyEfSelection = $helperResult->legacyFallbackUsed;
-
-        $rows = Scope11StationaryItem::query()
-            ->where('cycle_id', $cycle->id)
-            ->orderBy('id')
-            ->get();
+        $efViewMap = $useLegacyEfSelection ? [] : $this->buildEfViewMap($cycle);
+        if (!$useLegacyEfSelection && $helperResult->includedLines) {
+            foreach ($helperResult->includedLines as $line) {
+                $efKeyRaw = trim((string) ($line['efKey'] ?? ''));
+                if ($efKeyRaw === '') {
+                    continue;
+                }
+                $efKey = strtoupper($efKeyRaw);
+                if (!array_key_exists($efKey, $efViewMap)) {
+                    $warnings[] = [
+                        'scope' => '1.1',
+                        'rowId' => $line['parentRowId'] ?? null,
+                        'code' => 'EF_NOT_FOUND',
+                        'message' => 'EF not found in EF_VIEW.',
+                    ];
+                }
+            }
+        }
 
         if ($rows->count() === 0) {
             $warnings[] = [
@@ -258,11 +279,24 @@ class ValidationService
 
     private function componentLabel(string $component): string
     {
-        if ($component === 'DIESEL_L') return 'Diesel';
-        if ($component === 'BIODIESEL_KG') return 'Biodiesel';
-        if ($component === 'GASOLINE_L') return 'Gasoline';
-        if ($component === 'ETHANOL_KG') return 'Ethanol';
+        if ($component === 'DIESEL_L') return 'Diesel (Stationary combustion)';
+        if ($component === 'BIODIESEL_KG') return 'Biodiesel (Stationary combustion)';
+        if ($component === 'GASOLINE_L') return 'Gasoline (Stationary combustion)';
+        if ($component === 'ETHANOL_KG') return 'Biogasoline (Ethanol) (Stationary combustion)';
         return $component;
+    }
+
+    private function buildEfViewMap(Cycle $cycle): array
+    {
+        $rows = $this->efViewService->build($cycle, 'stationary', $this->templateRegistry);
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $key = strtoupper(trim((string) ($row['efKey'] ?? '')));
+            if ($key === '') continue;
+            $out[$key] = $row;
+        }
+        return $out;
     }
 
     private function loadFr041Config(int $cycleId): ?Fr041Config

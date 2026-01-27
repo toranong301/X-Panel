@@ -1,5 +1,5 @@
 ﻿import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
@@ -13,10 +13,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { CanonicalGhgService, SplitSummaryRow } from '../../core/services/canonical-ghg.service';
+import { CanonicalGhgService, Fr041SelRow } from '../../core/services/canonical-ghg.service';
 import {
   CycleApiService,
-  EfCatalogOption,
+  EfViewOption,
   Fr041Config,
   Fr041Source,
   Scope11StationaryItem,
@@ -48,9 +48,46 @@ type Fr041SelectionLine = {
   qty: number | null;
   unit: 'L' | 'kg';
   itemLabel: string;
+  sourceItemLabel: string;
   evidence: string;
   fuelKey: string;
   sectionId?: string | null;
+};
+
+type Fr041EfValues = {
+  co2: number | null;
+  fossilCh4: number | null;
+  ch4: number | null;
+  n2o: number | null;
+  sf6: number | null;
+  nf3: number | null;
+  hfcs: number | null;
+  pfcs: number | null;
+  other: number | null;
+};
+
+type Fr041MainRow = {
+  lineId: string;
+  parentRowId: string;
+  itemLabel: string;
+  sourceItemLabel?: string | null;
+  evidence: string;
+  unit: 'L' | 'kg';
+  qty: number | null;
+  efCatalog: string | null;
+  efId: string | null;
+  ef: Fr041EfValues | null;
+  totalKgCo2ePerUnit: number | null;
+  multiplyTonCo2e: number | null;
+  missingEf?: boolean;
+};
+
+const MAIN_TABLE_GWP = {
+  fossilCh4: 30,
+  ch4: 28,
+  n2o: 265,
+  sf6: 23500,
+  nf3: 16100,
 };
 @Component({
   selector: 'app-fr04-1',
@@ -72,8 +109,10 @@ type Fr041SelectionLine = {
   ],
   templateUrl: './fr04-1.html',
   styleUrls: ['./fr04-1.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Fr041Component implements OnInit {
+  private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private canonicalSvc = inject(CanonicalGhgService);
@@ -120,11 +159,14 @@ export class Fr041Component implements OnInit {
   selectedRowIds = new Set<string>();
   selectionLines: Fr041SelectionLine[] = [];
   missingEfCount = 0;
+  mainRows: Fr041MainRow[] = [];
   selectionSaving = false;
   previewKey = 0;
-  previewEnabled = true;
-  efOptions: EfCatalogOption[] = [];
+  previewEnabled = false;
+  efOptions: EfViewOption[] = [];
+  efOptionsByKey = new Map<string, EfViewOption>();
   efCatalogWarning: string | null = null;
+  efOptionsLoading = false;
   cycleYear: number | null = null;
   fr041ConfigOptions: Record<string, any> | null = null;
 
@@ -136,12 +178,21 @@ export class Fr041Component implements OnInit {
   // report
   exporting = false;
   exportError: string | null = null;
+  exportingMode: 'lean' | 'full-lite' | 'full' | null = null;
 
   ngOnInit(): void {
     void this.resolveCycleId();
     void this.loadTemplates();
     void this.loadTemplateSets();
   }
+
+  private queueStateUpdate(update: () => void): void {
+    Promise.resolve().then(() => {
+      update();
+      this.cdr.markForCheck();
+    });
+  }
+
 
   private async resolveCycleId() {
     const routeId = Number(this.route.snapshot.paramMap.get('cycleId') || 0);
@@ -154,25 +205,38 @@ export class Fr041Component implements OnInit {
   }
 
   private async loadTemplateState() {
-    this.templateLoading = true;
+    this.queueStateUpdate(() => {
+      this.templateLoading = true;
+    });
     try {
       const cycle = await this.cycleApi.getCycle(this.cycleId);
-      this.cycleYear = Number.isFinite(Number(cycle?.year)) ? Number(cycle?.year) : null;
-      this.templateId = String(cycle?.template_id || 'mbax');
-      this.templateKey = this.templateId;
-      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      const cycleYear = Number.isFinite(Number(cycle?.year)) ? Number(cycle?.year) : null;
+      const templateId = String(cycle?.template_id || 'mbax');
+      const templateStyle = this.resolveTemplateStyle(templateId, this.templates);
+      this.queueStateUpdate(() => {
+        this.cycleYear = cycleYear;
+        this.templateId = templateId;
+        this.templateKey = templateId;
+        this.templateStyle = templateStyle;
+      });
     } catch (error: any) {
       console.error('Load template state failed', error);
       this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
     } finally {
-      this.templateLoading = false;
+      this.queueStateUpdate(() => {
+        this.templateLoading = false;
+      });
     }
   }
 
   private async loadTemplates() {
     try {
-      this.templates = await this.cycleApi.getTemplates();
-      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      const templates = await this.cycleApi.getTemplates();
+      const templateStyle = this.resolveTemplateStyle(this.templateId, templates);
+      this.queueStateUpdate(() => {
+        this.templates = templates;
+        this.templateStyle = templateStyle;
+      });
     } catch (error: any) {
       console.error('Load templates failed', error);
       this.snackBar.open(error?.message || 'โหลด Template ไม่สำเร็จ', 'ปิด', { duration: 6000 });
@@ -180,41 +244,31 @@ export class Fr041Component implements OnInit {
   }
 
   private async loadTemplateSets() {
-    this.templateSetLoading = true;
+    this.queueStateUpdate(() => {
+      this.templateSetLoading = true;
+    });
     try {
-      this.templateSets = await this.cycleApi.getTemplateSets();
+      const templateSets = await this.cycleApi.getTemplateSets();
+      this.queueStateUpdate(() => {
+        this.templateSets = templateSets;
+      });
     } catch (error: any) {
       console.error('Load template sets failed', error);
       this.snackBar.open(error?.message || 'โหลด Template Set ไม่สำเร็จ', 'ปิด', { duration: 6000 });
     } finally {
-      this.templateSetLoading = false;
+      this.queueStateUpdate(() => {
+        this.templateSetLoading = false;
+      });
     }
   }
 
   private async loadSources() {
     if (!this.cycleId) return;
-    this.sourcesLoading = true;
+    this.queueStateUpdate(() => {
+      this.sourcesLoading = true;
+    });
     try {
-      const s = await this.cycleApi.getFr041Sources(this.cycleId);
-      this.sources = Array.isArray(s) ? s : [];
-
-      if (!this.sources.length) {
-        // fallback so page never blocks on empty sources
-        this.sources = [{
-          sectionId: '1.1',
-          sectionTitle: '1.1 Stationary combustion',
-          sheetName: '1.1 Stationary',
-          endpoint: `/api/cycles/${this.cycleId}/scope11/stationary/items`,
-          scope: 'stationary',
-          sourceType: 'scope11',
-          itemCountIncluded: 0,
-        }];
-        console.warn('FR-04.1 sources empty; using fallback 1.1 source');
-      }
-    } catch (error: any) {
-      console.error('Load FR-04.1 sources failed', error);
-      // fallback on error as well
-      this.sources = [{
+      const sources = [{
         sectionId: '1.1',
         sectionTitle: '1.1 Stationary combustion',
         sheetName: '1.1 Stationary',
@@ -223,120 +277,60 @@ export class Fr041Component implements OnInit {
         sourceType: 'scope11',
         itemCountIncluded: 0,
       }];
-      console.warn('FR-04.1 sources failed; using fallback 1.1 source');
+      this.queueStateUpdate(() => {
+        this.sources = sources;
+      });
     } finally {
-      this.sourcesLoading = false;
+      this.queueStateUpdate(() => {
+        this.sourcesLoading = false;
+      });
     }
   }
 
 
   private async loadFr041Data() {
-    this.scope11Loading = true;
-    this.scope11LoadError = null;
+    this.queueStateUpdate(() => {
+      this.scope11Loading = true;
+      this.scope11LoadError = null;
+    });
     try {
-      const endpoints = (this.sources || []).filter(src => !!src.endpoint);
-      console.log('FR-04.1 loading endpoints', endpoints.map(src => src.endpoint));
-      if (!endpoints.length) {
-        this.availableItems = [];
-        this.scope11Items = [];
-        this.scope11SplitEnabled = false;
-        this.scope11PeriodYear = null;
-        this.scope11HeaderMonths = null;
-        this.scope11LoadError = 'ไม่พบ Sources สำหรับ FR-04.1 (fr041/sources ว่าง)';
-        return;
-      }
+      const endpoint = `/api/cycles/${this.cycleId}/scope11/stationary/items`;
+      console.log('FR-04.1 loading endpoint', endpoint);
 
       const configResult = await this.cycleApi.getFr041Config(this.cycleId).catch(error => {
         console.error('Load FR-04.1 config failed', error);
         return null;
       });
 
-      const itemResults = await Promise.all(endpoints.map(async source => {
-        try {
-          const resp = await this.cycleApi.getFr041SourceItems(source.endpoint);
-          return { source, resp };
-        } catch (error: any) {
-          console.error('Load source items failed', source, error);
-          return { source, resp: null, error };
-        }
+      const scope11Resp = await this.cycleApi.getFr041SourceItems(endpoint);
+      const items = this.extractSourceItems(scope11Resp);
+      const availableItems = items.map(item => ({
+        ...item,
+        sectionId: '1.1',
+        sectionTitle: '1.1 Stationary combustion',
+        scope: 'stationary',
       }));
 
-      const merged: Fr041AvailableItem[] = [];
-      let scope11Resp: any = null;
-      let hasItemError = false;
-      const allItemFailed = itemResults.every(result => !result?.resp);
-
-      for (const result of itemResults) {
-        if (!result?.resp) {
-          hasItemError = true;
-          continue;
-        }
-        if (result.source?.sectionId === '1.1') {
-          scope11Resp = result.resp;
-        }
-        const items = this.extractSourceItems(result.resp);
-        if (!items.length) {
-          continue;
-        }
-        for (const it of items) {
-          merged.push({
-            ...it,
-            sectionId: result.source?.sectionId,
-            sectionTitle: result.source?.sectionTitle,
-            scope: result.source?.scope,
-          } as any);
-        }
-      }
-
-        if (allItemFailed) {
-          const msg = 'โหลดรายการไม่สำเร็จ (endpoint error)';
-          this.scope11LoadError = msg;
-          this.snackBar.open(msg, 'ปิด', { duration: 6000 });
-        } else if (hasItemError) {
-          const msg = 'โหลดรายการบางรายการไม่สำเร็จ';
-          this.scope11LoadError = msg;
-          this.snackBar.open(msg, 'ปิด', { duration: 6000 });
-        }
-
-        if (!merged.length) {
-          const scope11Items = this.extractSourceItems(scope11Resp);
-          if (!scope11Items.length) {
-            scope11Resp = await this.cycleApi.getScope11StationaryItems(this.cycleId).catch(() => null);
-          }
-          const fallbackItems = this.extractSourceItems(scope11Resp);
-          if (fallbackItems.length) {
-            const fallbackSource = this.sources.find(src => src.sectionId === '1.1');
-            for (const it of fallbackItems) {
-              merged.push({
-                ...it,
-                sectionId: fallbackSource?.sectionId ?? '1.1',
-                sectionTitle: fallbackSource?.sectionTitle ?? '1.1 Stationary combustion',
-                scope: fallbackSource?.scope ?? 'stationary',
-              } as any);
-            }
-          }
-        }
-
-        this.availableItems = merged;
-      const scope11Items = this.extractSourceItems(scope11Resp);
-      this.scope11Items = scope11Items.length ? scope11Items : this.availableItems;
-      this.scope11SplitEnabled = Boolean(scope11Resp?.splitEnabled);
-      this.scope11PeriodYear = scope11Resp?.periodYear ?? null;
-      this.scope11HeaderMonths = scope11Resp?.headerMonths ?? null;
-
-      this.applySelectionConfig(configResult, this.scope11Items);
-      this.syncFr041SelectionLocal();
-      console.log('FR-04.1 load done', {
-        availableItems: this.availableItems.length,
-        scope11LoadError: this.scope11LoadError,
+      this.queueStateUpdate(() => {
+        this.availableItems = availableItems;
+        this.scope11Items = availableItems;
+        this.scope11SplitEnabled = Boolean(scope11Resp?.splitEnabled);
+        this.scope11PeriodYear = scope11Resp?.periodYear ?? null;
+        this.scope11HeaderMonths = scope11Resp?.headerMonths ?? null;
+        this.applySelectionConfig(configResult, availableItems);
+        this.syncFr041SelectionLocal();
       });
     } catch (error: any) {
       console.error('Load FR-04.1 data failed', error);
       const msg = error?.message || 'โหลดรายการ Scope 1.1 ไม่สำเร็จ';
-      this.scope11LoadError = msg;
+      this.queueStateUpdate(() => {
+        this.scope11LoadError = msg;
+      });
       this.snackBar.open(msg, 'ปิด', { duration: 6000 });
     } finally {
-      this.scope11Loading = false;
+      this.queueStateUpdate(() => {
+        this.scope11Loading = false;
+      });
     }
   }
 
@@ -350,26 +344,32 @@ export class Fr041Component implements OnInit {
   reloadPreview() {
     this.dataEntrySvc.load(this.cycleId);
     const canonical = this.canonicalSvc.build(this.cycleId);
-    this.fr01Meta = canonical.fr01 ?? this.fr01Svc.load(this.cycleId);
-    this.reportYearLabel = this.getReportYearLabel(this.fr01Meta);
-    this.dataPeriodLabel = this.getDataPeriodLabel(this.fr01Meta);
+    const fr01Meta = canonical.fr01 ?? this.fr01Svc.load(this.cycleId);
+    const reportYearLabel = this.getReportYearLabel(fr01Meta);
+    const dataPeriodLabel = this.getDataPeriodLabel(fr01Meta);
+    this.queueStateUpdate(() => {
+      this.fr01Meta = fr01Meta;
+      this.reportYearLabel = reportYearLabel;
+      this.dataPeriodLabel = dataPeriodLabel;
+    });
   }
 
-  async exportVSheet() {
+  async exportVSheet(mode: 'lean' | 'full-lite' | 'full') {
     this.exporting = true;
     this.exportError = null;
+    this.exportingMode = mode;
 
     try {
-      const download = await this.cycleApi.exportCycle(this.cycleId);
+      const download = await this.cycleApi.exportCycleWithMode(this.cycleId, mode);
       this.downloadFile(download.blob, download.filename);
-      this.snackBar.open('Export สำเร็จ', 'ปิด', { duration: 4000 });
+      this.snackBar.open(`Export ${this.formatModeLabel(mode)} สำเร็จ`, 'ปิด', { duration: 4000 });
     } catch (e: any) {
       console.error('Export FR-04.1 failed', e);
-      alert('Export ล้มเหลว กรุณาลองใหม่อีกครั้ง');
-      this.exportError = e?.message || String(e);
-      this.snackBar.open(this.exportError ?? 'เกิดข้อผิดพลาดในการ Export', 'ปิด', { duration: 6000 });
+      this.exportError = await this.readHttpErrorMessage(e);
+      this.snackBar.open(this.exportError, 'ปิด', { duration: 10000 });
     } finally {
       this.exporting = false;
+      this.exportingMode = null;
       this.reloadPreview();
     }
   }
@@ -414,12 +414,68 @@ export class Fr041Component implements OnInit {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  private async readHttpErrorMessage(e: any): Promise<string> {
+    try {
+      const err = e?.error;
+      let payload: any = null;
+      if (err instanceof Blob && err.type?.includes('application/json')) {
+        const text = await err.text();
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = text;
+        }
+      } else if (typeof err === 'object' && err) {
+        payload = err;
+      }
+
+      if (payload && typeof payload === 'object') {
+        console.log('EXPORT_ERROR_PAYLOAD', payload);
+      }
+
+      const baseMessage = (payload?.message ?? e?.message ?? 'Export failed').toString();
+      const extras: string[] = [];
+      if (payload?.mode) extras.push(`mode=${payload.mode}`);
+      if (payload?.cycle_id) extras.push(`cycle=${payload.cycle_id}`);
+      const errorsPreview = this.formatErrorsPreview(payload?.errors);
+      if (errorsPreview) extras.push(errorsPreview);
+      return extras.length ? `${baseMessage} (${extras.join(' | ')})` : baseMessage;
+    } catch {
+      return e?.message || 'Export failed (unknown error)';
+    }
+  }
+
+  private formatErrorsPreview(errors: any): string | null {
+    if (!errors) return null;
+    const entries = Array.isArray(errors)
+      ? errors
+      : typeof errors === 'object'
+        ? Object.entries(errors).map(([key, value]) => `${key}: ${value}`)
+        : [String(errors)];
+    const preview = entries.slice(0, 3).join('; ');
+    return preview ? `errors: ${preview}` : null;
+  }
+
+  private formatModeLabel(mode: 'lean' | 'full-lite' | 'full'): string {
+    switch (mode) {
+      case 'lean':
+        return 'Lean';
+      case 'full-lite':
+        return 'Full-lite';
+      case 'full':
+        return 'Full';
+    }
+  }
+
   async changeTemplate(templateId: string) {
     try {
       await this.cycleApi.updateCycleTemplate(this.cycleId, templateId);
-      this.templateId = templateId;
-      this.templateKey = templateId;
-      this.templateStyle = this.resolveTemplateStyle(this.templateId, this.templates);
+      const templateStyle = this.resolveTemplateStyle(templateId, this.templates);
+      this.queueStateUpdate(() => {
+        this.templateId = templateId;
+        this.templateKey = templateId;
+        this.templateStyle = templateStyle;
+      });
       await this.loadEfOptions();
       this.snackBar.open('Template updated', 'ปิด', { duration: 3000 });
       this.reloadPreview();
@@ -431,7 +487,9 @@ export class Fr041Component implements OnInit {
 
   async changeTemplateSet(templateSetId: string) {
     if (!templateSetId || templateSetId === this.templateSetId) return;
-    this.templateSetId = templateSetId;
+    this.queueStateUpdate(() => {
+      this.templateSetId = templateSetId;
+    });
 
     // ให้ mat-select ปิด overlay ก่อน แล้วค่อย save (กันค้าง)
     setTimeout(() => {
@@ -469,9 +527,10 @@ export class Fr041Component implements OnInit {
       };
 
       if (String(unit).toLowerCase() !== 'l' || total === null) return row;
-      if (!allowed.includes(fuelKeyRaw as FuelBlendKey)) return row;
+      const blendKey = resolveBlendKey(item.fuelKey ?? '', item.otherType ?? undefined);
+      if (!allowed.includes(blendKey)) return row;
 
-      const blend = computeBlendFromAnnualL(total, fuelKeyRaw as FuelBlendKey);
+      const blend = computeBlendFromAnnualL(total, blendKey);
       return {
         ...row,
         dieselL: blend.dieselL,
@@ -520,12 +579,12 @@ export class Fr041Component implements OnInit {
     return this.reportYearLabel || '-';
   }
 
-  get templateStyleClass(): string {
-    return this.templateStyle === 'mbax' ? 'card--compact' : 'card--standard';
-  }
-
   get templateOptions(): TemplateInfo[] {
     return this.templates;
+  }
+
+  get templateStyleClass(): string {
+    return this.templateStyle === 'mbax' ? 'card--compact' : 'card--standard';
   }
 
   private resolveTemplateStyle(templateId: string, templates: TemplateInfo[]): string {
@@ -548,6 +607,7 @@ export class Fr041Component implements OnInit {
 
     this.updateSelectedRowIdsFromSelectionLines();
     this.updateMissingEfCount();
+    this.rebuildMainRows();
 
     const fromTemplateSet = String(options?.['templateSetId'] ?? '').trim();
     if (fromTemplateSet) {
@@ -577,16 +637,29 @@ export class Fr041Component implements OnInit {
       for (const component of components) {
         const lineId = `${item.rowId || ''}::${component}`;
         const existing = selectionMap.get(lineId);
+        const qty = this.resolveComponentQty(item, component);
+        const hasQty = Number.isFinite(Number(qty)) && Number(qty) > 0;
+        const include = existing ? Boolean(existing?.include) : hasQty;
+        const defaultCatalog = this.defaultCatalogForComponent(component);
+        const existingCatalog = this.normalizeValue(existing?.efCatalog);
+        const efCatalog = existingCatalog ?? defaultCatalog;
+        const existingEfId = this.normalizeValue(existing?.efId);
+        let efId = existingEfId;
+        if (!efId && efCatalog && include) {
+          efId = this.defaultEfIdForComponent(component, efCatalog);
+        }
+        const sourceItemLabel = String(item.itemLabel ?? '').trim();
         result.push({
           lineId,
           parentRowId: item.rowId,
           component,
-          include: Boolean(existing?.include),
-          efCatalog: this.normalizeValue(existing?.efCatalog),
-          efId: this.normalizeValue(existing?.efId),
-          qty: this.resolveComponentQty(item, component),
+          include,
+          efCatalog,
+          efId,
+          qty,
           unit: this.componentUnit(component),
-          itemLabel: item.itemLabel || item.rowId,
+          itemLabel: this.componentMainLabel(component),
+          sourceItemLabel,
           evidence: item.evidence || '',
           fuelKey: item.fuelKey || '',
           sectionId: item.sectionId ?? null,
@@ -614,9 +687,131 @@ export class Fr041Component implements OnInit {
     }, 0);
   }
 
+  private rebuildMainRows(): void {
+    const rows = this.buildMainRowsFromSelectionLines();
+    this.queueStateUpdate(() => {
+      this.mainRows = rows;
+    });
+  }
+
+  get fr041MainRowsStationary(): Fr041MainRow[] {
+    return this.buildMainRowsFromSelectionLines();
+  }
+
+  private buildMainRowsFromSelectionLines(): Fr041MainRow[] {
+    const rows: Fr041MainRow[] = [];
+    for (const line of this.selectionLines) {
+      if (!line.include) continue;
+      if (String(line.sectionId ?? '') !== '1.1') continue;
+
+      const efOption = this.getEfOption(line);
+      const ef = efOption ? this.mapEfOptionToValues(efOption) : null;
+      const missingEf = !line.efCatalog || !line.efId || !efOption;
+      const qty = Number.isFinite(Number(line.qty)) ? Number(line.qty) : null;
+      const totalKgCo2ePerUnit = this.resolveEfTotal(efOption, ef);
+      const multiplyTonCo2e =
+        qty !== null && totalKgCo2ePerUnit !== null ? (qty * totalKgCo2ePerUnit) / 1000 : null;
+
+      rows.push({
+        lineId: line.lineId,
+        parentRowId: line.parentRowId,
+        itemLabel: this.resolveMainItemLabel(line),
+        sourceItemLabel: line.sourceItemLabel ?? null,
+        evidence: line.evidence || '',
+        unit: line.unit,
+        qty,
+        efCatalog: line.efCatalog ?? null,
+        efId: line.efId ?? null,
+        ef,
+        totalKgCo2ePerUnit,
+        multiplyTonCo2e,
+        missingEf,
+      });
+    }
+    return rows;
+  }
+
+  private getEfOption(line: Fr041SelectionLine): EfViewOption | null {
+    const efKey = this.buildEfKey(line.efCatalog, line.efId);
+    if (!efKey) return null;
+    return this.efOptionsByKey.get(efKey) ?? null;
+  }
+
+  private mapEfOptionToValues(option: EfViewOption): Fr041EfValues {
+    return {
+      co2: this.readEfNumber((option as any)?.CO2 ?? (option as any)?.co2),
+      fossilCh4: this.readEfNumber(
+        (option as any)?.['Fossil CH4'] ?? (option as any)?.FossilCH4 ?? (option as any)?.fossil_ch4 ?? (option as any)?.fossilCh4
+      ),
+      ch4: this.readEfNumber((option as any)?.CH4 ?? (option as any)?.ch4),
+      n2o: this.readEfNumber((option as any)?.N2O ?? (option as any)?.n2o),
+      sf6: this.readEfNumber((option as any)?.SF6 ?? (option as any)?.sf6),
+      nf3: this.readEfNumber((option as any)?.NF3 ?? (option as any)?.nf3),
+      hfcs: this.readEfNumber((option as any)?.HFCs ?? (option as any)?.hfcs),
+      pfcs: this.readEfNumber((option as any)?.PFCs ?? (option as any)?.pfcs),
+      other: this.readEfNumber((option as any)?.Other ?? (option as any)?.other),
+    };
+  }
+
+  private resolveEfTotal(option: EfViewOption | null, ef: Fr041EfValues | null): number | null {
+    const total = this.readEfNumber((option as any)?.Total ?? (option as any)?.total);
+    if (total !== null) return total;
+    if (!ef) return null;
+    const values = [
+      ef.co2,
+      ef.fossilCh4,
+      ef.ch4,
+      ef.n2o,
+      ef.sf6,
+      ef.nf3,
+      ef.hfcs,
+      ef.pfcs,
+      ef.other,
+    ];
+    const hasValue = values.some(value => value !== null);
+    if (!hasValue) return null;
+    return (
+      (ef.co2 ?? 0) +
+      (ef.fossilCh4 ?? 0) * MAIN_TABLE_GWP.fossilCh4 +
+      (ef.ch4 ?? 0) * MAIN_TABLE_GWP.ch4 +
+      (ef.n2o ?? 0) * MAIN_TABLE_GWP.n2o +
+      (ef.sf6 ?? 0) * MAIN_TABLE_GWP.sf6 +
+      (ef.nf3 ?? 0) * MAIN_TABLE_GWP.nf3 +
+      (ef.hfcs ?? 0) +
+      (ef.pfcs ?? 0) +
+      (ef.other ?? 0)
+    );
+  }
+
+  private readEfNumber(value: any): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
   private normalizeValue(value: any): string | null {
     const text = String(value ?? '').trim();
     return text === '' ? null : text;
+  }
+
+  private normalizeEfCatalog(value: any): string | null {
+    const text = this.normalizeValue(value);
+    return text ? text.toUpperCase() : null;
+  }
+
+  private buildEfKey(catalog: string | null | undefined, efId: string | null | undefined): string | null {
+    const cat = this.normalizeEfCatalog(catalog);
+    const id = this.normalizeValue(efId);
+    if (!cat || !id) return null;
+    return `${cat}::${id}`;
+  }
+
+  private parseEfKey(value: string): { catalog: string; efId: string } | null {
+    const parts = value.split('::');
+    if (parts.length !== 2) return null;
+    const catalog = this.normalizeEfCatalog(parts[0]);
+    const efId = this.normalizeValue(parts[1]);
+    if (!catalog || !efId) return null;
+    return { catalog, efId };
   }
 
   private componentUnit(component: Fr041SelectionComponent): 'L' | 'kg' {
@@ -632,9 +827,33 @@ export class Fr041Component implements OnInit {
       case 'GASOLINE_L':
         return 'Gasoline';
       case 'ETHANOL_KG':
-        return 'Ethanol';
+        return 'Biogasoline (Ethanol)';
     }
     return component;
+  }
+
+  private componentMainLabel(component: Fr041SelectionComponent): string {
+    switch (component) {
+      case 'DIESEL_L':
+        return 'Diesel (Stationary combustion)';
+      case 'BIODIESEL_KG':
+        return 'Biodiesel (Stationary combustion)';
+      case 'GASOLINE_L':
+        return 'Gasoline (Stationary combustion)';
+      case 'ETHANOL_KG':
+        return 'Biogasoline (Ethanol) (Stationary combustion)';
+    }
+    return component;
+  }
+
+  private resolveMainItemLabel(line: Fr041SelectionLine): string {
+    const label = String(line.itemLabel ?? '').trim();
+    if (label) return label;
+    return this.componentMainLabel(line.component);
+  }
+
+  lineEfKey(line: Fr041SelectionLine): string {
+    return this.buildEfKey(line.efCatalog, line.efId) ?? '';
   }
 
   private resolveComponentQty(item: Scope11StationaryItem, component: Fr041SelectionComponent): number | null {
@@ -643,7 +862,7 @@ export class Fr041Component implements OnInit {
       return null;
     }
     const unit = String(item.unit || '').trim().toLowerCase();
-    if (unit !== 'l' && (component === 'DIESEL_L' || component === 'GASOLINE_L')) {
+    if (unit !== 'l') {
       return null;
     }
     const blendKey = resolveBlendKey(item.fuelKey ?? '', item.otherType ?? undefined);
@@ -693,9 +912,29 @@ export class Fr041Component implements OnInit {
     return raw;
   }
 
-  efOptionsForCatalog(catalog: string | null | undefined): EfCatalogOption[] {
+  private defaultCatalogForComponent(component: Fr041SelectionComponent): string {
+    if (component === 'BIODIESEL_KG' || component === 'ETHANOL_KG') {
+      return 'EF1';
+    }
+    return this.allowedEfCatalogs[0];
+  }
+
+  private defaultEfIdForComponent(component: Fr041SelectionComponent, catalog: string): string | null {
+    if (catalog.toUpperCase() !== 'EF1') return null;
+    const map: Partial<Record<Fr041SelectionComponent, string>> = {
+      BIODIESEL_KG: 'EF1_STATIONARY_BIODIESEL_KG',
+      ETHANOL_KG: 'EF1_STATIONARY_ETHANOL_KG',
+    };
+    const efId = map[component];
+    if (!efId) return null;
+    const efKey = this.buildEfKey('EF1', efId);
+    if (!efKey) return null;
+    return this.efOptionsByKey.has(efKey) ? efId : null;
+  }
+
+  efOptionsForCatalog(catalog: string | null | undefined): EfViewOption[] {
     if (!catalog) return [];
-    return this.efOptions.filter(option => (option.efCatalog ?? '').toUpperCase() === catalog.toUpperCase());
+    return this.efOptions.filter(option => String(option.catalog ?? '').toUpperCase() === catalog.toUpperCase());
   }
 
   toggleLineInclude(line: Fr041SelectionLine, checked: boolean): void {
@@ -703,6 +942,13 @@ export class Fr041Component implements OnInit {
     if (!checked) {
       line.efCatalog = null;
       line.efId = null;
+    } else {
+      if (!line.efCatalog) {
+        line.efCatalog = this.defaultCatalogForComponent(line.component);
+      }
+      if (line.efCatalog && !line.efId) {
+        line.efId = this.defaultEfIdForComponent(line.component, line.efCatalog);
+      }
     }
     this.handleLineChange();
   }
@@ -710,11 +956,26 @@ export class Fr041Component implements OnInit {
   setLineEfCatalog(line: Fr041SelectionLine, catalog: string | null): void {
     line.efCatalog = this.normalizeValue(catalog);
     line.efId = null;
+    if (line.efCatalog) {
+      line.efId = this.defaultEfIdForComponent(line.component, line.efCatalog);
+    }
     this.handleLineChange();
   }
 
   setLineEfId(line: Fr041SelectionLine, efId: string | null): void {
-    line.efId = this.normalizeValue(efId);
+    const normalized = this.normalizeValue(efId);
+    if (!normalized) {
+      line.efId = null;
+      this.handleLineChange();
+      return;
+    }
+    const parsed = this.parseEfKey(normalized);
+    if (parsed) {
+      line.efCatalog = parsed.catalog;
+      line.efId = parsed.efId;
+    } else {
+      line.efId = normalized;
+    }
     this.handleLineChange();
   }
 
@@ -722,16 +983,8 @@ export class Fr041Component implements OnInit {
     this.updateSelectedRowIdsFromSelectionLines();
     this.updateMissingEfCount();
     this.syncFr041SelectionLocal();
+    this.rebuildMainRows();
     this.queueSaveFr041Config();
-  }
-
-  private buildEfSelectionMap(): Record<string, string> {
-    const map: Record<string, string> = {};
-    for (const line of this.selectionLines) {
-      if (!line.include || !line.efId) continue;
-      if (!map[line.parentRowId]) map[line.parentRowId] = line.efId;
-    }
-    return map;
   }
 
   private queueSaveFr041Config() {
@@ -782,7 +1035,8 @@ export class Fr041Component implements OnInit {
         new Promise((_, rej) => setTimeout(() => rej(new Error('Save timeout (10s)')), 10000)),
       ]);
       if (reloadPreview) {
-}
+        this.reloadPreview();
+      }
     } catch (error: any) {
       console.error('Save FR-04.1 config failed', error);
       const msg = error?.message || 'บันทึกการเลือกไม่สำเร็จ';
@@ -796,39 +1050,57 @@ export class Fr041Component implements OnInit {
   }
 
   async loadEfOptions() {
+    this.queueStateUpdate(() => {
+      this.efOptionsLoading = true;
+    });
     try {
-      const catalogs = this.allowedEfCatalogs;
-      const responses = await Promise.all(
-        catalogs.map(catalog =>
-          this.cycleApi.getCycleEfCatalog(this.cycleId, catalog as 'AR5' | 'AR5V2' | 'EF1', 'stationary').catch(() => null)
-        )
-      );
-      const optionsMap = new Map<string, EfCatalogOption>();
-      const warnings: string[] = [];
-      for (let i = 0; i < catalogs.length; i++) {
-        const catalog = catalogs[i];
-        const resp = responses[i];
-        if (!resp) continue;
-        const responseCatalog = resp.catalog?.trim() || catalog;
-        for (const opt of resp.options ?? []) {
-          const key = String(opt?.efId || '').trim();
-          if (!key) continue;
-          if (optionsMap.has(key)) continue;
-          optionsMap.set(key, {
-            ...opt,
-            efCatalog: opt.efCatalog || responseCatalog,
-          });
-        }
-        if (resp.warning) {
-          warnings.push(String(resp.warning));
-        }
+      const response = await this.cycleApi.getCycleEfView(this.cycleId, 'stationary');
+      const allowed = new Set(this.allowedEfCatalogs.map(catalog => catalog.toUpperCase()));
+      const optionsByKey = new Map<string, EfViewOption>();
+      const options: EfViewOption[] = [];
+      for (const option of response?.options ?? []) {
+        const efKey = String(option?.efKey ?? '').trim();
+        const catalog = String(option?.catalog ?? '').trim().toUpperCase();
+        if (!efKey || !catalog || !allowed.has(catalog)) continue;
+        if (optionsByKey.has(efKey)) continue;
+        const normalized: EfViewOption = {
+          ...option,
+          efKey,
+          catalog: catalog as EfViewOption['catalog'],
+        };
+        optionsByKey.set(efKey, normalized);
+        options.push(normalized);
       }
-      this.efOptions = Array.from(optionsMap.values());
-      this.efCatalogWarning = warnings.length ? warnings.join(' | ') : null;
+      const warningText = response?.warning ? String(response.warning) : null;
+
+      const entryDoc = this.dataEntrySvc.load(this.cycleId) ?? {
+        cycleId: this.cycleId,
+        scope1: [],
+        scope2: [],
+        scope3: [],
+      };
+      this.dataEntrySvc.save(this.cycleId, {
+        ...entryDoc,
+        efViewOptions: options,
+      });
+      this.queueStateUpdate(() => {
+        this.efOptions = options;
+        this.efOptionsByKey = optionsByKey;
+        this.efCatalogWarning = warningText;
+        this.applyDefaultEfIdsFromOptions();
+        this.rebuildMainRows();
+      });
     } catch (error: any) {
       console.error('Load EF options failed', error);
-      this.efOptions = [];
-      this.efCatalogWarning = null;
+      this.queueStateUpdate(() => {
+        this.efOptions = [];
+        this.efOptionsByKey = new Map<string, EfViewOption>();
+        this.efCatalogWarning = null;
+      });
+    } finally {
+      this.queueStateUpdate(() => {
+        this.efOptionsLoading = false;
+      });
     }
   }
 
@@ -837,6 +1109,24 @@ export class Fr041Component implements OnInit {
       return ['AR5V2', 'EF1'];
     }
     return ['AR5', 'EF1'];
+  }
+
+  private applyDefaultEfIdsFromOptions(): void {
+    let changed = false;
+    for (const line of this.selectionLines) {
+      if (!line.include) continue;
+      if (!line.efCatalog || line.efCatalog.toUpperCase() !== 'EF1') continue;
+      if (line.efId) continue;
+      const defaultId = this.defaultEfIdForComponent(line.component, line.efCatalog);
+      if (!defaultId) continue;
+      line.efId = defaultId;
+      changed = true;
+    }
+    if (changed) {
+      this.updateMissingEfCount();
+      this.syncFr041SelectionLocal();
+      this.queueSaveFr041Config();
+    }
   }
 
   getEfIdForItem(item: Scope11StationaryItem): string {
@@ -854,12 +1144,18 @@ export class Fr041Component implements OnInit {
     if (key === '91/95' || key === 'E20') return 'SC_MOTOR_GASOLINE_L';
     if (key === 'LPG') return 'SC_LPG_L';
     return '';
-  }  togglePreview(): void {
-    this.previewEnabled = !this.previewEnabled;
+  }
+
+  togglePreview(): void {
+    const next = !this.previewEnabled;
+    this.queueStateUpdate(() => {
+      this.previewEnabled = next;
+    });
   }
 
   refreshPreview(): void {
-}
+    this.previewKey += 1;
+  }
 
 
 
@@ -872,35 +1168,37 @@ export class Fr041Component implements OnInit {
       scope3: [],
     };
 
-    const splitRows: SplitSummaryRow[] = this.selectedSummaryRows.map(row => {
-      const splitValues = [
-        row.dieselL,
-        row.biodieselL,
-        row.biodieselKg,
-        row.gasolineL,
-        row.ethanolL,
-        row.ethanolKg,
-      ];
-      const hasSplit = splitValues.some(value => Number.isFinite(Number(value)));
-      const otherQty = !hasSplit && Number.isFinite(Number(row.total)) ? Number(row.total) : undefined;
-      return {
-        itemId: String((row as any).itemId ?? ''),
-        itemName: String(row.itemLabel ?? ''),
-        fuelKey: String(row.fuelKey ?? ''),
-        evidence: String(row.evidence ?? ''),
-        dieselL: row.dieselL ?? undefined,
-        biodieselL: row.biodieselL ?? undefined,
-        biodieselKg: row.biodieselKg ?? undefined,
-        gasolineL: row.gasolineL ?? undefined,
-        ethanolL: row.ethanolL ?? undefined,
-        ethanolKg: row.ethanolKg ?? undefined,
-        otherQty,
-        otherUnit: String(row.unit ?? ''),
+    const rows: Fr041SelRow[] = [];
+    let rowNo = 11;
+    for (const line of this.selectionLines) {
+      if (!line.include) continue;
+      if (String(line.sectionId ?? '') !== '1.1') continue;
+      const qty = Number.isFinite(Number(line.qty)) ? Number(line.qty) : null;
+      const row: Fr041SelRow = {
+        rowNo,
+        rowId: String(line.parentRowId ?? ''),
+        itemId: String(line.lineId ?? ''),
+        itemName: this.resolveMainItemLabel(line),
+        fuelKey: String(line.fuelKey ?? ''),
+        evidence: String(line.evidence ?? ''),
+        unit: String(line.unit ?? ''),
+        qty,
+        efId: String(line.efId ?? ''),
       };
-    });
-
-    const efMap = { byItemId: this.buildEfSelectionMap() };
-    const rows = this.canonicalSvc.buildFr041SelectionRows(splitRows, efMap, 11);
+      if (line.efCatalog) {
+        row.efCatalog = line.efCatalog;
+      }
+      const efKey = this.buildEfKey(line.efCatalog, line.efId);
+      if (efKey) {
+        row.efKey = efKey;
+      }
+      const sourceItemLabel = String(line.sourceItemLabel ?? '').trim();
+      if (sourceItemLabel) {
+        row.sourceItemLabel = sourceItemLabel;
+      }
+      rows.push(row);
+      rowNo += 1;
+    }
 
     this.dataEntrySvc.save(this.cycleId, {
       ...entryDoc,

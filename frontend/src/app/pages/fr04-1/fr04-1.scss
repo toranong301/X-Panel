@@ -359,10 +359,44 @@ button mat-progress-spinner {
   }
 }
 
+.main-table {
+  margin-top: 8px;
+  overflow-x: auto;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 6px 8px;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  thead th {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  tbody tr.missing {
+    background: #fff3e0;
+  }
+}
+
 .inline-error {
   color: #b00020;
   font-size: 11px;
   font-weight: 600;
+}
+
+.cell-sub {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  margin-top: 2px;
 }
 
 .ef-select {
@@ -393,4 +427,10 @@ button mat-progress-spinner {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.preview-controls {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 6px;
 }

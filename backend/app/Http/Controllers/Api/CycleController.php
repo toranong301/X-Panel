@@ -7,6 +7,7 @@ use App\Models\Cycle;
 use App\Models\Fr041Config;
 use App\Models\Scope11StationaryItem;
 use App\Services\EfResolverService;
+use App\Services\EfViewService;
 use App\Services\Fr041SelectionsV2Helper;
 use App\Services\MbaxTemplateService;
 use App\Services\Scope11PayloadService;
@@ -185,6 +186,7 @@ class CycleController extends Controller
         Scope11PayloadService $scope11Payload
     )
     {
+        $sheetKey = 'fr041';
         try {
             $cycle->refresh();
             $payload = $request->validate([
@@ -213,6 +215,9 @@ class CycleController extends Controller
                 : 'mbax';
             $profile = $registry->getProfile($profileId);
             if (!$profile) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Unknown templateId.');
+                }
                 return response()->json([
                     'code' => 'INVALID_TEMPLATE',
                     'message' => 'Unknown templateId.',
@@ -236,6 +241,9 @@ class CycleController extends Controller
             }
             $template = $registry->getTemplate($templateId);
             if (!$template) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Unknown templateId.');
+                }
                 return response()->json([
                     'code' => 'INVALID_TEMPLATE',
                     'message' => 'Unknown templateId.',
@@ -267,6 +275,9 @@ class CycleController extends Controller
                 }
             }
             if (!in_array($normalizedSheetId, $allowedSheetIds, true)) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Invalid sheetId.');
+                }
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => 'Invalid sheetId.',
@@ -277,6 +288,9 @@ class CycleController extends Controller
 
             $sheetConfig = $sheetRegistry->getSheet($templateId, $normalizedSheetId);
             if (!$sheetConfig) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Sheet mapping missing.');
+                }
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => 'Sheet mapping missing.',
@@ -286,12 +300,18 @@ class CycleController extends Controller
             $sheet = (string) ($sheetIdMap[$sheetKey]['sheetName'] ?? ($sheetConfig['name'] ?? ''));
             $range = trim((string) ($sheetConfig['previewRange'] ?? ''));
             if (trim($sheet) === '') {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Sheet mapping missing.');
+                }
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => 'Sheet mapping missing.',
                 ], 422);
             }
             if ($range === '') {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, 'Preview range missing.');
+                }
                 return response()->json([
                     'code' => 'INVALID_RANGE',
                     'message' => 'Preview range missing.',
@@ -333,12 +353,16 @@ class CycleController extends Controller
                         'templateId' => $templateId,
                         'error' => $e->getMessage(),
                     ]);
-                    $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
-                    $resolvedPath = $this->resolveTemplateBasePath($templateId, $registry);
-                    $loadSheetsOnly = array_merge($this->defaultPreviewSheets(), $requiredSheets);
-                    $spreadsheet = $this->loadSpreadsheet($resolvedPath, $loadSheetsOnly);
-                    $this->assertRequiredSheets($spreadsheet, $requiredSheets);
-                    $this->assertHiddenTables($spreadsheet, $requiredTables);
+                    try {
+                        $templateId = MbaxTemplateService::DEFAULT_TEMPLATE_ID;
+                        $resolvedPath = $this->resolveTemplateBasePath($templateId, $registry);
+                        $loadSheetsOnly = array_merge($this->defaultPreviewSheets(), $requiredSheets);
+                        $spreadsheet = $this->loadSpreadsheet($resolvedPath, $loadSheetsOnly);
+                        $this->assertRequiredSheets($spreadsheet, $requiredSheets);
+                        $this->assertHiddenTables($spreadsheet, $requiredTables);
+                    } catch (\Throwable $inner) {
+                        return $this->buildEmptyFr041PreviewResponse($cycle, $inner->getMessage());
+                    }
                 } else {
                     throw $e;
                 }
@@ -356,6 +380,9 @@ class CycleController extends Controller
             }
 
             if (!$spreadsheet->getSheetByName($sheet)) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, "Sheet not found: {$sheet}");
+                }
                 return response()->json([
                     'ok' => false,
                     'message' => "Sheet not found: {$sheet}",
@@ -430,12 +457,18 @@ class CycleController extends Controller
             $preview['previewVersion'] = optional($cycle->updated_at)->toIso8601String();
             return response()->json($preview);
         } catch (\InvalidArgumentException $e) {
+            if ($sheetKey === 'fr041') {
+                return $this->buildEmptyFr041PreviewResponse($cycle, $e->getMessage());
+            }
             return response()->json([
                 'code' => 'INVALID_RANGE',
                 'message' => $e->getMessage(),
             ], 422);
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'Sheet')) {
+                if ($sheetKey === 'fr041') {
+                    return $this->buildEmptyFr041PreviewResponse($cycle, $e->getMessage());
+                }
                 return response()->json([
                     'code' => 'INVALID_SHEET_ID',
                     'message' => $e->getMessage(),
@@ -450,6 +483,9 @@ class CycleController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
+            if ($sheetKey === 'fr041') {
+                return $this->buildEmptyFr041PreviewResponse($cycle, $e->getMessage());
+            }
             return response()->json([
                 'ok' => false,
                 'message' => $e->getMessage(),
@@ -614,9 +650,10 @@ class CycleController extends Controller
 
         $config = $this->loadFr041Config($cycle->id);
         $cycleYear = is_numeric($cycle->year ?? null) ? (int) $cycle->year : null;
-        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear);
+        $helperResult = Fr041SelectionsV2Helper::resolve($config ?? new Fr041Config(), $cycleYear, $rows->all());
         $useLegacyEfSelection = $helperResult->legacyFallbackUsed;
         $legacyMissingEf = 0;
+        $efViewMap = $useLegacyEfSelection ? [] : $this->buildEfViewMap($cycle);
 
         foreach ($rows as $row) {
             $rowId = trim((string) ($row->row_id ?? ''));
@@ -650,6 +687,15 @@ class CycleController extends Controller
         }
 
         $missingEf = $useLegacyEfSelection ? $legacyMissingEf : count($helperResult->missingEfLineIds);
+        if (!$useLegacyEfSelection && $helperResult->includedLines) {
+            foreach ($helperResult->includedLines as $line) {
+                $efKeyRaw = trim((string) ($line['efKey'] ?? ''));
+                if ($efKeyRaw === '') continue;
+                if (!array_key_exists(strtoupper($efKeyRaw), $efViewMap)) {
+                    $missingEf += 1;
+                }
+            }
+        }
 
         return [
             'hasData' => $hasData,
@@ -683,6 +729,19 @@ class CycleController extends Controller
             }
         }
         return false;
+    }
+
+    private function buildEfViewMap(Cycle $cycle): array
+    {
+        $options = app(EfViewService::class)->build($cycle, 'stationary', app(TemplateRegistry::class));
+        $out = [];
+        foreach ($options as $row) {
+            if (!is_array($row)) continue;
+            $key = strtoupper(trim((string) ($row['efKey'] ?? '')));
+            if ($key === '') continue;
+            $out[$key] = $row;
+        }
+        return $out;
     }
 
     private function buildScope11PayloadFromCycleData(array $data): array
@@ -932,6 +991,26 @@ class CycleController extends Controller
             'columns' => $preview['columns'],
             'rows' => $preview['rows'],
         ];
+    }
+
+    private function buildEmptyFr041PreviewResponse(Cycle $cycle, string $warning = ''): \Illuminate\Http\JsonResponse
+    {
+        $sheetName = 'Fr-04.1';
+        $blocks = [
+            $this->buildEmptyPreviewBlock($sheetName, 'A1:K10', 'header'),
+            $this->buildEmptyPreviewBlock($sheetName, 'A11:AO70', 'main'),
+        ];
+        $payload = [
+            'ok' => true,
+            'sheetId' => 'fr041',
+            'sheetName' => $sheetName,
+            'blocks' => $blocks,
+            'previewVersion' => optional($cycle->updated_at)->toIso8601String(),
+        ];
+        if (trim($warning) !== '') {
+            $payload['warning'] = $warning;
+        }
+        return response()->json($payload);
     }
 
     private function parseRange(string $range): array

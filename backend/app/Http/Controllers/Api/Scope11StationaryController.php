@@ -7,6 +7,7 @@ use App\Models\Cycle;
 use App\Models\Scope11StationaryItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -16,63 +17,75 @@ class Scope11StationaryController extends Controller
     {
         try {
             $year = $cycle->year ?? null;
-
-            if (Schema::hasTable('scope11_stationary_items')) {
-                $rows = Scope11StationaryItem::query()
-                    ->where('cycle_id', $cycle->id)
-                    ->orderBy('id')
-                    ->get()
-                    ->all();
-
-                $items = [];
-                $splitEnabled = false;
-
-                foreach ($rows as $row) {
-                    $rowId = trim((string) ($row->row_id ?? ''));
-                    if ($rowId === '') {
-                        continue;
-                    }
-
-                    $months = $this->normalizeMonths(is_array($row->months_json ?? null) ? $row->months_json : []);
-                    $total = $this->sumMonths($months);
-                    $unit = strtoupper(trim((string) ($row->unit ?? 'L')));
-                    if ($unit === 'L' && $this->hasAnyMonthValue($months)) {
-                        $splitEnabled = true;
-                    }
-
-                    $items[] = [
-                        'rowId' => $rowId,
-                        'itemLabel' => (string) ($row->item_label ?? ''),
-                        'evidenceType' => $row->evidence_type ?? null,
-                        'evidenceOther' => $row->evidence_other ?? null,
-                        'evidence' => (string) ($row->evidence ?? ''),
-                        'unit' => $unit,
-                        'fuelKey' => (string) ($row->fuel_key ?? ''),
-                        'otherType' => $row->other_type ?? null,
-                        'otherDieselPct' => $row->other_diesel_pct ?? null,
-                        'otherBiodieselPct' => $row->other_biodiesel_pct ?? null,
-                        'otherGasolinePct' => $row->other_gasoline_pct ?? null,
-                        'otherEthanolPct' => $row->other_ethanol_pct ?? null,
-                        'otherBiodieselDensityKgPerL' => $row->other_biodiesel_density_kg_per_l ?? null,
-                        'otherEthanolDensityKgPerL' => $row->other_ethanol_density_kg_per_l ?? null,
-                        'tankModeEnabled' => (bool) ($row->tank_mode_enabled ?? false),
-                        'tankCount' => $row->tank_count ?? null,
-                        'kgPerTank' => $row->kg_per_tank ?? null,
-                        'tankTargetMonth' => $row->tank_target_month ?? null,
-                        'computedKg' => $row->computed_kg ?? null,
-                        'months' => $months,
-                        'total' => $total,
-                    ];
-                }
-
+            if (!Schema::hasTable('scope11_stationary_items')) {
                 return response()->json([
                     'ok' => true,
-                    'splitEnabled' => $splitEnabled,
+                    'splitEnabled' => false,
                     'periodYear' => $year,
                     'headerMonths' => $this->emptyMonths(),
-                    'items' => $items,
+                    'items' => [],
                 ]);
             }
+
+            $rows = Scope11StationaryItem::query()
+                ->where('cycle_id', $cycle->id)
+                ->orderBy('id')
+                ->get()
+                ->all();
+
+            $items = [];
+            $splitEnabled = false;
+
+            foreach ($rows as $row) {
+                $rowId = trim((string) ($row->row_id ?? ''));
+                if ($rowId === '') {
+                    continue;
+                }
+
+                $months = $this->normalizeMonths(is_array($row->months_json ?? null) ? $row->months_json : []);
+                $total = $this->sumMonths($months);
+                $unit = strtoupper(trim((string) ($row->unit ?? 'L')));
+                if ($unit === 'L' && $this->hasAnyMonthValue($months)) {
+                    $splitEnabled = true;
+                }
+
+                $items[] = [
+                    'rowId' => $rowId,
+                    'itemLabel' => (string) ($row->item_label ?? ''),
+                    'evidenceType' => $row->evidence_type ?? null,
+                    'evidenceOther' => $row->evidence_other ?? null,
+                    'evidence' => (string) ($row->evidence ?? ''),
+                    'unit' => $unit,
+                    'fuelKey' => (string) ($row->fuel_key ?? ''),
+                    'otherType' => $row->other_type ?? null,
+                    'otherDieselPct' => $row->other_diesel_pct ?? null,
+                    'otherBiodieselPct' => $row->other_biodiesel_pct ?? null,
+                    'otherGasolinePct' => $row->other_gasoline_pct ?? null,
+                    'otherEthanolPct' => $row->other_ethanol_pct ?? null,
+                    'otherBiodieselDensityKgPerL' => $row->other_biodiesel_density_kg_per_l ?? null,
+                    'otherEthanolDensityKgPerL' => $row->other_ethanol_density_kg_per_l ?? null,
+                    'tankModeEnabled' => (bool) ($row->tank_mode_enabled ?? false),
+                    'tankCount' => $row->tank_count ?? null,
+                    'kgPerTank' => $row->kg_per_tank ?? null,
+                    'tankTargetMonth' => $row->tank_target_month ?? null,
+                    'computedKg' => $row->computed_kg ?? null,
+                    'months' => $months,
+                    'total' => $total,
+                ];
+            }
+
+            Log::debug('Scope11Stationary items loaded', [
+                'cycleId' => $cycle->id,
+                'count' => count($items),
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'splitEnabled' => $splitEnabled,
+                'periodYear' => $year,
+                'headerMonths' => $this->emptyMonths(),
+                'items' => $items,
+            ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'ok' => false,
@@ -80,33 +93,6 @@ class Scope11StationaryController extends Controller
                 'items' => [],
             ]);
         }
-
-        // fallback: legacy inventory-based payload (older flow)
-        $data = $cycle->data_json ?? [];
-        $data = is_array($data) ? $data : [];
-        $payload = $this->buildScope11PayloadFromCycleData($data);
-        $items = array_map(function (array $item) {
-            $months = $this->normalizeMonths($item['months'] ?? []);
-            $total = $this->sumMonths($months);
-            return [
-                'rowId' => (string) ($item['rowId'] ?? ''),
-                'itemLabel' => (string) ($item['label'] ?? ''),
-                'evidence' => (string) ($item['evidence'] ?? ''),
-                'unit' => (string) ($item['unit'] ?? ''),
-                'fuelKey' => (string) ($item['fuelKey'] ?? ''),
-                'otherType' => $item['otherType'] ?? null,
-                'months' => $months,
-                'total' => $total,
-            ];
-        }, $payload['items'] ?? []);
-
-        return response()->json([
-            'ok' => true,
-            'splitEnabled' => (bool) ($payload['splitEnabled'] ?? false),
-            'periodYear' => $payload['periodYear'] ?? null,
-            'headerMonths' => $this->normalizeMonths($payload['headerMonths'] ?? []),
-            'items' => $items,
-        ]);
     }
 
     public function save(Request $request, Cycle $cycle)
@@ -172,6 +158,20 @@ class Scope11StationaryController extends Controller
             throw ValidationException::withMessages($tankModeErrors);
         }
 
+        $table = 'scope11_stationary_items';
+        $hasOtherDieselPct = Schema::hasColumn($table, 'other_diesel_pct');
+        $hasOtherBiodieselPct = Schema::hasColumn($table, 'other_biodiesel_pct');
+        $hasOtherGasolinePct = Schema::hasColumn($table, 'other_gasoline_pct');
+        $hasOtherEthanolPct = Schema::hasColumn($table, 'other_ethanol_pct');
+        $hasOtherBiodieselDensity = Schema::hasColumn($table, 'other_biodiesel_density_kg_per_l');
+        $hasOtherEthanolDensity = Schema::hasColumn($table, 'other_ethanol_density_kg_per_l');
+        $hasTankModeEnabled = Schema::hasColumn($table, 'tank_mode_enabled');
+        $hasTankCount = Schema::hasColumn($table, 'tank_count');
+        $hasKgPerTank = Schema::hasColumn($table, 'kg_per_tank');
+        $hasTankTargetMonth = Schema::hasColumn($table, 'tank_target_month');
+        $hasComputedKg = Schema::hasColumn($table, 'computed_kg');
+        $columnLookup = array_fill_keys(Schema::getColumnListing($table), true);
+
         DB::beginTransaction();
         try {
             foreach ($items as $item) {
@@ -204,33 +204,62 @@ class Scope11StationaryController extends Controller
                 $tankMonthValue = $this->normalizeTankTargetMonth($item['tankTargetMonth'] ?? null);
                 $computedKgValue = $this->normalizeNumber($item['computedKg'] ?? null);
 
+                $update = [
+                    'item_label' => isset($item['itemLabel']) ? (string) $item['itemLabel'] : null,
+                    'evidence_type' => $evidenceType,
+                    'evidence_other' => $evidenceOther ?: null,
+                    'evidence' => $evidence ?: null,
+                    'unit' => strtoupper(trim((string) ($item['unit'] ?? 'L'))) ?: 'L',
+                    'fuel_key' => isset($item['fuelKey']) ? (string) $item['fuelKey'] : null,
+                    'other_type' => isset($item['otherType']) ? (string) $item['otherType'] : null,
+                    'months_json' => $months,
+                    'total' => $total,
+                ];
+
+                if ($hasOtherDieselPct) {
+                    $update['other_diesel_pct'] = $this->normalizeNumber($item['otherDieselPct'] ?? null);
+                }
+                if ($hasOtherBiodieselPct) {
+                    $update['other_biodiesel_pct'] = $this->normalizeNumber($item['otherBiodieselPct'] ?? null);
+                }
+                if ($hasOtherGasolinePct) {
+                    $update['other_gasoline_pct'] = $this->normalizeNumber($item['otherGasolinePct'] ?? null);
+                }
+                if ($hasOtherEthanolPct) {
+                    $update['other_ethanol_pct'] = $this->normalizeNumber($item['otherEthanolPct'] ?? null);
+                }
+                if ($hasOtherBiodieselDensity) {
+                    $update['other_biodiesel_density_kg_per_l'] = $this->normalizeNumber($item['otherBiodieselDensityKgPerL'] ?? null);
+                }
+                if ($hasOtherEthanolDensity) {
+                    $update['other_ethanol_density_kg_per_l'] = $this->normalizeNumber($item['otherEthanolDensityKgPerL'] ?? null);
+                }
+                if ($hasTankModeEnabled) {
+                    $update['tank_mode_enabled'] = $tankMode;
+                }
+                if ($hasTankCount) {
+                    $update['tank_count'] = $tankCountValue;
+                }
+                if ($hasKgPerTank) {
+                    $update['kg_per_tank'] = $kgPerTankValue;
+                }
+                if ($hasTankTargetMonth) {
+                    $update['tank_target_month'] = $tankMonthValue;
+                }
+                if ($hasComputedKg) {
+                    $update['computed_kg'] = $computedKgValue;
+                }
+
+                if ($columnLookup) {
+                    $update = array_intersect_key($update, $columnLookup);
+                }
+
                 Scope11StationaryItem::updateOrCreate(
                     [
                         'cycle_id' => $cycle->id,
                         'row_id' => $rowId,
                     ],
-                    [
-                        'item_label' => isset($item['itemLabel']) ? (string) $item['itemLabel'] : null,
-                        'evidence_type' => $evidenceType,
-                        'evidence_other' => $evidenceOther ?: null,
-                        'evidence' => $evidence ?: null,
-                        'unit' => strtoupper(trim((string) ($item['unit'] ?? 'L'))) ?: 'L',
-                        'fuel_key' => isset($item['fuelKey']) ? (string) $item['fuelKey'] : null,
-                        'other_type' => isset($item['otherType']) ? (string) $item['otherType'] : null,
-                        'other_diesel_pct' => $this->normalizeNumber($item['otherDieselPct'] ?? null),
-                        'other_biodiesel_pct' => $this->normalizeNumber($item['otherBiodieselPct'] ?? null),
-                        'other_gasoline_pct' => $this->normalizeNumber($item['otherGasolinePct'] ?? null),
-                        'other_ethanol_pct' => $this->normalizeNumber($item['otherEthanolPct'] ?? null),
-                        'other_biodiesel_density_kg_per_l' => $this->normalizeNumber($item['otherBiodieselDensityKgPerL'] ?? null),
-                        'other_ethanol_density_kg_per_l' => $this->normalizeNumber($item['otherEthanolDensityKgPerL'] ?? null),
-                        'tank_mode_enabled' => $tankMode,
-                        'tank_count' => $tankCountValue,
-                        'kg_per_tank' => $kgPerTankValue,
-                        'tank_target_month' => $tankMonthValue,
-                        'computed_kg' => $computedKgValue,
-                        'months_json' => $months,
-                        'total' => $total,
-                    ]
+                    $update
                 );
             }
 
@@ -247,6 +276,11 @@ class Scope11StationaryController extends Controller
                 'message' => $e->getMessage(),
             ]);
         }
+
+        Log::info('Scope11Stationary items saved', [
+            'cycleId' => $cycle->id,
+            'count' => count($rowIds),
+        ]);
 
         return response()->json([
             'ok' => true,

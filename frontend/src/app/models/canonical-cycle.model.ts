@@ -42,6 +42,7 @@ export interface CanonicalCycleData {
   fr031?: Fr031Data | null;
 
   fr041Selection?: any[];
+  efViewOptions?: any[];
 
   cfoGhg: CfoGhgBundle;
 }

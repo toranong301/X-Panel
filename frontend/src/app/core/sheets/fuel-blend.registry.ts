@@ -20,6 +20,7 @@ export type FuelBlendRule = {
 };
 
 export const FUEL_BLEND_RULES: FuelBlendRule[] = [
+  // From MBAX template: '1.1 Stationary '!G4=F4*0.93, J5=F5*0.9, '1.2 Mobile'!J8=F8*0.8
   { key: 'B7', label: 'B7', dieselFrac: 0.93, biodieselFrac: 0.07, gasolineFrac: 0, ethanolFrac: 0 },
   { key: 'B10', label: 'B10', dieselFrac: 0.9, biodieselFrac: 0.1, gasolineFrac: 0, ethanolFrac: 0 },
   { key: '91/95', label: '91/95', dieselFrac: 0, biodieselFrac: 0, gasolineFrac: 0.9, ethanolFrac: 0.1 },
@@ -30,6 +31,7 @@ export const FUEL_BLEND_RULES: FuelBlendRule[] = [
 ];
 
 export const FUEL_DENSITY = {
+  // From MBAX template: '1.1 Stationary '!I4=H4*0.87, L5=K5*0.79
   biodieselKgPerL: 0.87,
   ethanolKgPerL: 0.79,
 };
@@ -47,6 +49,13 @@ export function resolveBlendKey(fuelKey?: string, typeLabel?: string): FuelBlend
   if (type === '91/95' || type === '91-95') return '91/95';
   if (type === 'E20') return 'E20';
   if (type === 'LPG') return 'LPG';
+
+  if (raw === 'B7') return 'B7';
+  if (raw === 'B10') return 'B10';
+  if (raw === '91/95' || raw === '91-95') return '91/95';
+  if (raw === 'E20') return 'E20';
+  if (raw === 'LPG') return 'LPG';
+  if (raw === 'FUEL_OIL' || raw === 'FUEL OIL') return 'FUEL_OIL';
   if (type === 'น้ำมันเตา' || type === 'FUEL OIL') return 'FUEL_OIL';
 
   if (raw.includes('DIESEL_B7')) return 'B7';
@@ -66,9 +75,15 @@ export function resolveBlendKey(fuelKey?: string, typeLabel?: string): FuelBlend
 export function computeBlendFromAnnualL(annualL: number, key: FuelBlendKey) {
   const rule = findBlendRule(key);
   const dieselL = annualL * rule.dieselFrac;
-  const biodieselL = annualL * rule.biodieselFrac;
+  const biodieselL =
+    rule.dieselFrac > 0 && rule.biodieselFrac > 0
+      ? annualL - dieselL
+      : annualL * rule.biodieselFrac;
   const gasolineL = annualL * rule.gasolineFrac;
-  const ethanolL = annualL * rule.ethanolFrac;
+  const ethanolL =
+    rule.gasolineFrac > 0 && rule.ethanolFrac > 0
+      ? annualL - gasolineL
+      : annualL * rule.ethanolFrac;
   return {
     dieselL,
     biodieselL,
@@ -119,5 +134,36 @@ export function computeBlendFromSpec(
     gasolineL,
     ethanolL,
     ethanolKg: ethanolL * ethanolKgPerL,
+  };
+}
+
+export function explainBlend(annualL: number, key: FuelBlendKey) {
+  const rule = findBlendRule(key);
+  const dieselL = annualL * rule.dieselFrac;
+  const biodieselL =
+    rule.dieselFrac > 0 && rule.biodieselFrac > 0
+      ? annualL - dieselL
+      : annualL * rule.biodieselFrac;
+  const gasolineL = annualL * rule.gasolineFrac;
+  const ethanolL =
+    rule.gasolineFrac > 0 && rule.ethanolFrac > 0
+      ? annualL - gasolineL
+      : annualL * rule.ethanolFrac;
+
+  return {
+    key,
+    annualL,
+    dieselFrac: rule.dieselFrac,
+    biodieselFrac: rule.biodieselFrac,
+    gasolineFrac: rule.gasolineFrac,
+    ethanolFrac: rule.ethanolFrac,
+    biodieselKgPerL: FUEL_DENSITY.biodieselKgPerL,
+    ethanolKgPerL: FUEL_DENSITY.ethanolKgPerL,
+    dieselL,
+    biodieselL,
+    biodieselKg: biodieselL * FUEL_DENSITY.biodieselKgPerL,
+    gasolineL,
+    ethanolL,
+    ethanolKg: ethanolL * FUEL_DENSITY.ethanolKgPerL,
   };
 }

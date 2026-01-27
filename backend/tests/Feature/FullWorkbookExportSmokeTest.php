@@ -294,6 +294,84 @@ class FullWorkbookExportSmokeTest extends TestCase
         $this->assertSelectionRowEf($selectionSheet, $headerMap, 'ROW_B7::BIODIESEL_KG', 'EF1', 'EF1_BIODIESEL');
     }
 
+    public function test_export_component_lines_and_tonco2e_formula(): void
+    {
+        $this->prepareMbaxTemplate();
+
+        $cycle = Cycle::query()->create([
+            'year' => 2025,
+            'name' => 'Selection formula cycle',
+            'template_id' => 'mbax',
+            'data_json' => [],
+        ]);
+
+        Scope11StationaryItem::query()->create([
+            'cycle_id' => $cycle->id,
+            'row_id' => 'ROW_B7',
+            'item_label' => 'Diesel B7',
+            'unit' => 'L',
+            'fuel_key' => 'B7',
+            'months_json' => ['M1' => 100],
+            'total' => 100,
+        ]);
+
+        Fr041Config::query()->create([
+            'cycle_id' => $cycle->id,
+            'sheet_id' => 'fr041',
+            'section' => 'scope1_stationary',
+            'selected_row_ids' => ['ROW_B7'],
+            'options' => [
+                'selections_v2' => [
+                    [
+                        'lineId' => 'ROW_B7::DIESEL_L',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'DIESEL_L',
+                        'include' => true,
+                        'efCatalog' => 'AR5',
+                        'efId' => 'AR5_DIESEL',
+                    ],
+                    [
+                        'lineId' => 'ROW_B7::BIODIESEL_KG',
+                        'parentRowId' => 'ROW_B7',
+                        'component' => 'BIODIESEL_KG',
+                        'include' => true,
+                        'efCatalog' => 'EF1',
+                        'efId' => 'EF1_BIODIESEL',
+                    ],
+                ],
+            ],
+        ]);
+
+        $resp = $this->postJson(
+            "/api/cycles/{$cycle->id}/export",
+            ['templateId' => 'MBAX_TGO_11102567'],
+            $this->apiHeaders()
+        );
+
+        $resp->assertStatus(200);
+        $file = $resp->baseResponse->getFile();
+        $this->assertNotNull($file);
+        $this->assertFileExists($file->getPathname());
+
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(false);
+        $out = $reader->load($file->getPathname());
+
+        $selectionSheet = $out->getSheetByName('_FR041_SEL');
+        $this->assertNotNull($selectionSheet);
+        $headerMap = $this->selectionHeaderMap($selectionSheet);
+        $this->assertNotNull($this->findSelectionRow($selectionSheet, $headerMap, 'ROW_B7::DIESEL_L'));
+        $this->assertNotNull($this->findSelectionRow($selectionSheet, $headerMap, 'ROW_B7::BIODIESEL_KG'));
+
+        $fr041 = $out->getSheetByName('Fr-04.1');
+        $this->assertNotNull($fr041);
+        $totalFormula = (string) $fr041->getCell('Q11')->getValue();
+        $this->assertStringContainsString('EF_VIEW', strtoupper($totalFormula));
+        $tonFormula = (string) $fr041->getCell('AO11')->getValue();
+        $this->assertStringContainsString('D11', strtoupper($tonFormula));
+        $this->assertStringContainsString('Q11', strtoupper($tonFormula));
+    }
+
     private function prepareMbaxTemplate(): void
     {
         $tpl = base_path('../shared/templates/mbax/MBAX-TGO-11102567-Demo.xlsx');

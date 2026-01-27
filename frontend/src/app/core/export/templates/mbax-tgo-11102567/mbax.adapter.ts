@@ -39,7 +39,9 @@ export class MBAX_TGO_11102567_Adapter implements TemplateAdapter {
     // ✅ NEW: เขียนชีทย่อย Scope 1.1 และ 1.2 (เขียนเฉพาะ input รายเดือน)
     this.writeScope11Stationary(ctx);
     this.writeScope12Mobile(ctx);
-    this.writeFr041SelectionTable(ctx);
+    const fr041SelectionRows = this.writeFr041SelectionTable(ctx);
+    this.writeEfViewSheet(ctx);
+    this.writeFr041EfViewFormulas(ctx, fr041SelectionRows);
     this.writeScope142FireSuppression(ctx);
     this.writeScope143Septic(ctx);
     this.writeScope144Fertilizer(ctx);
@@ -568,6 +570,14 @@ const screenRow =
     target.value = value === '' ? null : value;
   }
 
+  private setFormula(ws: any, cellRef: string, formula: string) {
+    const cell = ws.getCell(cellRef);
+    const target = cell?.master ?? cell;
+    const existing = target?.formula || target?.value?.formula;
+    if (existing === formula) return;
+    target.value = { formula };
+  }
+
   private getCellText(value: any): string {
     if (value == null) return '';
     if (typeof value === 'string') return value.trim();
@@ -581,9 +591,9 @@ const screenRow =
     return String(value).trim();
   }
 
-  private writeFr041SelectionTable(ctx: ExportContext): void {
+  private writeFr041SelectionTable(ctx: ExportContext): Fr041SelRow[] {
     const ws = ctx.workbook.getWorksheet('_FR041_SEL');
-    if (!ws) return;
+    if (!ws) return [];
 
     const tableName = 'T_FR041_SEL';
     const table = typeof ws.getTable === 'function' ? ws.getTable(tableName) : (ws as any)?.tables?.[tableName];
@@ -599,39 +609,195 @@ const screenRow =
     const inputRows: any[] = Array.isArray(rawRows) ? rawRows : [];
     const startRowNo = 11;
 
-    const normalized: Fr041SelRow[] = inputRows
-      .map((r, idx) => {
-        if (!r || typeof r !== 'object') return null;
-        const rowNoRaw = Number((r as any).rowNo);
-        const rowNo = Number.isFinite(rowNoRaw) ? rowNoRaw : startRowNo + idx;
-        return {
-          rowNo,
-          itemId: String((r as any).itemId ?? (r as any).rowId ?? (r as any).id ?? ''),
-          itemName: String((r as any).itemName ?? (r as any).itemLabel ?? (r as any).label ?? ''),
-          fuelKey: String((r as any).fuelKey ?? (r as any).fuelType ?? ''),
-          evidence: String((r as any).evidence ?? (r as any).dataEvidence ?? ''),
-          unit: String((r as any).unit ?? ''),
-          qty: this.parseNumberOrNull((r as any).qty ?? (r as any).total ?? (r as any).quantity),
-          efId: String((r as any).efId ?? ''),
-        };
-      })
-      .filter((r): r is Fr041SelRow => Boolean(r));
+    const normalized: Fr041SelRow[] = [];
+    inputRows.forEach((r, idx) => {
+      if (!r || typeof r !== 'object') return;
+      const rowNoRaw = Number((r as any).rowNo);
+      const rowNo = Number.isFinite(rowNoRaw) ? rowNoRaw : startRowNo + idx;
+      const efCatalog = String((r as any).efCatalog ?? '');
+      const efId = String((r as any).efId ?? '');
+      const efKeyRaw = String((r as any).efKey ?? '');
+      const efKey = efKeyRaw || (efCatalog && efId ? `${efCatalog}::${efId}` : '');
+      const row: Fr041SelRow = {
+        rowNo,
+        itemId: String((r as any).itemId ?? (r as any).rowId ?? (r as any).id ?? ''),
+        itemName: String((r as any).itemName ?? (r as any).itemLabel ?? (r as any).label ?? ''),
+        fuelKey: String((r as any).fuelKey ?? (r as any).fuelType ?? ''),
+        evidence: String((r as any).evidence ?? (r as any).dataEvidence ?? ''),
+        unit: String((r as any).unit ?? ''),
+        qty: this.parseNumberOrNull((r as any).qty ?? (r as any).total ?? (r as any).quantity),
+        efId,
+      };
+      if (efCatalog) {
+        row.efCatalog = efCatalog;
+      }
+      if (efKey) {
+        row.efKey = efKey;
+      }
+      const sourceItemLabel = String((r as any).sourceItemLabel ?? '').trim();
+      if (sourceItemLabel) {
+        row.sourceItemLabel = sourceItemLabel;
+      }
+      normalized.push(row);
+    });
 
     if (typeof table.removeRows === 'function' && table.rowCount > 0) {
       table.removeRows(0, table.rowCount);
     }
 
-    if (!normalized.length) return;
+    if (!normalized.length) return normalized;
 
-    const columns = ['rowNo', 'itemId', 'itemName', 'fuelKey', 'evidence', 'unit', 'qty', 'efId'] as const;
-    const values = normalized.map(row => columns.map(col => (row as any)[col] ?? null));
+    const tableColumns = Array.isArray((table as any).columns)
+      ? (table as any).columns
+          .map((col: any) => String(col?.name ?? '').trim())
+          .filter((name: string) => name)
+      : [];
+    const columns: string[] = tableColumns.length
+      ? tableColumns
+      : ['rowNo', 'itemId', 'itemName', 'fuelKey', 'evidence', 'unit', 'qty', 'efId'];
+    const values = normalized.map(row => columns.map((col: string) => (row as any)[col] ?? null));
 
     if (typeof table.addRows === 'function') {
       table.addRows(values);
-      return;
+      return normalized;
     }
 
     throw new Error(`Table API addRows not available for ${tableName}`);
+  }
+
+  private writeEfViewSheet(ctx: ExportContext): void {
+    const rawOptions = (ctx.canonical as any)?.efViewOptions ?? [];
+    const options: any[] = Array.isArray(rawOptions) ? rawOptions : [];
+    let ws = ctx.workbook.getWorksheet('EF_VIEW');
+    if (!ws) {
+      ws = ctx.workbook.addWorksheet('EF_VIEW');
+    }
+
+    if (typeof ws.spliceRows === 'function' && ws.rowCount > 0) {
+      ws.spliceRows(1, ws.rowCount);
+    }
+
+    const headers = [
+      'efKey',
+      'catalog',
+      'efId',
+      'name',
+      'unit',
+      'CO2',
+      'Fossil CH4',
+      'CH4',
+      'N2O',
+      'SF6',
+      'NF3',
+      'HFCs',
+      'PFCs',
+      'Other',
+      'Total',
+      'Source',
+    ];
+    if (typeof ws.addRow === 'function') {
+      ws.addRow(headers);
+    } else {
+      headers.forEach((value, idx) => {
+        ws.getCell(1, idx + 1).value = value;
+      });
+    }
+
+    const toText = (value: any): string | null => {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'string') return value === '' ? null : value;
+      const text = String(value);
+      return text === '' ? null : text;
+    };
+
+    for (const option of options) {
+      const row = [
+        toText(option?.efKey),
+        toText(option?.catalog),
+        toText(option?.efId),
+        toText(option?.name),
+        toText(option?.unit),
+        this.parseNumberOrNull((option as any)?.CO2),
+        this.parseNumberOrNull((option as any)?.['Fossil CH4']),
+        this.parseNumberOrNull((option as any)?.CH4),
+        this.parseNumberOrNull((option as any)?.N2O),
+        this.parseNumberOrNull((option as any)?.SF6),
+        this.parseNumberOrNull((option as any)?.NF3),
+        this.parseNumberOrNull((option as any)?.HFCs),
+        this.parseNumberOrNull((option as any)?.PFCs),
+        this.parseNumberOrNull((option as any)?.Other),
+        this.parseNumberOrNull((option as any)?.Total),
+        toText((option as any)?.Source),
+      ];
+      if (typeof ws.addRow === 'function') {
+        ws.addRow(row);
+      } else {
+        const rowIndex = ws.rowCount + 1;
+        row.forEach((value, idx) => {
+          ws.getCell(rowIndex, idx + 1).value = value;
+        });
+      }
+    }
+  }
+
+  private writeFr041EfViewFormulas(ctx: ExportContext, selectionRows: Fr041SelRow[]): void {
+    const sheetName = ctx.spec.sheets['fr041']?.name ?? 'Fr-04.1';
+    const ws = ctx.workbook.getWorksheet(sheetName);
+    if (!ws) return;
+
+    const header = this.getCellText(ws.getCell('E9')?.value).toUpperCase();
+    if (header !== 'CO2') return;
+
+    const efKeyColumn = 'AZ';
+    const useXLookup = Boolean(ctx.spec.excelFeatures?.xlookup);
+    const efViewSheet = 'EF_VIEW';
+    const efKeyRange = `'${efViewSheet}'!$A:$A`;
+    const efViewRange = `'${efViewSheet}'!$A:$P`;
+
+    const lookupMap = [
+      { target: 'E', efCol: 'F', index: 6 },
+      { target: 'F', efCol: 'G', index: 7 },
+      { target: 'G', efCol: 'H', index: 8 },
+      { target: 'H', efCol: 'I', index: 9 },
+      { target: 'I', efCol: 'J', index: 10 },
+      { target: 'J', efCol: 'K', index: 11 },
+      { target: 'K', efCol: 'L', index: 12 },
+      { target: 'L', efCol: 'M', index: 13 },
+      { target: 'O', efCol: 'N', index: 14 },
+      { target: 'Q', efCol: 'O', index: 15 },
+    ];
+
+    const buildEfKey = (row: Fr041SelRow): string => {
+      const direct = String((row as any).efKey ?? '').trim();
+      if (direct) return direct;
+      const efId = String((row as any).efId ?? '').trim();
+      if (efId.includes('::')) return efId;
+      const efCatalog = String((row as any).efCatalog ?? '').trim();
+      if (efCatalog && efId) return `${efCatalog}::${efId}`;
+      return '';
+    };
+
+    const rows = Array.isArray(selectionRows) ? selectionRows : [];
+    for (const row of rows) {
+      const rowNo = Number((row as any).rowNo);
+      if (!Number.isFinite(rowNo)) continue;
+      if (rowNo < 11 || rowNo > 40) continue;
+
+      const efKey = buildEfKey(row);
+      this.setCellValueSafely(ws, `${efKeyColumn}${rowNo}`, efKey || null);
+
+      const keyRef = `$${efKeyColumn}${rowNo}`;
+      for (const entry of lookupMap) {
+        const formula = useXLookup
+          ? `=IF(${keyRef}="",0,XLOOKUP(${keyRef},${efKeyRange},'${efViewSheet}'!$${entry.efCol}:$${entry.efCol},0))`
+          : `=IF(${keyRef}="",0,IFERROR(VLOOKUP(${keyRef},${efViewRange},${entry.index},FALSE),0))`;
+        this.setFormula(ws, `${entry.target}${rowNo}`, formula);
+      }
+    }
+
+    if (typeof ws.getColumn === 'function') {
+      ws.getColumn(efKeyColumn).hidden = true;
+    }
   }
 
   private writeScope11Stationary(ctx: ExportContext): Record<string, { sheetName: string; totalCell: string }> {

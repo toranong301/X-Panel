@@ -100,4 +100,45 @@ class Fr041ConfigTest extends TestCase
         $this->assertArrayHasKey('selections_v2', $config->options ?? []);
         $this->assertCount(1, $config->options['selections_v2'] ?? []);
     }
+
+    public function test_update_preserves_existing_options_when_missing_in_payload(): void
+    {
+        $cycle = Cycle::create([
+            'year' => 2025,
+            'name' => 'FR-04.1 Merge',
+            'data_json' => [],
+        ]);
+
+        Fr041Config::create([
+            'cycle_id' => $cycle->id,
+            'sheet_id' => 'fr041',
+            'section' => 'scope1_stationary',
+            'selected_row_ids' => ['ROW_OLD'],
+            'options' => [
+                'templateSetId' => 'vsheet_base',
+                'selections_v2' => [
+                    [
+                        'lineId' => 'ROW_OLD::DIESEL_L',
+                        'parentRowId' => 'ROW_OLD',
+                        'component' => 'DIESEL_L',
+                        'include' => true,
+                        'efCatalog' => 'AR5',
+                        'efId' => 'EF_OLD',
+                    ],
+                ],
+            ],
+        ]);
+
+        $payload = [
+            'selectedRowIds' => ['ROW_NEW'],
+        ];
+
+        $resp = $this->putJson("/api/cycles/{$cycle->id}/fr041/config", $payload, $this->apiHeaders());
+        $resp->assertStatus(200);
+
+        $config = Fr041Config::query()->first();
+        $this->assertNotNull($config);
+        $this->assertSame('vsheet_base', $config->options['templateSetId'] ?? null);
+        $this->assertNotEmpty($config->options['selections_v2'] ?? []);
+    }
 }
